@@ -99,6 +99,38 @@ export default function IncomePage() {
   const [selectedFY, setSelectedFY] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("");
 
+  // Bulk selection state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkType, setBulkType] = useState("");
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filtered.length) setSelectedIds(new Set());
+    else setSelectedIds(new Set(filtered.map((e) => e._id)));
+  };
+  const handleBulkTypeChange = async (type: string) => {
+    for (const id of Array.from(selectedIds)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await updateIncome({ id: id as any, type: type as any });
+    }
+    setSelectedIds(new Set());
+    setBulkType("");
+  };
+  const handleBulkDelete = async () => {
+    if (!confirm(`Delete ${selectedIds.size} entries?`)) return;
+    for (const id of Array.from(selectedIds)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await deleteIncome({ id: id as any });
+    }
+    setSelectedIds(new Set());
+  };
+
   // ---------------------------------------------------------------------------
   // Derived data
   // ---------------------------------------------------------------------------
@@ -465,8 +497,26 @@ export default function IncomePage() {
 
         {/* ---- Income Entries Table ---- */}
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-text-primary font-display">Income Entries</CardTitle>
+            {selectedIds.size > 0 && (
+              <div className="flex items-center gap-2 text-sm animate-page-enter">
+                <span className="text-text-secondary font-medium">{selectedIds.size} selected</span>
+                <select
+                  value={bulkType}
+                  onChange={(e) => { if (e.target.value) handleBulkTypeChange(e.target.value); }}
+                  className="text-xs rounded-lg border border-gray-200 px-2 py-1.5 bg-white focus:border-accent focus:outline-none cursor-pointer"
+                >
+                  <option value="">Change Type...</option>
+                  {INCOME_TYPES.map((t) => (
+                    <option key={t.value} value={t.value}>{t.label}</option>
+                  ))}
+                </select>
+                <Button size="sm" variant="destructive" onClick={handleBulkDelete} className="text-xs h-7">
+                  <Trash2 className="h-3 w-3 mr-1" /> Delete
+                </Button>
+              </div>
+            )}
           </CardHeader>
           <CardContent>
             {safeEntries.length === 0 ? (
@@ -480,6 +530,14 @@ export default function IncomePage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border text-text-secondary text-left">
+                      <th className="pb-3 pr-2 font-medium w-10">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.size === filtered.length && filtered.length > 0}
+                          onChange={toggleSelectAll}
+                          className="rounded border-gray-300 text-accent focus:ring-accent/20"
+                        />
+                      </th>
                       <th className="pb-3 pr-4 font-medium">Date</th>
                       <th className="pb-3 pr-4 font-medium">Type</th>
                       <th className="pb-3 pr-4 font-medium">Payee</th>
@@ -498,6 +556,14 @@ export default function IncomePage() {
                           key={entry._id}
                           className="border-b border-border-light transition-colors duration-150 hover:bg-accent/[0.02] hover:border-l-2 hover:border-l-accent"
                         >
+                          <td className="py-3 pr-2">
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.has(entry._id)}
+                              onChange={() => toggleSelect(entry._id)}
+                              className="rounded border-gray-300 text-accent focus:ring-accent/20"
+                            />
+                          </td>
                           <td className="py-3 pr-4 text-text-secondary">{formatDate(entry.date)}</td>
                           <td className="py-3 pr-4">
                             <select
@@ -550,7 +616,7 @@ export default function IncomePage() {
                     })}
                     {filtered.length === 0 && (
                       <tr>
-                        <td colSpan={8} className="py-8 text-center text-text-tertiary">
+                        <td colSpan={9} className="py-8 text-center text-text-tertiary">
                           No income entries match the selected filters.
                         </td>
                       </tr>

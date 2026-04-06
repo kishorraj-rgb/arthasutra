@@ -166,6 +166,49 @@ export default function ExpensesPage() {
   const [selectedMonth, setSelectedMonth] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
 
+  // Bulk selection state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkCategory, setBulkCategory] = useState("");
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filtered.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filtered.map((e) => e._id)));
+    }
+  };
+  const handleBulkCategoryChange = async (cat: string) => {
+    for (const id of Array.from(selectedIds)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await updateExpense({ id: id as any, category: cat as any });
+    }
+    setSelectedIds(new Set());
+    setBulkCategory("");
+  };
+  const handleBulkToggleBusiness = async (isBusiness: boolean) => {
+    for (const id of Array.from(selectedIds)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await updateExpense({ id: id as any, is_business_expense: isBusiness });
+    }
+    setSelectedIds(new Set());
+  };
+  const handleBulkDelete = async () => {
+    if (!confirm(`Delete ${selectedIds.size} entries?`)) return;
+    for (const id of Array.from(selectedIds)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await deleteExpense({ id: id as any });
+    }
+    setSelectedIds(new Set());
+  };
+
   // Form state
   const [formDate, setFormDate] = useState("");
   const [formAmount, setFormAmount] = useState("");
@@ -511,17 +554,49 @@ export default function ExpensesPage() {
 
         {/* ---- Expense Entries List ---- */}
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2 text-lg">
               <Receipt className="h-5 w-5 text-accent-light" />
               Expense Entries
             </CardTitle>
+            {selectedIds.size > 0 && (
+              <div className="flex items-center gap-2 text-sm animate-page-enter">
+                <span className="text-text-secondary font-medium">{selectedIds.size} selected</span>
+                <select
+                  value={bulkCategory}
+                  onChange={(e) => { if (e.target.value) handleBulkCategoryChange(e.target.value); }}
+                  className="text-xs rounded-lg border border-gray-200 px-2 py-1.5 bg-white focus:border-accent focus:outline-none cursor-pointer"
+                >
+                  <option value="">Change Category...</option>
+                  {EXPENSE_CATEGORIES.map((c) => (
+                    <option key={c.value} value={c.value}>{c.label}</option>
+                  ))}
+                </select>
+                <Button size="sm" variant="outline" onClick={() => handleBulkToggleBusiness(true)} className="text-xs h-7">
+                  Mark Business
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => handleBulkToggleBusiness(false)} className="text-xs h-7">
+                  Mark Personal
+                </Button>
+                <Button size="sm" variant="destructive" onClick={handleBulkDelete} className="text-xs h-7">
+                  <Trash2 className="h-3 w-3 mr-1" /> Delete
+                </Button>
+              </div>
+            )}
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-text-tertiary">
+                    <th className="px-3 py-3 w-10">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.size === filtered.length && filtered.length > 0}
+                        onChange={toggleSelectAll}
+                        className="rounded border-gray-300 text-accent focus:ring-accent/20"
+                      />
+                    </th>
                     <th className="px-5 py-3">Date</th>
                     <th className="px-5 py-3">Category</th>
                     <th className="px-5 py-3">Payee</th>
@@ -540,6 +615,14 @@ export default function ExpensesPage() {
                         key={expense._id}
                         className="border-b border-border-light transition-colors duration-150 hover:bg-accent/[0.02] hover:border-l-2 hover:border-l-accent"
                       >
+                        <td className="px-3 py-3.5">
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.has(expense._id)}
+                            onChange={() => toggleSelect(expense._id)}
+                            className="rounded border-gray-300 text-accent focus:ring-accent/20"
+                          />
+                        </td>
                         <td className="whitespace-nowrap px-5 py-3.5 text-text-secondary">
                           {new Date(expense.date).toLocaleDateString("en-IN", {
                             day: "2-digit",
@@ -609,7 +692,7 @@ export default function ExpensesPage() {
                   {allExpenses.length === 0 && (
                     <tr>
                       <td
-                        colSpan={7}
+                        colSpan={9}
                         className="px-5 py-10 text-center text-text-tertiary"
                       >
                         No expenses recorded yet. Add your first expense.
@@ -619,7 +702,7 @@ export default function ExpensesPage() {
                   {allExpenses.length > 0 && filtered.length === 0 && (
                     <tr>
                       <td
-                        colSpan={7}
+                        colSpan={9}
                         className="px-5 py-10 text-center text-text-tertiary"
                       >
                         No expenses match the current filters.
