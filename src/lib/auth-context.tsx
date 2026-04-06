@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
+import { useSession, signOut } from "next-auth/react";
 
 interface User {
   userId: Id<"users">;
@@ -25,6 +26,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const { data: googleSession, status: googleStatus } = useSession();
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [autoLoginAttempted, setAutoLoginAttempted] = useState(false);
@@ -33,7 +35,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logoutMutation = useMutation(api.auth.logout);
   const session = useQuery(api.auth.getSession, token ? { token } : "skip");
 
-  // On mount, check for stored token
+  // On mount, check for stored Convex token
   useEffect(() => {
     const stored = localStorage.getItem("arthasutra_token");
     if (stored) {
@@ -42,32 +44,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(false);
   }, []);
 
-  // Auto-login if no valid session
+  // When Google session is available and we don't have a Convex session, auto-login to Convex
   useEffect(() => {
-    if (isLoading || autoLoginAttempted) return;
+    if (isLoading || autoLoginAttempted || googleStatus === "loading") return;
 
-    // If we have a token and session loaded successfully, we're good
-    if (token && session !== undefined) {
-      if (session) {
-        // Valid session exists
-        return;
-      }
-      // Token exists but session is null (expired) — clear and auto-login
+    // If Google is not authenticated, don't try Convex auto-login
+    if (googleStatus !== "authenticated" || !googleSession?.user) return;
+
+    // If we already have a valid Convex token + session, we're good
+    if (token && session) return;
+
+    // If token exists but session is null (expired), clear it
+    if (token && session === null) {
       localStorage.removeItem("arthasutra_token");
       setToken(null);
     }
 
-    // No token or expired session — auto-login
-    if (!token) {
+    // Auto-login to Convex (creates user if needed)
+    if (!token || session === null) {
       setAutoLoginAttempted(true);
       autoLogin({}).then((result) => {
         localStorage.setItem("arthasutra_token", result.token);
         setToken(result.token);
       }).catch((err) => {
-        console.error("Auto-login failed:", err);
+        console.error("Convex auto-login failed:", err);
       });
     }
-  }, [isLoading, token, session, autoLoginAttempted, autoLogin]);
+  }, [isLoading, token, session, autoLoginAttempted, autoLogin, googleSession, googleStatus]);
 
   const logout = useCallback(async () => {
     if (token) {
@@ -75,7 +78,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     localStorage.removeItem("arthasutra_token");
     setToken(null);
-    setAutoLoginAttempted(false); // Allow re-login
+    setAutoLoginAttempted(false);
+    await signOut({ callbackUrl: "/auth" });
   }, [token, logoutMutation]);
 
   const user: User | null = session

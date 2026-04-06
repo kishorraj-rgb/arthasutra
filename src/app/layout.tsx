@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { ConvexClientProvider } from "@/components/convex-provider";
+import { NextAuthProvider } from "@/components/session-provider";
 
 export const metadata: Metadata = {
   title: "ArthaSutra - अर्थसूत्र | Indian Personal Finance Manager",
@@ -15,7 +16,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="antialiased bg-surface-secondary text-text-primary min-h-screen">
-        <ConvexClientProvider>{children}</ConvexClientProvider>
+        <NextAuthProvider>
+          <ConvexClientProvider>{children}</ConvexClientProvider>
+        </NextAuthProvider>
       </body>
     </html>
   );
