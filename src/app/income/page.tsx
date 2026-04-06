@@ -28,7 +28,9 @@ import {
   Edit,
   Trash2,
   Search,
+  Download,
 } from "lucide-react";
+import { exportIncomeToExcel } from "@/lib/export-excel";
 import {
   BarChart,
   Bar,
@@ -132,10 +134,12 @@ export default function IncomePage() {
     return sorted;
   }, [safeEntries]);
 
-  // Auto-select FY with most data on load
+  // Auto-select FY with most data on load, or re-select if current FY has no data
   useEffect(() => {
-    if (!selectedFY && availableFYs.length > 0) {
-      setSelectedFY(availableFYs[0]); // Most recent FY with data
+    if (availableFYs.length > 0) {
+      if (!selectedFY || !availableFYs.includes(selectedFY)) {
+        setSelectedFY(availableFYs[0]);
+      }
     }
   }, [availableFYs, selectedFY]);
 
@@ -306,13 +310,24 @@ export default function IncomePage() {
               Track all income sources, TDS and GST for FY 2025-26
             </p>
           </div>
-          <Button
-            onClick={() => setDialogOpen(true)}
-            className="bg-accent text-white hover:bg-accent/90 font-semibold"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Income
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={() => exportIncomeToExcel(filtered, selectedFY || "2025-26")}
+              variant="outline"
+              className="gap-2"
+              disabled={filtered.length === 0}
+            >
+              <Download className="h-4 w-4" />
+              Export Excel
+            </Button>
+            <Button
+              onClick={() => setDialogOpen(true)}
+              className="bg-accent text-white hover:bg-accent/90 font-semibold"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Income
+            </Button>
+          </div>
         </div>
 
         {/* ---- Stats Row ---- */}

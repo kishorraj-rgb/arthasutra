@@ -41,7 +41,9 @@ import {
   School,
   Loader2,
   Search,
+  Download,
 } from "lucide-react";
+import { exportExpensesToExcel } from "@/lib/export-excel";
 import {
   PieChart,
   Pie,
@@ -190,10 +192,12 @@ export default function ExpensesPage() {
     return sorted;
   }, [allExpenses]);
 
-  // Auto-select FY with most data on load
+  // Auto-select FY with most data on load, or re-select if current FY has no data
   useEffect(() => {
-    if (!selectedFY && availableFYs.length > 0) {
-      setSelectedFY(availableFYs[0]);
+    if (availableFYs.length > 0) {
+      if (!selectedFY || !availableFYs.includes(selectedFY)) {
+        setSelectedFY(availableFYs[0]);
+      }
     }
   }, [availableFYs, selectedFY]);
 
@@ -351,13 +355,24 @@ export default function ExpensesPage() {
               Track and categorise every rupee spent
             </p>
           </div>
-          <Button
-            onClick={() => setDialogOpen(true)}
-            className="bg-rose text-white hover:bg-rose/90 gap-2"
-          >
-            <Plus className="h-4 w-4" />
-            Add Expense
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={() => exportExpensesToExcel(filtered, selectedFY || "2025-26")}
+              variant="outline"
+              className="gap-2"
+              disabled={filtered.length === 0}
+            >
+              <Download className="h-4 w-4" />
+              Export Excel
+            </Button>
+            <Button
+              onClick={() => setDialogOpen(true)}
+              className="bg-rose text-white hover:bg-rose/90 gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              Add Expense
+            </Button>
+          </div>
         </div>
 
         {/* ---- Stats Row ---- */}
