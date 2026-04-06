@@ -299,7 +299,7 @@ function IncomeTaxCalculator() {
   return (
     <div className="space-y-6">
       {/* Recommendation Box */}
-      <Card className="border-accent/30 bg-gradient-to-r from-purple-grad-from/10 to-amber-900/10">
+      <Card className="border-accent/20 bg-accent/5">
         <CardContent className="p-6">
           <div className="flex items-center gap-4">
             <div className="h-12 w-12 rounded-xl bg-accent/20 flex items-center justify-center shrink-0">

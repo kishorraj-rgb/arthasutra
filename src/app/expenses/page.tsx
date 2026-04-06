@@ -123,7 +123,7 @@ function CustomPieTooltip({
   if (!active || !payload?.length) return null;
   const data = payload[0];
   return (
-    <div className="rounded-lg border border-border bg-white backdrop-blur-xl px-3 py-2 shadow-xl">
+    <div className="rounded-lg border border-border bg-white px-3 py-2 shadow-sm">
       <p className="text-xs text-text-secondary">{data.name}</p>
       <p className="font-display text-sm font-semibold text-text-primary">
         {formatCurrency(data.value)}
@@ -310,7 +310,7 @@ export default function ExpensesPage() {
           </div>
           <Button
             onClick={() => setDialogOpen(true)}
-            className="bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 text-white gap-2"
+            className="bg-rose text-white hover:bg-rose/90 gap-2"
           >
             <Plus className="h-4 w-4" />
             Add Expense
@@ -728,7 +728,7 @@ export default function ExpensesPage() {
                   !formCategory ||
                   !formDescription
                 }
-                className="bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 text-white"
+                className="bg-rose text-white hover:bg-rose/90"
               >
                 {isSubmitting ? (
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />

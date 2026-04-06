@@ -10,7 +10,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     return (
       <div className="flex h-screen items-center justify-center bg-navy">
         <div className="flex flex-col items-center gap-4 animate-pulse">
-          <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-purple-grad-from to-purple-grad-to flex items-center justify-center text-white font-bold shadow-purple">
+          <div className="h-12 w-12 rounded-xl bg-accent flex items-center justify-center text-white font-bold">
             AS
           </div>
           <p className="text-text-tertiary text-sm">Loading ArthaSutra...</p>

@@ -36,12 +36,12 @@ const config: Config = {
         sans: ["Inter", "system-ui", "sans-serif"],
       },
       boxShadow: {
-        "card": "0 1px 3px rgba(0,0,0,0.2), 0 1px 2px rgba(0,0,0,0.15)",
-        "card-hover": "0 8px 24px rgba(0,0,0,0.3), 0 2px 8px rgba(79,70,229,0.1)",
-        "gold": "0 4px 14px rgba(212,146,10,0.2)",
-        "lg-soft": "0 10px 30px rgba(0,0,0,0.3)",
-        "purple": "0 4px 14px rgba(99,102,241,0.25)",
-        "glow-purple": "0 0 20px rgba(99,102,241,0.15)",
+        "card": "0 1px 2px rgba(0,0,0,0.04), 0 1px 1px rgba(0,0,0,0.02)",
+        "card-hover": "0 2px 6px rgba(0,0,0,0.06)",
+        "gold": "0 1px 3px rgba(0,0,0,0.06)",
+        "lg-soft": "0 2px 8px rgba(0,0,0,0.06)",
+        "purple": "0 1px 3px rgba(0,0,0,0.06)",
+        "glow-purple": "0 0 0 transparent",
       },
       animation: {
         "fade-in": "fadeIn 0.4s ease-out",

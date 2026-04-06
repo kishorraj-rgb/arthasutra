@@ -38,7 +38,7 @@ export function Sidebar() {
     >
       {/* Logo */}
       <div className="flex items-center gap-3 px-4 py-5 border-b border-border">
-        <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-purple-grad-from to-purple-grad-to flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-purple">
+        <div className="h-9 w-9 rounded-xl bg-accent flex items-center justify-center text-white font-bold text-sm shrink-0">
           AS
         </div>
         {!collapsed && (
@@ -62,7 +62,7 @@ export function Sidebar() {
               className={cn(
                 "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 group relative",
                 isActive
-                  ? "bg-gradient-to-r from-accent/15 to-purple-grad-to/10 text-accent-light border border-accent/20 shadow-sm"
+                  ? "bg-accent/10 text-accent-light border-l-2 border-accent"
                   : "text-text-secondary hover:text-text-primary hover:bg-surface-tertiary"
               )}
             >

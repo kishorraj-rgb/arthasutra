@@ -269,7 +269,7 @@ export default function IncomePage() {
           </div>
           <Button
             onClick={() => setDialogOpen(true)}
-            className="bg-gradient-to-r from-purple-grad-from to-amber-600 hover:from-purple-grad-from/90 hover:to-amber-600/90 text-navy font-semibold"
+            className="bg-accent text-white hover:bg-accent/90 font-semibold"
           >
             <Plus className="h-4 w-4 mr-2" />
             Add Income
@@ -618,7 +618,7 @@ export default function IncomePage() {
                 <Button
                   type="submit"
                   disabled={submitting}
-                  className="bg-gradient-to-r from-purple-grad-from to-amber-600 hover:from-purple-grad-from/90 hover:to-amber-600/90 text-navy font-semibold"
+                  className="bg-accent text-white hover:bg-accent/90 font-semibold"
                 >
                   {submitting ? "Saving..." : "Save Income"}
                 </Button>

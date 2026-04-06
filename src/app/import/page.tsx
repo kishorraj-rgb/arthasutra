@@ -294,7 +294,7 @@ export default function ImportPage() {
               <Button
                 onClick={handleParse}
                 disabled={!file || parsing}
-                className="bg-gradient-to-r from-purple-grad-from to-purple-grad-to text-white hover:opacity-90"
+                className="bg-accent text-white hover:bg-accent/90"
               >
                 {parsing ? (
                   <>
@@ -461,7 +461,7 @@ export default function ImportPage() {
                     <Button
                       onClick={handleImport}
                       disabled={selectedCount === 0}
-                      className="bg-gradient-to-r from-purple-grad-from to-purple-grad-to text-white hover:opacity-90"
+                      className="bg-accent text-white hover:bg-accent/90"
                     >
                       Import {selectedCount} Transactions
                       <ArrowRight className="h-4 w-4 ml-2" />
@@ -526,7 +526,7 @@ export default function ImportPage() {
                   Import Another
                 </Button>
                 <Button
-                  className="bg-gradient-to-r from-purple-grad-from to-purple-grad-to text-white hover:opacity-90"
+                  className="bg-accent text-white hover:bg-accent/90"
                   onClick={() => (window.location.href = "/dashboard")}
                 >
                   Go to Dashboard

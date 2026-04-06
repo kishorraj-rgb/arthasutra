@@ -103,7 +103,7 @@ const PIE_COLORS = [
 function CustomPieTooltip({ active, payload }: { active?: boolean; payload?: Array<{ name: string; value: number; payload: { color: string } }> }) {
   if (active && payload && payload.length) {
     return (
-      <div className="rounded-lg border border-border bg-white shadow-lg-soft backdrop-blur-xl px-4 py-3 shadow-xl">
+      <div className="rounded-lg border border-border bg-white shadow-sm px-4 py-3">
         <p className="text-sm font-medium text-text-primary">{payload[0].name}</p>
         <p className="font-mono text-sm text-accent-light">{formatCurrency(payload[0].value)}</p>
       </div>
@@ -543,7 +543,7 @@ export default function InvestmentsPage() {
                         100
                       : 0
                   }
-                  indicatorClassName="bg-gradient-to-r from-purple-grad-from to-purple-grad-to"
+                  indicatorClassName="bg-accent"
                   className="h-3"
                 />
                 <p className="text-xs text-text-tertiary text-right">
@@ -674,7 +674,7 @@ export default function InvestmentsPage() {
                   <CardContent className="space-y-3">
                     <Progress
                       value={goal.progress}
-                      indicatorClassName="bg-gradient-to-r from-purple-grad-from to-purple-grad-to"
+                      indicatorClassName="bg-accent"
                       className="h-2"
                     />
                     <div className="flex items-center justify-between">

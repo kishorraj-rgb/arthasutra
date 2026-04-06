@@ -162,7 +162,7 @@ function CustomTooltip({
 }) {
   if (!active || !payload || payload.length === 0) return null;
   return (
-    <div className="bg-white border border-border shadow-lg-soft rounded-lg p-3 text-sm">
+    <div className="bg-white border border-border shadow-sm rounded-lg p-3 text-sm">
       <p className="text-text-secondary font-medium mb-1">{label}</p>
       {payload.map((entry: TooltipPayloadEntry, idx: number) => (
         <p key={idx} className="flex items-center gap-2" style={{ color: entry.color }}>
@@ -193,7 +193,7 @@ function PieTooltip({
   if (!active || !payload || payload.length === 0) return null;
   const entry = payload[0];
   return (
-    <div className="bg-white border border-border shadow-lg-soft rounded-lg p-3 text-sm">
+    <div className="bg-white border border-border shadow-sm rounded-lg p-3 text-sm">
       <p className="text-text-primary font-medium">{entry.name}</p>
       <p className="stat-number text-accent-light">{formatCurrency(entry.value)}</p>
     </div>
@@ -385,10 +385,7 @@ export default function DashboardPage() {
                 className="animate-enter group relative overflow-hidden"
                 style={{ animationDelay: `${index * 80}ms` }}
               >
-                {/* Subtle gradient glow */}
-                <div
-                  className={`absolute inset-0 bg-gradient-to-br ${card.bgGlow} opacity-0 group-hover:opacity-100 transition-opacity duration-500`}
-                />
+                {/* Subtle hover tint */}
                 <CardHeader className="relative flex flex-row items-center justify-between pb-2">
                   <CardTitle className="text-sm font-medium text-text-secondary">
                     {card.title}
