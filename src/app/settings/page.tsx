@@ -46,7 +46,7 @@ export default function SettingsPage() {
               </div>
               <div className="space-y-2">
                 <Label>Email</Label>
-                <Input defaultValue="rajesh@example.com" disabled />
+                <Input defaultValue="rajesh@example.com" />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
