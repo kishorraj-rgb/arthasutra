@@ -2,23 +2,12 @@
 
 import { useAuth } from "@/lib/auth-context";
 import { Sidebar } from "./sidebar";
-import { useRouter } from "next/navigation";
-import { useEffect } from "react";
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
-  const { user, isLoading } = useAuth();
-  const router = useRouter();
+  const { user } = useAuth();
 
-  // Demo mode: skip auth redirect when Convex is not connected
-  const demoMode = !process.env.NEXT_PUBLIC_CONVEX_URL || process.env.NEXT_PUBLIC_CONVEX_URL.includes("your-convex");
-
-  useEffect(() => {
-    if (!demoMode && !isLoading && !user) {
-      router.push("/auth");
-    }
-  }, [user, isLoading, router, demoMode]);
-
-  if (!demoMode && isLoading) {
+  // Show loading while auto-login completes
+  if (!user) {
     return (
       <div className="flex h-screen items-center justify-center bg-navy">
         <div className="flex flex-col items-center gap-4">
@@ -29,10 +18,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
       </div>
     );
-  }
-
-  if (!demoMode && !user) {
-    return null;
   }
 
   return (

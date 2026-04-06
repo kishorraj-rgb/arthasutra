@@ -1,17 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
-// Simple hash function for demo (in production, use bcrypt via action)
-function simpleHash(str: string): string {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = (hash << 5) - hash + char;
-    hash |= 0;
-  }
-  return hash.toString(36) + str.length.toString(36);
-}
-
 function generateToken(): string {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
   let token = "";
@@ -21,63 +10,34 @@ function generateToken(): string {
   return token;
 }
 
-export const register = mutation({
-  args: {
-    name: v.string(),
-    email: v.string(),
-    password: v.string(),
-    user_type: v.union(v.literal("employee"), v.literal("consultant"), v.literal("both")),
-  },
-  handler: async (ctx, args) => {
-    const existing = await ctx.db
-      .query("users")
-      .withIndex("by_email", (q) => q.eq("email", args.email))
-      .first();
+// Auto-login: finds or creates the single owner user, returns a session
+export const autoLogin = mutation({
+  args: {},
+  handler: async (ctx) => {
+    // Find the owner (first user in the system)
+    let user = await ctx.db.query("users").first();
 
-    if (existing) {
-      throw new Error("Email already registered");
+    if (!user) {
+      // Create the owner account on first use
+      const userId = await ctx.db.insert("users", {
+        name: "Kishor Raj",
+        email: "kishor.raj@live.com",
+        passwordHash: "",
+        user_type: "both",
+        gst_registered: false,
+        created_at: Date.now(),
+      });
+      user = await ctx.db.get(userId);
     }
 
-    const userId = await ctx.db.insert("users", {
-      name: args.name,
-      email: args.email,
-      passwordHash: simpleHash(args.password),
-      user_type: args.user_type,
-      gst_registered: false,
-      created_at: Date.now(),
-    });
+    if (!user) throw new Error("Failed to create user");
 
-    const token = generateToken();
-    await ctx.db.insert("sessions", {
-      userId,
-      token,
-      expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 days
-    });
-
-    return { userId, token };
-  },
-});
-
-export const login = mutation({
-  args: {
-    email: v.string(),
-    password: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_email", (q) => q.eq("email", args.email))
-      .first();
-
-    if (!user || user.passwordHash !== simpleHash(args.password)) {
-      throw new Error("Invalid email or password");
-    }
-
+    // Create a long-lived session
     const token = generateToken();
     await ctx.db.insert("sessions", {
       userId: user._id,
       token,
-      expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
+      expiresAt: Date.now() + 365 * 24 * 60 * 60 * 1000, // 1 year
     });
 
     return { userId: user._id, token, name: user.name };
@@ -123,4 +83,20 @@ export const logout = mutation({
       await ctx.db.delete(session._id);
     }
   },
+});
+
+// Keep these for backward compatibility but they're not needed
+export const register = mutation({
+  args: { name: v.string(), email: v.string(), password: v.string(), user_type: v.union(v.literal("employee"), v.literal("consultant"), v.literal("both")) },
+  handler: async () => { throw new Error("Use autoLogin instead"); },
+});
+
+export const login = mutation({
+  args: { email: v.string(), password: v.string() },
+  handler: async () => { throw new Error("Use autoLogin instead"); },
+});
+
+export const loginOrRegister = mutation({
+  args: { email: v.string(), password: v.string(), name: v.optional(v.string()) },
+  handler: async () => { throw new Error("Use autoLogin instead"); },
 });

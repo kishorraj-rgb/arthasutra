@@ -19,13 +19,6 @@ interface AuthContextType {
   user: User | null;
   token: string | null;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (
-    name: string,
-    email: string,
-    password: string,
-    userType: "employee" | "consultant" | "both"
-  ) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -34,12 +27,13 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [autoLoginAttempted, setAutoLoginAttempted] = useState(false);
 
-  const loginMutation = useMutation(api.auth.login);
-  const registerMutation = useMutation(api.auth.register);
+  const autoLogin = useMutation(api.auth.autoLogin);
   const logoutMutation = useMutation(api.auth.logout);
   const session = useQuery(api.auth.getSession, token ? { token } : "skip");
 
+  // On mount, check for stored token
   useEffect(() => {
     const stored = localStorage.getItem("arthasutra_token");
     if (stored) {
@@ -48,42 +42,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(false);
   }, []);
 
+  // Auto-login if no valid session
   useEffect(() => {
-    if (session === undefined) return;
-    if (session === null && token) {
+    if (isLoading || autoLoginAttempted) return;
+
+    // If we have a token and session loaded successfully, we're good
+    if (token && session !== undefined) {
+      if (session) {
+        // Valid session exists
+        return;
+      }
+      // Token exists but session is null (expired) — clear and auto-login
       localStorage.removeItem("arthasutra_token");
       setToken(null);
     }
-    setIsLoading(false);
-  }, [session, token]);
 
-  const login = useCallback(
-    async (email: string, password: string) => {
-      const result = await loginMutation({ email, password });
-      localStorage.setItem("arthasutra_token", result.token);
-      setToken(result.token);
-    },
-    [loginMutation]
-  );
-
-  const register = useCallback(
-    async (
-      name: string,
-      email: string,
-      password: string,
-      userType: "employee" | "consultant" | "both"
-    ) => {
-      const result = await registerMutation({
-        name,
-        email,
-        password,
-        user_type: userType,
+    // No token or expired session — auto-login
+    if (!token) {
+      setAutoLoginAttempted(true);
+      autoLogin({}).then((result) => {
+        localStorage.setItem("arthasutra_token", result.token);
+        setToken(result.token);
+      }).catch((err) => {
+        console.error("Auto-login failed:", err);
       });
-      localStorage.setItem("arthasutra_token", result.token);
-      setToken(result.token);
-    },
-    [registerMutation]
-  );
+    }
+  }, [isLoading, token, session, autoLoginAttempted, autoLogin]);
 
   const logout = useCallback(async () => {
     if (token) {
@@ -91,6 +75,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     localStorage.removeItem("arthasutra_token");
     setToken(null);
+    setAutoLoginAttempted(false); // Allow re-login
   }, [token, logoutMutation]);
 
   const user: User | null = session
@@ -106,7 +91,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     : null;
 
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, token, isLoading, logout }}>
       {children}
     </AuthContext.Provider>
   );
