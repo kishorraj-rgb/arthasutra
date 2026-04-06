@@ -13,8 +13,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
-      <body className="antialiased bg-navy text-white min-h-screen">
+    <html lang="en">
+      <body className="antialiased bg-surface-secondary text-text-primary min-h-screen">
         <ConvexClientProvider>{children}</ConvexClientProvider>
       </body>
     </html>

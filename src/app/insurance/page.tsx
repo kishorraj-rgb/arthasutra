@@ -66,56 +66,56 @@ export default function InsurancePage() {
       <div className="space-y-6 animate-enter">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="font-display text-2xl font-bold text-white">Insurance</h1>
-            <p className="text-white/50 text-sm mt-1">Policy management & premium tracking</p>
+            <h1 className="font-display text-2xl font-bold text-text-primary">Insurance</h1>
+            <p className="text-text-secondary text-sm mt-1">Policy management & premium tracking</p>
           </div>
           <Button onClick={() => setDialogOpen(true)}><Plus className="h-4 w-4 mr-2" />Add Policy</Button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card><CardContent className="p-5"><p className="text-white/50 text-xs uppercase tracking-wider">Total Policies</p><p className="stat-number text-2xl text-white mt-1">{policies?.length ?? 0}</p></CardContent></Card>
-          <Card><CardContent className="p-5"><p className="text-white/50 text-xs uppercase tracking-wider">Annual Premium</p><p className="stat-number text-2xl text-gold mt-1">{formatCurrency(totalPremium)}</p></CardContent></Card>
-          <Card><CardContent className="p-5"><p className="text-white/50 text-xs uppercase tracking-wider">Total Cover</p><p className="stat-number text-2xl text-emerald mt-1">{formatCurrency(totalCover)}</p></CardContent></Card>
-          <Card><CardContent className="p-5"><p className="text-white/50 text-xs uppercase tracking-wider">Cover Adequacy</p><p className="stat-number text-2xl text-white mt-1">{coverAdequacy.toFixed(0)}%</p><Progress value={coverAdequacy} className="mt-2" indicatorClassName={coverAdequacy >= 80 ? "bg-emerald" : "bg-amber-500"} /><p className="text-white/30 text-xs mt-1">Recommended: 10x income</p></CardContent></Card>
+          <Card><CardContent className="p-5"><p className="text-text-secondary text-xs uppercase tracking-wider">Total Policies</p><p className="stat-number text-2xl text-text-primary mt-1">{policies?.length ?? 0}</p></CardContent></Card>
+          <Card><CardContent className="p-5"><p className="text-text-secondary text-xs uppercase tracking-wider">Annual Premium</p><p className="stat-number text-2xl text-gold mt-1">{formatCurrency(totalPremium)}</p></CardContent></Card>
+          <Card><CardContent className="p-5"><p className="text-text-secondary text-xs uppercase tracking-wider">Total Cover</p><p className="stat-number text-2xl text-emerald mt-1">{formatCurrency(totalCover)}</p></CardContent></Card>
+          <Card><CardContent className="p-5"><p className="text-text-secondary text-xs uppercase tracking-wider">Cover Adequacy</p><p className="stat-number text-2xl text-text-primary mt-1">{coverAdequacy.toFixed(0)}%</p><Progress value={coverAdequacy} className="mt-2" indicatorClassName={coverAdequacy >= 80 ? "bg-emerald" : "bg-amber-500"} /><p className="text-text-tertiary text-xs mt-1">Recommended: 10x income</p></CardContent></Card>
         </div>
 
         {policies === undefined ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {[1, 2, 3].map((i) => <div key={i} className="h-48 rounded-xl bg-white/5 animate-pulse" />)}
+            {[1, 2, 3].map((i) => <div key={i} className="h-48 rounded-xl bg-gray-100 animate-pulse" />)}
           </div>
         ) : policies.length === 0 ? (
-          <Card><CardContent className="p-12 text-center"><Shield className="h-12 w-12 text-white/20 mx-auto mb-4" /><p className="text-white/50">No insurance policies yet. Add your first policy to track premiums and renewals.</p></CardContent></Card>
+          <Card><CardContent className="p-12 text-center"><Shield className="h-12 w-12 text-gray-300 mx-auto mb-4" /><p className="text-text-secondary">No insurance policies yet. Add your first policy to track premiums and renewals.</p></CardContent></Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {policies.map((policy) => {
               const daysUntil = getDaysUntil(policy.next_due_date);
               const Icon = typeIcons[policy.type] || Shield;
-              const color = typeColors[policy.type] || "text-white/60";
+              const color = typeColors[policy.type] || "text-text-secondary";
               return (
                 <Card key={policy._id} className="relative overflow-hidden group">
-                  <button onClick={() => deletePolicy({ id: policy._id })} className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity text-white/30 hover:text-rose text-xs">Remove</button>
+                  <button onClick={() => deletePolicy({ id: policy._id })} className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity text-text-tertiary hover:text-rose text-xs">Remove</button>
                   <CardHeader className="pb-3">
                     <div className="flex items-center gap-3">
-                      <div className={`p-2 rounded-lg bg-white/5 ${color}`}><Icon className="h-5 w-5" /></div>
+                      <div className={`p-2 rounded-lg bg-surface-tertiary ${color}`}><Icon className="h-5 w-5" /></div>
                       <div>
                         <CardTitle className="text-base">{policy.provider}</CardTitle>
-                        <p className="text-white/40 text-xs font-mono mt-0.5">{policy.policy_number}</p>
+                        <p className="text-text-tertiary text-xs font-mono mt-0.5">{policy.policy_number}</p>
                       </div>
                       <Badge className="ml-auto">{policy.type}</Badge>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <div className="grid grid-cols-2 gap-3">
-                      <div><p className="text-white/40 text-xs">Sum Assured</p><p className="stat-number text-sm text-white">{formatCurrency(policy.sum_assured)}</p></div>
-                      <div><p className="text-white/40 text-xs">Annual Premium</p><p className="stat-number text-sm text-gold">{formatCurrency(policy.annual_premium)}</p></div>
+                      <div><p className="text-text-tertiary text-xs">Sum Assured</p><p className="stat-number text-sm text-text-primary">{formatCurrency(policy.sum_assured)}</p></div>
+                      <div><p className="text-text-tertiary text-xs">Annual Premium</p><p className="stat-number text-sm text-gold">{formatCurrency(policy.annual_premium)}</p></div>
                     </div>
-                    <div className="flex items-center justify-between pt-2 border-t border-white/5">
-                      <div className="flex items-center gap-2"><Clock className="h-3.5 w-3.5 text-white/30" /><span className="text-xs text-white/50">Next: {policy.next_due_date}</span></div>
+                    <div className="flex items-center justify-between pt-2 border-t border-border-light">
+                      <div className="flex items-center gap-2"><Clock className="h-3.5 w-3.5 text-text-tertiary" /><span className="text-xs text-text-secondary">Next: {policy.next_due_date}</span></div>
                       {daysUntil < 0 ? <Badge variant="destructive"><AlertTriangle className="h-3 w-3 mr-1" />Overdue</Badge>
                         : daysUntil <= 30 ? <Badge variant="warning">{daysUntil}d</Badge>
                         : <Badge variant="success"><CheckCircle className="h-3 w-3 mr-1" />{daysUntil}d</Badge>}
                     </div>
-                    {policy.nominee && <p className="text-white/30 text-xs">Nominee: {policy.nominee}</p>}
+                    {policy.nominee && <p className="text-text-tertiary text-xs">Nominee: {policy.nominee}</p>}
                   </CardContent>
                 </Card>
               );

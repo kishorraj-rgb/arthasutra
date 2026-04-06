@@ -103,8 +103,8 @@ const PIE_COLORS = [
 function CustomPieTooltip({ active, payload }: { active?: boolean; payload?: Array<{ name: string; value: number; payload: { color: string } }> }) {
   if (active && payload && payload.length) {
     return (
-      <div className="rounded-lg border border-gold/20 bg-navy/95 backdrop-blur-xl px-4 py-3 shadow-xl">
-        <p className="text-sm font-medium text-white">{payload[0].name}</p>
+      <div className="rounded-lg border border-border bg-white shadow-lg-soft backdrop-blur-xl px-4 py-3 shadow-xl">
+        <p className="text-sm font-medium text-text-primary">{payload[0].name}</p>
         <p className="font-mono text-sm text-gold">{formatCurrency(payload[0].value)}</p>
       </div>
     );
@@ -117,7 +117,7 @@ function CustomLegend({ payload }: { payload?: Array<{ value: string; color: str
   return (
     <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 mt-2">
       {payload.map((entry, i) => (
-        <div key={i} className="flex items-center gap-1.5 text-xs text-white/70">
+        <div key={i} className="flex items-center gap-1.5 text-xs text-text-secondary">
           <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: entry.color }} />
           {entry.value}
         </div>
@@ -142,10 +142,10 @@ function InvestmentsSkeleton() {
         {Array.from({ length: 4 }).map((_, i) => (
           <Card key={i}>
             <CardHeader className="pb-2">
-              <div className="h-4 w-24 rounded bg-white/10" />
+              <div className="h-4 w-24 rounded bg-gray-100" />
             </CardHeader>
             <CardContent>
-              <div className="h-8 w-32 rounded bg-white/10" />
+              <div className="h-8 w-32 rounded bg-gray-100" />
             </CardContent>
           </Card>
         ))}
@@ -157,37 +157,37 @@ function InvestmentsSkeleton() {
           {Array.from({ length: 3 }).map((_, i) => (
             <Card key={i}>
               <CardHeader className="pb-2">
-                <div className="h-4 w-20 rounded bg-white/10" />
+                <div className="h-4 w-20 rounded bg-gray-100" />
               </CardHeader>
               <CardContent className="space-y-2">
-                <div className="h-4 w-full rounded bg-white/10" />
-                <div className="h-4 w-full rounded bg-white/10" />
+                <div className="h-4 w-full rounded bg-gray-100" />
+                <div className="h-4 w-full rounded bg-gray-100" />
               </CardContent>
             </Card>
           ))}
         </div>
         <Card>
           <CardHeader>
-            <div className="h-5 w-40 rounded bg-white/10" />
+            <div className="h-5 w-40 rounded bg-gray-100" />
           </CardHeader>
           <CardContent className="flex items-center justify-center min-h-[320px]">
-            <Loader2 className="h-8 w-8 animate-spin text-white/20" />
+            <Loader2 className="h-8 w-8 animate-spin text-gray-300" />
           </CardContent>
         </Card>
       </div>
 
       {/* Investment cards skeleton */}
       <div>
-        <div className="h-6 w-40 rounded bg-white/10 mb-4" />
+        <div className="h-6 w-40 rounded bg-gray-100 mb-4" />
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {Array.from({ length: 6 }).map((_, i) => (
             <Card key={i}>
               <CardHeader className="pb-3">
-                <div className="h-5 w-36 rounded bg-white/10" />
+                <div className="h-5 w-36 rounded bg-gray-100" />
               </CardHeader>
               <CardContent className="space-y-3">
-                <div className="h-4 w-full rounded bg-white/10" />
-                <div className="h-4 w-full rounded bg-white/10" />
+                <div className="h-4 w-full rounded bg-gray-100" />
+                <div className="h-4 w-full rounded bg-gray-100" />
               </CardContent>
             </Card>
           ))}
@@ -301,10 +301,10 @@ export default function InvestmentsPage() {
         {/* ---- Page Header ---- */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="font-display text-3xl font-bold text-white tracking-tight">
+            <h1 className="font-display text-3xl font-bold text-text-primary tracking-tight">
               Investments
             </h1>
-            <p className="mt-1 text-white/50 text-sm">
+            <p className="mt-1 text-text-secondary text-sm">
               Track your portfolio, tax savings &amp; financial goals
             </p>
           </div>
@@ -324,10 +324,10 @@ export default function InvestmentsPage() {
               <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gold/10 mb-4">
                 <TrendingUp className="h-8 w-8 text-gold" />
               </div>
-              <h3 className="text-lg font-semibold text-white mb-2">
+              <h3 className="text-lg font-semibold text-text-primary mb-2">
                 No investments tracked yet
               </h3>
-              <p className="text-white/50 text-sm max-w-md mb-6">
+              <p className="text-text-secondary text-sm max-w-md mb-6">
                 Start building your portfolio! Add your first investment to track performance, tax savings, and progress toward your financial goals.
               </p>
               <Button onClick={() => setDialogOpen(true)} className="gap-2">
@@ -342,12 +342,12 @@ export default function InvestmentsPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-white/50">
+                  <CardTitle className="text-sm font-medium text-text-secondary">
                     Total Invested
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="font-mono text-2xl font-bold text-white">
+                  <p className="font-mono text-2xl font-bold text-text-primary">
                     {formatCurrency(portfolio.totalInvested)}
                   </p>
                 </CardContent>
@@ -355,7 +355,7 @@ export default function InvestmentsPage() {
 
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-white/50">
+                  <CardTitle className="text-sm font-medium text-text-secondary">
                     Current Value
                   </CardTitle>
                 </CardHeader>
@@ -368,7 +368,7 @@ export default function InvestmentsPage() {
 
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-white/50">
+                  <CardTitle className="text-sm font-medium text-text-secondary">
                     Total Gain / Loss
                   </CardTitle>
                 </CardHeader>
@@ -400,13 +400,13 @@ export default function InvestmentsPage() {
 
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-white/50">
+                  <CardTitle className="text-sm font-medium text-text-secondary">
                     Total Holdings
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="flex items-center gap-2">
-                    <p className="font-mono text-2xl font-bold text-white">
+                    <p className="font-mono text-2xl font-bold text-text-primary">
                       {portfolio.investments.length}
                     </p>
                     <TrendingUp className="h-5 w-5 text-gold" />
@@ -430,7 +430,7 @@ export default function InvestmentsPage() {
                     <Card key={cat.key}>
                       <CardHeader className="pb-2">
                         <div className="flex items-center justify-between">
-                          <CardTitle className="text-sm font-medium text-white/70">
+                          <CardTitle className="text-sm font-medium text-text-secondary">
                             {cat.name}
                           </CardTitle>
                           <span
@@ -444,14 +444,14 @@ export default function InvestmentsPage() {
                       </CardHeader>
                       <CardContent className="space-y-1">
                         <div className="flex items-baseline justify-between">
-                          <span className="text-xs text-white/40">Invested</span>
-                          <span className="font-mono text-sm text-white/70">
+                          <span className="text-xs text-text-tertiary">Invested</span>
+                          <span className="font-mono text-sm text-text-secondary">
                             {formatCurrency(cat.invested)}
                           </span>
                         </div>
                         <div className="flex items-baseline justify-between">
-                          <span className="text-xs text-white/40">Current</span>
-                          <span className="font-mono text-sm font-semibold text-white">
+                          <span className="text-xs text-text-tertiary">Current</span>
+                          <span className="font-mono text-sm font-semibold text-text-primary">
                             {formatCurrency(cat.current)}
                           </span>
                         </div>
@@ -507,7 +507,7 @@ export default function InvestmentsPage() {
                       </PieChart>
                     </ResponsiveContainer>
                   ) : (
-                    <div className="flex items-center justify-center h-full text-white/40 text-sm">
+                    <div className="flex items-center justify-center h-full text-text-tertiary text-sm">
                       No allocation data
                     </div>
                   )}
@@ -546,7 +546,7 @@ export default function InvestmentsPage() {
                   indicatorClassName="bg-gradient-to-r from-gold to-amber-500"
                   className="h-3"
                 />
-                <p className="text-xs text-white/40 text-right">
+                <p className="text-xs text-text-tertiary text-right">
                   Remaining:{" "}
                   {formatCurrency(
                     Math.max(
@@ -560,7 +560,7 @@ export default function InvestmentsPage() {
 
             {/* ---- Individual Investment Cards ---- */}
             <div>
-              <h2 className="font-display text-xl font-semibold text-white mb-4">
+              <h2 className="font-display text-xl font-semibold text-text-primary mb-4">
                 Your Investments
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -587,7 +587,7 @@ export default function InvestmentsPage() {
                             </Badge>
                             <button
                               onClick={() => handleDelete(inv._id)}
-                              className="rounded p-1 text-white/30 hover:text-rose-400 hover:bg-rose-400/10 transition-colors"
+                              className="rounded p-1 text-text-tertiary hover:text-rose-400 hover:bg-rose-400/10 transition-colors"
                               title="Delete investment"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
@@ -598,22 +598,22 @@ export default function InvestmentsPage() {
                       <CardContent className="space-y-3">
                         <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
                           <div>
-                            <p className="text-white/40 text-xs">Invested</p>
-                            <p className="font-mono text-white/80">
+                            <p className="text-text-tertiary text-xs">Invested</p>
+                            <p className="font-mono text-text-primary">
                               {formatCurrency(inv.invested_amount)}
                             </p>
                           </div>
                           <div>
-                            <p className="text-white/40 text-xs">
+                            <p className="text-text-tertiary text-xs">
                               Current Value
                             </p>
-                            <p className="font-mono font-semibold text-white">
+                            <p className="font-mono font-semibold text-text-primary">
                               {formatCurrency(inv.current_value)}
                             </p>
                           </div>
                         </div>
 
-                        <div className="flex items-center justify-between border-t border-white/5 pt-3">
+                        <div className="flex items-center justify-between border-t border-border-light pt-3">
                           <div className="flex items-center gap-1">
                             {isPositive ? (
                               <ArrowUpRight className="h-4 w-4 text-emerald-400" />
@@ -631,7 +631,7 @@ export default function InvestmentsPage() {
                               {returnPercent.toFixed(1)}%
                             </span>
                           </div>
-                          <div className="text-right text-xs text-white/40">
+                          <div className="text-right text-xs text-text-tertiary">
                             <p>Invested: {inv.date_invested}</p>
                             {inv.maturity_date && (
                               <p>Maturity: {inv.maturity_date}</p>
@@ -649,7 +649,7 @@ export default function InvestmentsPage() {
 
         {/* ---- Goal-Based Planning (static/demo - future feature) ---- */}
         <div>
-          <h2 className="font-display text-xl font-semibold text-white mb-4">
+          <h2 className="font-display text-xl font-semibold text-text-primary mb-4">
             Goal-Based Planning
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -664,7 +664,7 @@ export default function InvestmentsPage() {
                       </div>
                       <div>
                         <CardTitle className="text-base">{goal.name}</CardTitle>
-                        <p className="text-xs text-white/40 mt-0.5">
+                        <p className="text-xs text-text-tertiary mt-0.5">
                           Target: {formatCurrency(goal.target)} in {goal.years}{" "}
                           yrs
                         </p>
@@ -678,7 +678,7 @@ export default function InvestmentsPage() {
                       className="h-2"
                     />
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-mono text-white/50">
+                      <span className="text-xs font-mono text-text-secondary">
                         {goal.progress}%
                       </span>
                       <span
@@ -799,10 +799,10 @@ export default function InvestmentsPage() {
                 />
               </div>
 
-              <div className="flex items-center justify-between sm:col-span-2 rounded-lg border border-white/5 bg-white/[0.02] p-4">
+              <div className="flex items-center justify-between sm:col-span-2 rounded-lg border border-border-light bg-surface-tertiary/50 p-4">
                 <div className="space-y-0.5">
                   <Label htmlFor="inv-tax">Tax Saving Investment</Label>
-                  <p className="text-xs text-white/40">
+                  <p className="text-xs text-text-tertiary">
                     Mark if this qualifies for tax deduction
                   </p>
                 </div>

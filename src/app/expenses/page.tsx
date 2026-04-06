@@ -123,9 +123,9 @@ function CustomPieTooltip({
   if (!active || !payload?.length) return null;
   const data = payload[0];
   return (
-    <div className="rounded-lg border border-white/10 bg-navy/95 backdrop-blur-xl px-3 py-2 shadow-xl">
-      <p className="text-xs text-white/70">{data.name}</p>
-      <p className="font-display text-sm font-semibold text-white">
+    <div className="rounded-lg border border-border bg-white backdrop-blur-xl px-3 py-2 shadow-xl">
+      <p className="text-xs text-text-secondary">{data.name}</p>
+      <p className="font-display text-sm font-semibold text-text-primary">
         {formatCurrency(data.value)}
       </p>
     </div>
@@ -286,7 +286,7 @@ export default function ExpensesPage() {
     return (
       <AppLayout>
         <div className="flex h-[60vh] items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-white/40" />
+          <Loader2 className="h-8 w-8 animate-spin text-text-tertiary" />
         </div>
       </AppLayout>
     );
@@ -301,10 +301,10 @@ export default function ExpensesPage() {
         {/* ---- Page Header ---- */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="font-display text-2xl font-bold text-white">
+            <h1 className="font-display text-2xl font-bold text-text-primary">
               Expenses
             </h1>
-            <p className="mt-1 text-sm text-white/50">
+            <p className="mt-1 text-sm text-text-secondary">
               Track and categorise every rupee spent
             </p>
           </div>
@@ -322,13 +322,13 @@ export default function ExpensesPage() {
           {/* Total Expenses */}
           <Card>
             <CardContent className="p-5">
-              <p className="text-xs font-medium uppercase tracking-wider text-white/50">
+              <p className="text-xs font-medium uppercase tracking-wider text-text-secondary">
                 Total Expenses This Month
               </p>
               <p className="mt-2 font-display text-2xl font-bold text-rose-400 stat-number">
                 {formatCurrency(totalExpenses)}
               </p>
-              <p className="mt-1 text-xs text-white/40">
+              <p className="mt-1 text-xs text-text-tertiary">
                 {allExpenses.length} transactions
               </p>
             </CardContent>
@@ -337,39 +337,39 @@ export default function ExpensesPage() {
           {/* Business */}
           <Card>
             <CardContent className="p-5">
-              <p className="text-xs font-medium uppercase tracking-wider text-white/50">
+              <p className="text-xs font-medium uppercase tracking-wider text-text-secondary">
                 Business Expenses
               </p>
               <p className="mt-2 font-display text-2xl font-bold text-blue-400 stat-number">
                 {formatCurrency(businessExpenses)}
               </p>
-              <p className="mt-1 text-xs text-white/40">Tax deductible</p>
+              <p className="mt-1 text-xs text-text-tertiary">Tax deductible</p>
             </CardContent>
           </Card>
 
           {/* Personal */}
           <Card>
             <CardContent className="p-5">
-              <p className="text-xs font-medium uppercase tracking-wider text-white/50">
+              <p className="text-xs font-medium uppercase tracking-wider text-text-secondary">
                 Personal Expenses
               </p>
               <p className="mt-2 font-display text-2xl font-bold text-purple-400 stat-number">
                 {formatCurrency(personalExpenses)}
               </p>
-              <p className="mt-1 text-xs text-white/40">Non-deductible</p>
+              <p className="mt-1 text-xs text-text-tertiary">Non-deductible</p>
             </CardContent>
           </Card>
 
           {/* GST Input Credit */}
           <Card>
             <CardContent className="p-5">
-              <p className="text-xs font-medium uppercase tracking-wider text-white/50">
+              <p className="text-xs font-medium uppercase tracking-wider text-text-secondary">
                 GST Input Credit
               </p>
               <p className="mt-2 font-display text-2xl font-bold text-gold stat-number">
                 {formatCurrency(totalGst)}
               </p>
-              <p className="mt-1 text-xs text-white/40">
+              <p className="mt-1 text-xs text-text-tertiary">
                 Claimable this quarter
               </p>
             </CardContent>
@@ -380,7 +380,7 @@ export default function ExpensesPage() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-white/40" />
+              <Filter className="h-4 w-4 text-text-tertiary" />
               <Select
                 options={categoryOptions}
                 value={categoryFilter}
@@ -391,12 +391,12 @@ export default function ExpensesPage() {
           </div>
 
           <div className="flex items-center gap-3">
-            <span className="text-sm text-white/50">All</span>
+            <span className="text-sm text-text-secondary">All</span>
             <Switch
               checked={showBusinessOnly}
               onCheckedChange={setShowBusinessOnly}
             />
-            <span className="text-sm text-white/50">Business Only</span>
+            <span className="text-sm text-text-secondary">Business Only</span>
           </div>
         </div>
 
@@ -412,7 +412,7 @@ export default function ExpensesPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-white/10 text-left text-xs uppercase tracking-wider text-white/40">
+                  <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-text-tertiary">
                     <th className="px-5 py-3">Date</th>
                     <th className="px-5 py-3">Category</th>
                     <th className="px-5 py-3">Description</th>
@@ -428,9 +428,9 @@ export default function ExpensesPage() {
                     return (
                       <tr
                         key={expense._id}
-                        className="border-b border-white/5 transition-colors hover:bg-white/[0.02]"
+                        className="border-b border-border-light transition-colors hover:bg-surface-tertiary/50"
                       >
-                        <td className="whitespace-nowrap px-5 py-3.5 text-white/70">
+                        <td className="whitespace-nowrap px-5 py-3.5 text-text-secondary">
                           {new Date(expense.date).toLocaleDateString("en-IN", {
                             day: "2-digit",
                             month: "short",
@@ -453,18 +453,18 @@ export default function ExpensesPage() {
                                 }}
                               />
                             </div>
-                            <span className="text-white/80">
+                            <span className="text-text-primary">
                               {getCategoryLabel(expense.category)}
                             </span>
                           </div>
                         </td>
-                        <td className="px-5 py-3.5 text-white/60">
+                        <td className="px-5 py-3.5 text-text-secondary">
                           {expense.description}
                         </td>
                         <td className="whitespace-nowrap px-5 py-3.5 text-right font-display font-semibold text-rose-400 stat-number">
                           {formatCurrency(expense.amount)}
                         </td>
-                        <td className="whitespace-nowrap px-5 py-3.5 text-right text-white/50 stat-number">
+                        <td className="whitespace-nowrap px-5 py-3.5 text-right text-text-secondary stat-number">
                           {expense.gst_paid > 0
                             ? formatCurrency(expense.gst_paid)
                             : "-"}
@@ -478,7 +478,7 @@ export default function ExpensesPage() {
                         </td>
                         <td className="px-5 py-3.5">
                           <div className="flex items-center justify-center gap-1">
-                            <button className="rounded-lg p-1.5 text-white/30 transition-colors hover:bg-white/5 hover:text-white/70">
+                            <button className="rounded-lg p-1.5 text-text-tertiary transition-colors hover:bg-surface-tertiary hover:text-text-secondary">
                               <Edit className="h-3.5 w-3.5" />
                             </button>
                             <button
@@ -487,7 +487,7 @@ export default function ExpensesPage() {
                                   expense._id as Id<"expense_entries">
                                 )
                               }
-                              className="rounded-lg p-1.5 text-white/30 transition-colors hover:bg-rose-500/10 hover:text-rose-400"
+                              className="rounded-lg p-1.5 text-text-tertiary transition-colors hover:bg-rose-500/10 hover:text-rose-400"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </button>
@@ -500,7 +500,7 @@ export default function ExpensesPage() {
                     <tr>
                       <td
                         colSpan={7}
-                        className="px-5 py-10 text-center text-white/30"
+                        className="px-5 py-10 text-center text-text-tertiary"
                       >
                         No expenses recorded yet. Add your first expense.
                       </td>
@@ -510,7 +510,7 @@ export default function ExpensesPage() {
                     <tr>
                       <td
                         colSpan={7}
-                        className="px-5 py-10 text-center text-white/30"
+                        className="px-5 py-10 text-center text-text-tertiary"
                       >
                         No expenses match the current filters.
                       </td>
@@ -541,7 +541,7 @@ export default function ExpensesPage() {
                 return (
                   <div key={row.category} className="space-y-1.5">
                     <div className="flex items-center justify-between text-sm">
-                      <span className="text-white/70">{row.category}</span>
+                      <span className="text-text-secondary">{row.category}</span>
                       <div className="flex items-center gap-2">
                         <span
                           className={`font-display font-semibold stat-number ${
@@ -550,8 +550,8 @@ export default function ExpensesPage() {
                         >
                           {formatCurrency(row.actual)}
                         </span>
-                        <span className="text-white/30">/</span>
-                        <span className="text-white/40 stat-number">
+                        <span className="text-text-tertiary">/</span>
+                        <span className="text-text-tertiary stat-number">
                           {formatCurrency(row.budget)}
                         </span>
                         {isOver && (
@@ -605,13 +605,13 @@ export default function ExpensesPage() {
                         verticalAlign="bottom"
                         height={36}
                         formatter={(value: string) => (
-                          <span className="text-xs text-white/60">{value}</span>
+                          <span className="text-xs text-text-secondary">{value}</span>
                         )}
                       />
                     </PieChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="flex h-full items-center justify-center text-sm text-white/30">
+                  <div className="flex h-full items-center justify-center text-sm text-text-tertiary">
                     No expense data to display
                   </div>
                 )}
@@ -687,7 +687,7 @@ export default function ExpensesPage() {
               </div>
 
               {/* Business toggle */}
-              <div className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.02] px-4 py-3">
+              <div className="flex items-center justify-between rounded-lg border border-border bg-surface-tertiary/50 px-4 py-3">
                 <Label htmlFor="expense-business" className="cursor-pointer">
                   Is Business Expense?
                 </Label>

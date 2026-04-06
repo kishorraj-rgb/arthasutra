@@ -147,10 +147,10 @@ export default function TaxPage() {
       <div className="space-y-6">
         {/* Page Header */}
         <div>
-          <h1 className="text-3xl font-display font-bold text-white">
+          <h1 className="text-3xl font-display font-bold text-text-primary">
             Tax Planning & Compliance
           </h1>
-          <p className="text-white/50 mt-1">
+          <p className="text-text-secondary mt-1">
             FY 2024-25 (AY 2025-26) &mdash; Comprehensive tax management
           </p>
         </div>
@@ -313,7 +313,7 @@ function IncomeTaxCalculator() {
                   ? "New Regime Saves You More!"
                   : "Both Regimes Are Equal"}
               </h3>
-              <p className="text-white/70 text-sm mt-1">
+              <p className="text-text-secondary text-sm mt-1">
                 {savings !== 0 ? (
                   <>
                     You save{" "}
@@ -360,7 +360,7 @@ function IncomeTaxCalculator() {
               />
             </div>
 
-            <div className="border-t border-white/10 pt-4">
+            <div className="border-t border-border pt-4">
               <p className="text-xs text-gold/70 uppercase tracking-wider font-semibold mb-3">
                 Old Regime Deductions
               </p>
@@ -374,7 +374,7 @@ function IncomeTaxCalculator() {
                 onChange={(e) => setHraClaimed(Number(e.target.value) || 0)}
                 placeholder="0"
               />
-              <p className="text-xs text-white/30">Use HRA tab to calculate</p>
+              <p className="text-xs text-text-tertiary">Use HRA tab to calculate</p>
             </div>
 
             <div className="space-y-2">
@@ -385,7 +385,7 @@ function IncomeTaxCalculator() {
                 onChange={(e) => setSec80C(Number(e.target.value) || 0)}
                 placeholder="Max 1,50,000"
               />
-              <p className="text-xs text-white/30">
+              <p className="text-xs text-text-tertiary">
                 Max {formatCurrency(150000)}
               </p>
             </div>
@@ -418,7 +418,7 @@ function IncomeTaxCalculator() {
                 onChange={(e) => setSec80CCD1B(Number(e.target.value) || 0)}
                 placeholder="Max 50,000"
               />
-              <p className="text-xs text-white/30">
+              <p className="text-xs text-text-tertiary">
                 Max {formatCurrency(50000)}
               </p>
             </div>
@@ -431,7 +431,7 @@ function IncomeTaxCalculator() {
                 onChange={(e) => setHomeLoanInterest(Number(e.target.value) || 0)}
                 placeholder="Max 2,00,000"
               />
-              <p className="text-xs text-white/30">
+              <p className="text-xs text-text-tertiary">
                 Max {formatCurrency(200000)}
               </p>
             </div>
@@ -460,42 +460,42 @@ function IncomeTaxCalculator() {
                     {savings <= 0 ? "Recommended" : ""}
                   </Badge>
                 </div>
-                <p className="text-xs text-white/40">FY 2024-25 slabs</p>
+                <p className="text-xs text-text-tertiary">FY 2024-25 slabs</p>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-1 text-sm">
-                  <div className="flex justify-between text-white/50">
+                  <div className="flex justify-between text-text-secondary">
                     <span>Gross Income</span>
-                    <span className="text-white">{formatCurrency(grossIncome)}</span>
+                    <span className="text-text-primary">{formatCurrency(grossIncome)}</span>
                   </div>
-                  <div className="flex justify-between text-white/50">
+                  <div className="flex justify-between text-text-secondary">
                     <span>Standard Deduction</span>
-                    <span className="text-white">
+                    <span className="text-text-primary">
                       - {formatCurrency(newStdDeduction)}
                     </span>
                   </div>
-                  <div className="flex justify-between text-white font-semibold border-t border-white/10 pt-1">
+                  <div className="flex justify-between text-text-primary font-semibold border-t border-border pt-1">
                     <span>Taxable Income</span>
                     <span>{formatCurrency(newTaxableIncome)}</span>
                   </div>
                 </div>
 
                 {/* Slab breakdown */}
-                <div className="rounded-lg border border-white/10 overflow-hidden">
+                <div className="rounded-lg border border-border overflow-hidden">
                   <table className="w-full text-xs">
                     <thead>
-                      <tr className="bg-white/5">
-                        <th className="text-left p-2 text-white/50 font-medium">Slab</th>
-                        <th className="text-right p-2 text-white/50 font-medium">Rate</th>
-                        <th className="text-right p-2 text-white/50 font-medium">Tax</th>
+                      <tr className="bg-surface-tertiary">
+                        <th className="text-left p-2 text-text-secondary font-medium">Slab</th>
+                        <th className="text-right p-2 text-text-secondary font-medium">Rate</th>
+                        <th className="text-right p-2 text-text-secondary font-medium">Tax</th>
                       </tr>
                     </thead>
                     <tbody>
                       {newResult.slabs.map((s, i) => (
-                        <tr key={i} className="border-t border-white/5">
-                          <td className="p-2 text-white/70">{s.slab}</td>
-                          <td className="p-2 text-right text-white/70">{s.rate}%</td>
-                          <td className="p-2 text-right text-white font-mono">
+                        <tr key={i} className="border-t border-border-light">
+                          <td className="p-2 text-text-secondary">{s.slab}</td>
+                          <td className="p-2 text-right text-text-secondary">{s.rate}%</td>
+                          <td className="p-2 text-right text-text-primary font-mono">
                             {formatCurrency(s.tax)}
                           </td>
                         </tr>
@@ -505,9 +505,9 @@ function IncomeTaxCalculator() {
                 </div>
 
                 <div className="space-y-1 text-sm">
-                  <div className="flex justify-between text-white/50">
+                  <div className="flex justify-between text-text-secondary">
                     <span>Tax on Income</span>
-                    <span className="text-white">{formatCurrency(newResult.baseTax)}</span>
+                    <span className="text-text-primary">{formatCurrency(newResult.baseTax)}</span>
                   </div>
                   {newResult.rebate > 0 && (
                     <div className="flex justify-between text-emerald-400">
@@ -515,31 +515,31 @@ function IncomeTaxCalculator() {
                       <span>- {formatCurrency(newResult.rebate)}</span>
                     </div>
                   )}
-                  <div className="flex justify-between text-white/50">
+                  <div className="flex justify-between text-text-secondary">
                     <span>Tax after Rebate</span>
-                    <span className="text-white">
+                    <span className="text-text-primary">
                       {formatCurrency(newResult.taxAfterRebate)}
                     </span>
                   </div>
                   {newResult.surcharge > 0 && (
-                    <div className="flex justify-between text-white/50">
+                    <div className="flex justify-between text-text-secondary">
                       <span>Surcharge</span>
-                      <span className="text-white">
+                      <span className="text-text-primary">
                         {formatCurrency(newResult.surcharge)}
                       </span>
                     </div>
                   )}
-                  <div className="flex justify-between text-white/50">
+                  <div className="flex justify-between text-text-secondary">
                     <span>Health & Education Cess (4%)</span>
-                    <span className="text-white">{formatCurrency(newResult.cess)}</span>
+                    <span className="text-text-primary">{formatCurrency(newResult.cess)}</span>
                   </div>
-                  <div className="flex justify-between text-lg font-bold border-t border-white/10 pt-2 mt-2">
-                    <span className="text-white">Total Tax</span>
+                  <div className="flex justify-between text-lg font-bold border-t border-border pt-2 mt-2">
+                    <span className="text-text-primary">Total Tax</span>
                     <span className="text-emerald-400">
                       {formatCurrency(newResult.totalTax)}
                     </span>
                   </div>
-                  <div className="flex justify-between text-xs text-white/40">
+                  <div className="flex justify-between text-xs text-text-tertiary">
                     <span>Effective Rate</span>
                     <span>{newEffective}%</span>
                   </div>
@@ -556,42 +556,42 @@ function IncomeTaxCalculator() {
                     {savings > 0 ? "Recommended" : ""}
                   </Badge>
                 </div>
-                <p className="text-xs text-white/40">With deductions</p>
+                <p className="text-xs text-text-tertiary">With deductions</p>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-1 text-sm">
-                  <div className="flex justify-between text-white/50">
+                  <div className="flex justify-between text-text-secondary">
                     <span>Gross Income</span>
-                    <span className="text-white">{formatCurrency(grossIncome)}</span>
+                    <span className="text-text-primary">{formatCurrency(grossIncome)}</span>
                   </div>
-                  <div className="flex justify-between text-white/50">
+                  <div className="flex justify-between text-text-secondary">
                     <span>Total Deductions</span>
-                    <span className="text-white">
+                    <span className="text-text-primary">
                       - {formatCurrency(totalOldDeductions)}
                     </span>
                   </div>
-                  <div className="flex justify-between text-white font-semibold border-t border-white/10 pt-1">
+                  <div className="flex justify-between text-text-primary font-semibold border-t border-border pt-1">
                     <span>Taxable Income</span>
                     <span>{formatCurrency(oldTaxableIncome)}</span>
                   </div>
                 </div>
 
                 {/* Slab breakdown */}
-                <div className="rounded-lg border border-white/10 overflow-hidden">
+                <div className="rounded-lg border border-border overflow-hidden">
                   <table className="w-full text-xs">
                     <thead>
-                      <tr className="bg-white/5">
-                        <th className="text-left p-2 text-white/50 font-medium">Slab</th>
-                        <th className="text-right p-2 text-white/50 font-medium">Rate</th>
-                        <th className="text-right p-2 text-white/50 font-medium">Tax</th>
+                      <tr className="bg-surface-tertiary">
+                        <th className="text-left p-2 text-text-secondary font-medium">Slab</th>
+                        <th className="text-right p-2 text-text-secondary font-medium">Rate</th>
+                        <th className="text-right p-2 text-text-secondary font-medium">Tax</th>
                       </tr>
                     </thead>
                     <tbody>
                       {oldResult.slabs.map((s, i) => (
-                        <tr key={i} className="border-t border-white/5">
-                          <td className="p-2 text-white/70">{s.slab}</td>
-                          <td className="p-2 text-right text-white/70">{s.rate}%</td>
-                          <td className="p-2 text-right text-white font-mono">
+                        <tr key={i} className="border-t border-border-light">
+                          <td className="p-2 text-text-secondary">{s.slab}</td>
+                          <td className="p-2 text-right text-text-secondary">{s.rate}%</td>
+                          <td className="p-2 text-right text-text-primary font-mono">
                             {formatCurrency(s.tax)}
                           </td>
                         </tr>
@@ -601,9 +601,9 @@ function IncomeTaxCalculator() {
                 </div>
 
                 <div className="space-y-1 text-sm">
-                  <div className="flex justify-between text-white/50">
+                  <div className="flex justify-between text-text-secondary">
                     <span>Tax on Income</span>
-                    <span className="text-white">{formatCurrency(oldResult.baseTax)}</span>
+                    <span className="text-text-primary">{formatCurrency(oldResult.baseTax)}</span>
                   </div>
                   {oldResult.rebate > 0 && (
                     <div className="flex justify-between text-emerald-400">
@@ -611,31 +611,31 @@ function IncomeTaxCalculator() {
                       <span>- {formatCurrency(oldResult.rebate)}</span>
                     </div>
                   )}
-                  <div className="flex justify-between text-white/50">
+                  <div className="flex justify-between text-text-secondary">
                     <span>Tax after Rebate</span>
-                    <span className="text-white">
+                    <span className="text-text-primary">
                       {formatCurrency(oldResult.taxAfterRebate)}
                     </span>
                   </div>
                   {oldResult.surcharge > 0 && (
-                    <div className="flex justify-between text-white/50">
+                    <div className="flex justify-between text-text-secondary">
                       <span>Surcharge</span>
-                      <span className="text-white">
+                      <span className="text-text-primary">
                         {formatCurrency(oldResult.surcharge)}
                       </span>
                     </div>
                   )}
-                  <div className="flex justify-between text-white/50">
+                  <div className="flex justify-between text-text-secondary">
                     <span>Health & Education Cess (4%)</span>
-                    <span className="text-white">{formatCurrency(oldResult.cess)}</span>
+                    <span className="text-text-primary">{formatCurrency(oldResult.cess)}</span>
                   </div>
-                  <div className="flex justify-between text-lg font-bold border-t border-white/10 pt-2 mt-2">
-                    <span className="text-white">Total Tax</span>
+                  <div className="flex justify-between text-lg font-bold border-t border-border pt-2 mt-2">
+                    <span className="text-text-primary">Total Tax</span>
                     <span className="text-blue-400">
                       {formatCurrency(oldResult.totalTax)}
                     </span>
                   </div>
-                  <div className="flex justify-between text-xs text-white/40">
+                  <div className="flex justify-between text-xs text-text-tertiary">
                     <span>Effective Rate</span>
                     <span>{oldEffective}%</span>
                   </div>
@@ -670,10 +670,10 @@ function IncomeTaxCalculator() {
                 ].map((d, i) => (
                   <div
                     key={i}
-                    className="rounded-lg bg-white/5 p-3 border border-white/5"
+                    className="rounded-lg bg-surface-tertiary p-3 border border-border-light"
                   >
-                    <p className="text-white/40 text-xs">{d.label}</p>
-                    <p className="text-white font-semibold font-mono mt-1">
+                    <p className="text-text-tertiary text-xs">{d.label}</p>
+                    <p className="text-text-primary font-semibold font-mono mt-1">
                       {formatCurrency(d.value)}
                     </p>
                     {d.max !== null && (
@@ -752,15 +752,15 @@ function AdvanceTaxPlanner() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardContent className="p-6">
-            <p className="text-sm text-white/50">Annual Tax Liability</p>
-            <p className="text-2xl font-bold font-mono text-white mt-1">
+            <p className="text-sm text-text-secondary">Annual Tax Liability</p>
+            <p className="text-2xl font-bold font-mono text-text-primary mt-1">
               {formatCurrency(annualTaxLiability)}
             </p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-6">
-            <p className="text-sm text-white/50">Total Paid</p>
+            <p className="text-sm text-text-secondary">Total Paid</p>
             <p className="text-2xl font-bold font-mono text-emerald-400 mt-1">
               {formatCurrency(totalPaid)}
             </p>
@@ -773,7 +773,7 @@ function AdvanceTaxPlanner() {
         </Card>
         <Card>
           <CardContent className="p-6">
-            <p className="text-sm text-white/50">Balance Due</p>
+            <p className="text-sm text-text-secondary">Balance Due</p>
             <p className="text-2xl font-bold font-mono text-amber-400 mt-1">
               {formatCurrency(totalDue - totalPaid)}
             </p>
@@ -817,19 +817,19 @@ function AdvanceTaxPlanner() {
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="text-xs text-white/40">Due: {q.dueDate}</div>
-              <div className="text-xs text-white/40">
+              <div className="text-xs text-text-tertiary">Due: {q.dueDate}</div>
+              <div className="text-xs text-text-tertiary">
                 Cumulative: {q.cumulativePercent}% of liability
               </div>
               <div className="space-y-1">
                 <div className="flex justify-between text-sm">
-                  <span className="text-white/50">Amount Due</span>
-                  <span className="text-white font-mono">
+                  <span className="text-text-secondary">Amount Due</span>
+                  <span className="text-text-primary font-mono">
                     {formatCurrency(q.amountDue)}
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-white/50">Amount Paid</span>
+                  <span className="text-text-secondary">Amount Paid</span>
                   <span
                     className={`font-mono ${
                       q.amountPaid >= q.amountDue ? "text-emerald-400" : "text-amber-400"
@@ -864,15 +864,15 @@ function AdvanceTaxPlanner() {
               <h4 className="font-semibold text-amber-400">
                 Interest on Late Payment
               </h4>
-              <p className="text-white/60 text-sm mt-1">
+              <p className="text-text-secondary text-sm mt-1">
                 <strong>Sec 234B:</strong> Interest at 1% per month on shortfall
                 if advance tax paid is less than 90% of assessed tax.
               </p>
-              <p className="text-white/60 text-sm mt-1">
+              <p className="text-text-secondary text-sm mt-1">
                 <strong>Sec 234C:</strong> Interest at 1% per month on deferment
                 of individual quarterly installments.
               </p>
-              <p className="text-white/40 text-xs mt-2">
+              <p className="text-text-tertiary text-xs mt-2">
                 Interest is calculated on simple interest basis from due date to
                 date of payment.
               </p>
@@ -964,7 +964,7 @@ function GSTTracker() {
               <p className="text-amber-400 font-semibold text-sm">
                 GST Registration Threshold Exceeded
               </p>
-              <p className="text-white/50 text-xs">
+              <p className="text-text-secondary text-xs">
                 Your aggregate turnover of {formatCurrency(totalRevenue)} exceeds
                 the {formatCurrency(2000000)} threshold. GST registration is
                 mandatory.
@@ -978,7 +978,7 @@ function GSTTracker() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-6">
-            <p className="text-sm text-white/50">Total Output GST</p>
+            <p className="text-sm text-text-secondary">Total Output GST</p>
             <p className="text-2xl font-bold font-mono text-rose-400 mt-1">
               {formatCurrency(totalOutput)}
             </p>
@@ -986,7 +986,7 @@ function GSTTracker() {
         </Card>
         <Card>
           <CardContent className="p-6">
-            <p className="text-sm text-white/50">Total Input GST (ITC)</p>
+            <p className="text-sm text-text-secondary">Total Input GST (ITC)</p>
             <p className="text-2xl font-bold font-mono text-emerald-400 mt-1">
               {formatCurrency(totalInput)}
             </p>
@@ -994,7 +994,7 @@ function GSTTracker() {
         </Card>
         <Card>
           <CardContent className="p-6">
-            <p className="text-sm text-white/50">Net GST Liability</p>
+            <p className="text-sm text-text-secondary">Net GST Liability</p>
             <p className="text-2xl font-bold font-mono text-gold mt-1">
               {formatCurrency(totalNet)}
             </p>
@@ -1023,24 +1023,24 @@ function GSTTracker() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-            <div className="rounded-lg bg-white/5 p-4 border border-white/5 flex items-center gap-3">
+            <div className="rounded-lg bg-surface-tertiary p-4 border border-border-light flex items-center gap-3">
               <div className="h-10 w-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
                 <FileText className="h-5 w-5 text-blue-400" />
               </div>
               <div>
-                <p className="text-white font-semibold text-sm">GSTR-1</p>
-                <p className="text-white/40 text-xs">
+                <p className="text-text-primary font-semibold text-sm">GSTR-1</p>
+                <p className="text-text-tertiary text-xs">
                   Outward supplies &mdash; Due by 11th of next month
                 </p>
               </div>
             </div>
-            <div className="rounded-lg bg-white/5 p-4 border border-white/5 flex items-center gap-3">
+            <div className="rounded-lg bg-surface-tertiary p-4 border border-border-light flex items-center gap-3">
               <div className="h-10 w-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
                 <FileText className="h-5 w-5 text-purple-400" />
               </div>
               <div>
-                <p className="text-white font-semibold text-sm">GSTR-3B</p>
-                <p className="text-white/40 text-xs">
+                <p className="text-text-primary font-semibold text-sm">GSTR-3B</p>
+                <p className="text-text-tertiary text-xs">
                   Summary return &mdash; Due by 20th of next month
                 </p>
               </div>
@@ -1055,24 +1055,24 @@ function GSTTracker() {
           <CardTitle>Monthly GST Summary</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="rounded-lg border border-white/10 overflow-hidden">
+          <div className="rounded-lg border border-border overflow-hidden">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-white/5">
-                  <th className="text-left p-3 text-white/50 font-medium">Month</th>
-                  <th className="text-right p-3 text-white/50 font-medium">Revenue</th>
-                  <th className="text-right p-3 text-white/50 font-medium">Output GST</th>
-                  <th className="text-right p-3 text-white/50 font-medium">Input GST</th>
-                  <th className="text-right p-3 text-white/50 font-medium">Net Liability</th>
-                  <th className="text-center p-3 text-white/50 font-medium">GSTR-1</th>
-                  <th className="text-center p-3 text-white/50 font-medium">GSTR-3B</th>
+                <tr className="bg-surface-tertiary">
+                  <th className="text-left p-3 text-text-secondary font-medium">Month</th>
+                  <th className="text-right p-3 text-text-secondary font-medium">Revenue</th>
+                  <th className="text-right p-3 text-text-secondary font-medium">Output GST</th>
+                  <th className="text-right p-3 text-text-secondary font-medium">Input GST</th>
+                  <th className="text-right p-3 text-text-secondary font-medium">Net Liability</th>
+                  <th className="text-center p-3 text-text-secondary font-medium">GSTR-1</th>
+                  <th className="text-center p-3 text-text-secondary font-medium">GSTR-3B</th>
                 </tr>
               </thead>
               <tbody>
                 {gstData.map((row, i) => (
-                  <tr key={i} className="border-t border-white/5">
-                    <td className="p-3 text-white">{row.month}</td>
-                    <td className="p-3 text-right text-white font-mono">
+                  <tr key={i} className="border-t border-border-light">
+                    <td className="p-3 text-text-primary">{row.month}</td>
+                    <td className="p-3 text-right text-text-primary font-mono">
                       {formatCurrency(row.revenue)}
                     </td>
                     <td className="p-3 text-right text-rose-400 font-mono">
@@ -1102,9 +1102,9 @@ function GSTTracker() {
                 ))}
               </tbody>
               <tfoot>
-                <tr className="border-t border-white/10 bg-white/5 font-semibold">
-                  <td className="p-3 text-white">Total</td>
-                  <td className="p-3 text-right text-white font-mono">
+                <tr className="border-t border-border bg-surface-tertiary font-semibold">
+                  <td className="p-3 text-text-primary">Total</td>
+                  <td className="p-3 text-right text-text-primary font-mono">
                     {formatCurrency(totalRevenue)}
                   </td>
                   <td className="p-3 text-right text-rose-400 font-mono">
@@ -1211,10 +1211,10 @@ function HRACalculator() {
                 onChange={(e) => setRentPaid(Number(e.target.value) || 0)}
               />
             </div>
-            <div className="flex items-center justify-between rounded-lg bg-white/5 p-4 border border-white/5">
+            <div className="flex items-center justify-between rounded-lg bg-surface-tertiary p-4 border border-border-light">
               <div>
-                <p className="text-white text-sm font-medium">Metro City</p>
-                <p className="text-white/40 text-xs">
+                <p className="text-text-primary text-sm font-medium">Metro City</p>
+                <p className="text-text-tertiary text-xs">
                   Delhi, Mumbai, Kolkata, Chennai
                 </p>
               </div>
@@ -1227,7 +1227,7 @@ function HRACalculator() {
         <Card>
           <CardHeader>
             <CardTitle>HRA Exemption Calculation</CardTitle>
-            <p className="text-xs text-white/40">Annual amounts</p>
+            <p className="text-xs text-text-tertiary">Annual amounts</p>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Three conditions */}
@@ -1259,18 +1259,18 @@ function HRACalculator() {
                   className={`rounded-lg p-4 border ${
                     hraCalc.minCondition === c.condNum
                       ? "border-gold/30 bg-gold/10"
-                      : "border-white/5 bg-white/5"
+                      : "border-border-light bg-surface-tertiary"
                   }`}
                 >
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm text-white/70">
+                      <p className="text-sm text-text-secondary">
                         Condition {c.condNum}: {c.label}
                       </p>
-                      <p className="text-xs text-white/30 mt-0.5">{c.detail}</p>
+                      <p className="text-xs text-text-tertiary mt-0.5">{c.detail}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-white font-mono font-semibold">
+                      <p className="text-text-primary font-mono font-semibold">
                         {formatCurrency(c.value)}
                       </p>
                       {hraCalc.minCondition === c.condNum && (
@@ -1285,15 +1285,15 @@ function HRACalculator() {
             </div>
 
             {/* Summary */}
-            <div className="border-t border-white/10 pt-4 space-y-3">
+            <div className="border-t border-border pt-4 space-y-3">
               <div className="flex justify-between items-center">
-                <span className="text-white/50">HRA Exempt</span>
+                <span className="text-text-secondary">HRA Exempt</span>
                 <span className="text-emerald-400 font-mono font-bold text-lg">
                   {formatCurrency(hraCalc.exempt)}
                 </span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-white/50">HRA Taxable</span>
+                <span className="text-text-secondary">HRA Taxable</span>
                 <span className="text-rose-400 font-mono font-bold text-lg">
                   {formatCurrency(hraCalc.taxable)}
                 </span>
@@ -1307,7 +1307,7 @@ function HRACalculator() {
                 className="h-3 mt-2"
                 indicatorClassName="bg-emerald-500"
               />
-              <div className="flex justify-between text-xs text-white/30">
+              <div className="flex justify-between text-xs text-text-tertiary">
                 <span>
                   Exempt:{" "}
                   {hraCalc.annualHRA > 0
@@ -1325,7 +1325,7 @@ function HRACalculator() {
               </div>
             </div>
 
-            <div className="rounded-lg bg-gold/5 border border-gold/10 p-3 mt-2">
+            <div className="rounded-lg bg-gold/5 border border-gold/15 p-3 mt-2">
               <p className="text-xs text-gold/80">
                 <strong>Tip:</strong> You can claim{" "}
                 {formatCurrency(hraCalc.exempt)} as HRA exemption in the Income
@@ -1408,23 +1408,23 @@ function TDSReconciliation() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-6">
-            <p className="text-sm text-white/50">Total TDS Claimed</p>
-            <p className="text-2xl font-bold font-mono text-white mt-1">
+            <p className="text-sm text-text-secondary">Total TDS Claimed</p>
+            <p className="text-2xl font-bold font-mono text-text-primary mt-1">
               {formatCurrency(totalCredited)}
             </p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-6">
-            <p className="text-sm text-white/50">Total in 26AS/AIS</p>
-            <p className="text-2xl font-bold font-mono text-white mt-1">
+            <p className="text-sm text-text-secondary">Total in 26AS/AIS</p>
+            <p className="text-2xl font-bold font-mono text-text-primary mt-1">
               {formatCurrency(totalIn26AS)}
             </p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-6">
-            <p className="text-sm text-white/50">Mismatches</p>
+            <p className="text-sm text-text-secondary">Mismatches</p>
             <p className="text-2xl font-bold font-mono text-amber-400 mt-1">
               {mismatchCount}
             </p>
@@ -1432,7 +1432,7 @@ function TDSReconciliation() {
         </Card>
         <Card className={mismatchAmount > 0 ? "border-amber-500/20" : ""}>
           <CardContent className="p-6">
-            <p className="text-sm text-white/50">Difference Amount</p>
+            <p className="text-sm text-text-secondary">Difference Amount</p>
             <p className="text-2xl font-bold font-mono text-amber-400 mt-1">
               {formatCurrency(mismatchAmount)}
             </p>
@@ -1449,41 +1449,41 @@ function TDSReconciliation() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="rounded-lg border border-white/10 overflow-hidden">
+          <div className="rounded-lg border border-border overflow-hidden">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-white/5">
-                  <th className="text-left p-3 text-white/50 font-medium">Source</th>
-                  <th className="text-left p-3 text-white/50 font-medium">Type</th>
-                  <th className="text-left p-3 text-white/50 font-medium">TAN</th>
-                  <th className="text-right p-3 text-white/50 font-medium">
+                <tr className="bg-surface-tertiary">
+                  <th className="text-left p-3 text-text-secondary font-medium">Source</th>
+                  <th className="text-left p-3 text-text-secondary font-medium">Type</th>
+                  <th className="text-left p-3 text-text-secondary font-medium">TAN</th>
+                  <th className="text-right p-3 text-text-secondary font-medium">
                     TDS Credited
                   </th>
-                  <th className="text-right p-3 text-white/50 font-medium">
+                  <th className="text-right p-3 text-text-secondary font-medium">
                     In 26AS
                   </th>
-                  <th className="text-center p-3 text-white/50 font-medium">Status</th>
+                  <th className="text-center p-3 text-text-secondary font-medium">Status</th>
                 </tr>
               </thead>
               <tbody>
                 {tdsEntries.map((entry, i) => (
                   <tr
                     key={i}
-                    className={`border-t border-white/5 ${
+                    className={`border-t border-border-light ${
                       !entry.match ? "bg-amber-500/5" : ""
                     }`}
                   >
-                    <td className="p-3 text-white">{entry.source}</td>
-                    <td className="p-3 text-white/70">{entry.type}</td>
-                    <td className="p-3 text-white/50 font-mono text-xs">
+                    <td className="p-3 text-text-primary">{entry.source}</td>
+                    <td className="p-3 text-text-secondary">{entry.type}</td>
+                    <td className="p-3 text-text-secondary font-mono text-xs">
                       {entry.tan}
                     </td>
-                    <td className="p-3 text-right text-white font-mono">
+                    <td className="p-3 text-right text-text-primary font-mono">
                       {formatCurrency(entry.amountCredited)}
                     </td>
                     <td
                       className={`p-3 text-right font-mono ${
-                        entry.match ? "text-white" : "text-amber-400"
+                        entry.match ? "text-text-primary" : "text-amber-400"
                       }`}
                     >
                       {formatCurrency(entry.amountIn26AS)}
@@ -1520,7 +1520,7 @@ function TDSReconciliation() {
                   Action Required: {mismatchCount} TDS Mismatch
                   {mismatchCount > 1 ? "es" : ""}
                 </h4>
-                <p className="text-white/60 text-sm mt-1">
+                <p className="text-text-secondary text-sm mt-1">
                   A total of {formatCurrency(mismatchAmount)} is not reflected in
                   Form 26AS/AIS. Contact the deductor(s) to ensure TDS is
                   deposited with the government and the correct PAN is quoted.

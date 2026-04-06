@@ -14,18 +14,18 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
       <select
         ref={ref}
         className={cn(
-          "flex h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-gold/50 focus:outline-none focus:ring-2 focus:ring-gold/20 transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-50 appearance-none cursor-pointer",
+          "flex h-10 w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-text-primary focus:border-gold/50 focus:outline-none focus:ring-2 focus:ring-gold/15 transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-50 appearance-none cursor-pointer",
           className
         )}
         {...props}
       >
         {placeholder && (
-          <option value="" className="bg-navy text-white/50">
+          <option value="" className="text-text-tertiary">
             {placeholder}
           </option>
         )}
         {options.map((opt) => (
-          <option key={opt.value} value={opt.value} className="bg-navy text-white">
+          <option key={opt.value} value={opt.value}>
             {opt.label}
           </option>
         ))}

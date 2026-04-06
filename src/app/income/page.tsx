@@ -48,7 +48,7 @@ const TYPE_BADGE_MAP: Record<string, { label: string; color: string }> = {
   rental: { label: "Rental", color: "bg-amber-500/10 text-amber-400 border-amber-500/30" },
   interest: { label: "Interest", color: "bg-purple-500/10 text-purple-400 border-purple-500/30" },
   dividend: { label: "Dividend", color: "bg-cyan-500/10 text-cyan-400 border-cyan-500/30" },
-  other: { label: "Other", color: "bg-white/5 text-white/70 border-white/10" },
+  other: { label: "Other", color: "bg-surface-tertiary text-text-secondary border-border" },
 };
 
 const MONTH_LABELS = [
@@ -211,7 +211,7 @@ export default function IncomePage() {
     return (
       <AppLayout>
         <div className="flex items-center justify-center h-96">
-          <p className="text-white/50">Loading user data...</p>
+          <p className="text-text-secondary">Loading user data...</p>
         </div>
       </AppLayout>
     );
@@ -223,8 +223,8 @@ export default function IncomePage() {
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-display font-bold text-white">Income</h1>
-              <p className="text-white/50 text-sm mt-1">
+              <h1 className="text-3xl font-display font-bold text-text-primary">Income</h1>
+              <p className="text-text-secondary text-sm mt-1">
                 Track all income sources, TDS and GST for FY 2025-26
               </p>
             </div>
@@ -233,10 +233,10 @@ export default function IncomePage() {
             {[...Array(4)].map((_, i) => (
               <Card key={i}>
                 <CardContent className="p-4 flex items-center gap-4">
-                  <div className="h-12 w-12 rounded-xl bg-white/5 animate-pulse" />
+                  <div className="h-12 w-12 rounded-xl bg-gray-100 animate-pulse" />
                   <div className="space-y-2 flex-1">
-                    <div className="h-3 w-24 bg-white/5 animate-pulse rounded" />
-                    <div className="h-6 w-32 bg-white/5 animate-pulse rounded" />
+                    <div className="h-3 w-24 bg-gray-100 animate-pulse rounded" />
+                    <div className="h-6 w-32 bg-gray-100 animate-pulse rounded" />
                   </div>
                 </CardContent>
               </Card>
@@ -244,7 +244,7 @@ export default function IncomePage() {
           </div>
           <Card>
             <CardContent className="p-8 text-center">
-              <p className="text-white/30">Loading income data...</p>
+              <p className="text-text-tertiary">Loading income data...</p>
             </CardContent>
           </Card>
         </div>
@@ -262,8 +262,8 @@ export default function IncomePage() {
         {/* ---- Header ---- */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-display font-bold text-white">Income</h1>
-            <p className="text-white/50 text-sm mt-1">
+            <h1 className="text-3xl font-display font-bold text-text-primary">Income</h1>
+            <p className="text-text-secondary text-sm mt-1">
               Track all income sources, TDS and GST for FY 2025-26
             </p>
           </div>
@@ -284,7 +284,7 @@ export default function IncomePage() {
                 <IndianRupee className="h-6 w-6 text-emerald-400" />
               </div>
               <div>
-                <p className="text-xs text-white/50 uppercase tracking-wider">Total Income YTD</p>
+                <p className="text-xs text-text-secondary uppercase tracking-wider">Total Income YTD</p>
                 <p className="text-xl font-display font-bold text-emerald-400 stat-number">
                   {formatCurrency(totalIncome)}
                 </p>
@@ -298,7 +298,7 @@ export default function IncomePage() {
                 <FileText className="h-6 w-6 text-rose-400" />
               </div>
               <div>
-                <p className="text-xs text-white/50 uppercase tracking-wider">TDS Deducted</p>
+                <p className="text-xs text-text-secondary uppercase tracking-wider">TDS Deducted</p>
                 <p className="text-xl font-display font-bold text-rose-400 stat-number">
                   {formatCurrency(totalTds)}
                 </p>
@@ -312,7 +312,7 @@ export default function IncomePage() {
                 <FileText className="h-6 w-6 text-blue-400" />
               </div>
               <div>
-                <p className="text-xs text-white/50 uppercase tracking-wider">GST Collected</p>
+                <p className="text-xs text-text-secondary uppercase tracking-wider">GST Collected</p>
                 <p className="text-xl font-display font-bold text-blue-400 stat-number">
                   {formatCurrency(totalGst)}
                 </p>
@@ -326,7 +326,7 @@ export default function IncomePage() {
                 <TrendingUp className="h-6 w-6 text-gold" />
               </div>
               <div>
-                <p className="text-xs text-white/50 uppercase tracking-wider">Projected Annual</p>
+                <p className="text-xs text-text-secondary uppercase tracking-wider">Projected Annual</p>
                 <p className="text-xl font-display font-bold text-gold stat-number">
                   {formatCurrency(projectedAnnual)}
                 </p>
@@ -339,7 +339,7 @@ export default function IncomePage() {
         <Card>
           <CardContent className="p-4">
             <div className="flex flex-wrap items-center gap-4">
-              <div className="flex items-center gap-2 text-white/50">
+              <div className="flex items-center gap-2 text-text-secondary">
                 <Filter className="h-4 w-4" />
                 <span className="text-sm font-medium">Filters</span>
               </div>
@@ -350,7 +350,7 @@ export default function IncomePage() {
                 className="w-48"
               />
               <div className="flex items-center gap-2">
-                <Label className="text-white/50 text-sm">From</Label>
+                <Label className="text-text-secondary text-sm">From</Label>
                 <Input
                   type="date"
                   value={dateFrom}
@@ -359,7 +359,7 @@ export default function IncomePage() {
                 />
               </div>
               <div className="flex items-center gap-2">
-                <Label className="text-white/50 text-sm">To</Label>
+                <Label className="text-text-secondary text-sm">To</Label>
                 <Input
                   type="date"
                   value={dateTo}
@@ -376,7 +376,7 @@ export default function IncomePage() {
                     setDateFrom("");
                     setDateTo("");
                   }}
-                  className="text-white/50 hover:text-white"
+                  className="text-text-secondary hover:text-text-primary"
                 >
                   Clear
                 </Button>
@@ -388,12 +388,12 @@ export default function IncomePage() {
         {/* ---- Income Entries Table ---- */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-white font-display">Income Entries</CardTitle>
+            <CardTitle className="text-text-primary font-display">Income Entries</CardTitle>
           </CardHeader>
           <CardContent>
             {safeEntries.length === 0 ? (
               <div className="py-12 text-center">
-                <p className="text-white/30">
+                <p className="text-text-tertiary">
                   No income entries yet. Add your first income entry.
                 </p>
               </div>
@@ -401,7 +401,7 @@ export default function IncomePage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-white/10 text-white/50 text-left">
+                    <tr className="border-b border-border text-text-secondary text-left">
                       <th className="pb-3 pr-4 font-medium">Date</th>
                       <th className="pb-3 pr-4 font-medium">Type</th>
                       <th className="pb-3 pr-4 font-medium">Description</th>
@@ -417,30 +417,30 @@ export default function IncomePage() {
                       return (
                         <tr
                           key={entry._id}
-                          className="border-b border-white/5 hover:bg-white/[0.02] transition-colors"
+                          className="border-b border-border-light hover:bg-surface-tertiary/50 transition-colors"
                         >
-                          <td className="py-3 pr-4 text-white/70">{formatDate(entry.date)}</td>
+                          <td className="py-3 pr-4 text-text-secondary">{formatDate(entry.date)}</td>
                           <td className="py-3 pr-4">
                             <Badge className={badge.color}>{badge.label}</Badge>
                           </td>
-                          <td className="py-3 pr-4 text-white">{entry.description}</td>
+                          <td className="py-3 pr-4 text-text-primary">{entry.description}</td>
                           <td className="py-3 pr-4 text-right font-semibold text-emerald-400 stat-number">
                             {formatCurrency(entry.amount)}
                           </td>
-                          <td className="py-3 pr-4 text-right text-white/50 stat-number">
+                          <td className="py-3 pr-4 text-right text-text-secondary stat-number">
                             {entry.tds_deducted ? formatCurrency(entry.tds_deducted) : "-"}
                           </td>
-                          <td className="py-3 pr-4 text-right text-white/50 stat-number">
+                          <td className="py-3 pr-4 text-right text-text-secondary stat-number">
                             {entry.gst_collected ? formatCurrency(entry.gst_collected) : "-"}
                           </td>
                           <td className="py-3 text-right">
                             <div className="flex items-center justify-end gap-1">
-                              <button className="p-1.5 rounded-lg hover:bg-white/5 text-white/40 hover:text-white transition-colors">
+                              <button className="p-1.5 rounded-lg hover:bg-surface-tertiary text-text-tertiary hover:text-text-primary transition-colors">
                                 <Edit className="h-4 w-4" />
                               </button>
                               <button
                                 onClick={() => handleDelete(entry._id)}
-                                className="p-1.5 rounded-lg hover:bg-rose-500/10 text-white/40 hover:text-rose-400 transition-colors"
+                                className="p-1.5 rounded-lg hover:bg-rose-500/10 text-text-tertiary hover:text-rose-400 transition-colors"
                               >
                                 <Trash2 className="h-4 w-4" />
                               </button>
@@ -451,7 +451,7 @@ export default function IncomePage() {
                     })}
                     {filtered.length === 0 && (
                       <tr>
-                        <td colSpan={7} className="py-8 text-center text-white/30">
+                        <td colSpan={7} className="py-8 text-center text-text-tertiary">
                           No income entries match the selected filters.
                         </td>
                       </tr>
@@ -466,33 +466,33 @@ export default function IncomePage() {
         {/* ---- Monthly Income by Category Chart ---- */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-white font-display">Income by Category</CardTitle>
+            <CardTitle className="text-text-primary font-display">Income by Category</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={monthlyChartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" />
                   <XAxis
                     dataKey="month"
-                    tick={{ fill: "rgba(255,255,255,0.5)", fontSize: 12 }}
-                    axisLine={{ stroke: "rgba(255,255,255,0.1)" }}
+                    tick={{ fill: "rgba(107,114,128,0.5)", fontSize: 12 }}
+                    axisLine={{ stroke: "rgba(107,114,128,0.3)" }}
                     tickLine={false}
                   />
                   <YAxis
                     tickFormatter={(v: number) =>
                       v >= 100000 ? `${(v / 100000).toFixed(1)}L` : `${(v / 1000).toFixed(0)}K`
                     }
-                    tick={{ fill: "rgba(255,255,255,0.5)", fontSize: 12 }}
-                    axisLine={{ stroke: "rgba(255,255,255,0.1)" }}
+                    tick={{ fill: "rgba(107,114,128,0.5)", fontSize: 12 }}
+                    axisLine={{ stroke: "rgba(107,114,128,0.3)" }}
                     tickLine={false}
                   />
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: "rgba(15,23,42,0.95)",
-                      border: "1px solid rgba(240,165,0,0.2)",
+                      backgroundColor: "rgba(255,255,255,0.98)",
+                      border: "1px solid rgba(229,231,235,1)",
                       borderRadius: "0.75rem",
-                      color: "#fff",
+                      color: "#1f2937",
                     }}
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     formatter={(value: any) => formatCurrency(Number(value))}
@@ -508,7 +508,7 @@ export default function IncomePage() {
             {/* Legend */}
             <div className="flex flex-wrap items-center justify-center gap-4 mt-4">
               {["salary", "freelance", "rental", "interest", "dividend"].map((key) => (
-                <div key={key} className="flex items-center gap-2 text-xs text-white/60">
+                <div key={key} className="flex items-center gap-2 text-xs text-text-secondary">
                   <span
                     className="inline-block h-3 w-3 rounded-sm"
                     style={{ backgroundColor: CATEGORY_COLORS[key] }}
@@ -611,7 +611,7 @@ export default function IncomePage() {
                   type="button"
                   variant="ghost"
                   onClick={() => handleDialogChange(false)}
-                  className="text-white/50 hover:text-white"
+                  className="text-text-secondary hover:text-text-primary"
                 >
                   Cancel
                 </Button>

@@ -59,25 +59,25 @@ const taxComparison = {
 
 function SkeletonCard() {
   return (
-    <div className="animate-pulse bg-white/5 rounded-lg h-[132px] border border-white/5" />
+    <div className="animate-pulse bg-gray-100 rounded-lg h-[132px] border border-border-light" />
   );
 }
 
 function SkeletonChartWide() {
   return (
-    <div className="animate-pulse bg-white/5 rounded-lg h-[400px] border border-white/5 lg:col-span-2" />
+    <div className="animate-pulse bg-gray-100 rounded-lg h-[400px] border border-border-light lg:col-span-2" />
   );
 }
 
 function SkeletonChartNarrow() {
   return (
-    <div className="animate-pulse bg-white/5 rounded-lg h-[400px] border border-white/5" />
+    <div className="animate-pulse bg-gray-100 rounded-lg h-[400px] border border-border-light" />
   );
 }
 
 function SkeletonBottomCard() {
   return (
-    <div className="animate-pulse bg-white/5 rounded-lg h-[320px] border border-white/5" />
+    <div className="animate-pulse bg-gray-100 rounded-lg h-[320px] border border-border-light" />
   );
 }
 
@@ -86,8 +86,8 @@ function DashboardSkeleton() {
     <div className="space-y-8">
       {/* Header skeleton */}
       <div className="animate-enter">
-        <div className="animate-pulse bg-white/5 rounded-lg h-9 w-48" />
-        <div className="animate-pulse bg-white/5 rounded-lg h-5 w-80 mt-2" />
+        <div className="animate-pulse bg-gray-100 rounded-lg h-9 w-48" />
+        <div className="animate-pulse bg-gray-100 rounded-lg h-5 w-80 mt-2" />
       </div>
 
       {/* Stat cards skeleton */}
@@ -120,18 +120,18 @@ function DashboardEmptyState() {
   return (
     <div className="space-y-8">
       <div className="animate-enter">
-        <h1 className="font-display text-3xl font-bold text-white">Dashboard</h1>
-        <p className="text-white/50 mt-1">Your financial overview</p>
+        <h1 className="font-display text-3xl font-bold text-text-primary">Dashboard</h1>
+        <p className="text-text-secondary mt-1">Your financial overview</p>
       </div>
 
       <div className="flex flex-col items-center justify-center py-24">
         <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-gold/10 mb-6">
           <Wallet className="h-10 w-10 text-gold" />
         </div>
-        <h2 className="font-display text-2xl font-bold text-white mb-2">
+        <h2 className="font-display text-2xl font-bold text-text-primary mb-2">
           Welcome to ArthaSutra!
         </h2>
-        <p className="text-white/50 text-center max-w-md">
+        <p className="text-text-secondary text-center max-w-md">
           Start by adding your income and expenses. Once you have some data,
           your financial dashboard will come to life with insights, charts, and
           smart reminders.
@@ -162,8 +162,8 @@ function CustomTooltip({
 }) {
   if (!active || !payload || payload.length === 0) return null;
   return (
-    <div className="bg-navy border border-gold/20 rounded-lg p-3 text-sm shadow-xl">
-      <p className="text-white/70 font-medium mb-1">{label}</p>
+    <div className="bg-white border border-border shadow-lg-soft rounded-lg p-3 text-sm">
+      <p className="text-text-secondary font-medium mb-1">{label}</p>
       {payload.map((entry: TooltipPayloadEntry, idx: number) => (
         <p key={idx} className="flex items-center gap-2" style={{ color: entry.color }}>
           <span
@@ -193,8 +193,8 @@ function PieTooltip({
   if (!active || !payload || payload.length === 0) return null;
   const entry = payload[0];
   return (
-    <div className="bg-navy border border-gold/20 rounded-lg p-3 text-sm shadow-xl">
-      <p className="text-white font-medium">{entry.name}</p>
+    <div className="bg-white border border-border shadow-lg-soft rounded-lg p-3 text-sm">
+      <p className="text-text-primary font-medium">{entry.name}</p>
       <p className="stat-number text-gold">{formatCurrency(entry.value)}</p>
     </div>
   );
@@ -368,8 +368,8 @@ export default function DashboardPage() {
       <div className="space-y-8">
         {/* Header */}
         <div className="animate-enter">
-          <h1 className="font-display text-3xl font-bold text-white">Dashboard</h1>
-          <p className="text-white/50 mt-1">
+          <h1 className="font-display text-3xl font-bold text-text-primary">Dashboard</h1>
+          <p className="text-text-secondary mt-1">
             Welcome back. Here is your financial overview for FY 2025-26.
           </p>
         </div>
@@ -390,7 +390,7 @@ export default function DashboardPage() {
                   className={`absolute inset-0 bg-gradient-to-br ${card.bgGlow} opacity-0 group-hover:opacity-100 transition-opacity duration-500`}
                 />
                 <CardHeader className="relative flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium text-white/60">
+                  <CardTitle className="text-sm font-medium text-text-secondary">
                     {card.title}
                   </CardTitle>
                   <div
@@ -402,11 +402,11 @@ export default function DashboardPage() {
                 </CardHeader>
                 <CardContent className="relative">
                   <div className="flex items-baseline gap-2">
-                    <span className="stat-number text-2xl font-bold text-white">
+                    <span className="stat-number text-2xl font-bold text-text-primary">
                       {formatCurrency(card.value)}
                     </span>
                   </div>
-                  <p className="mt-1 flex items-center gap-1 text-xs text-white/40">
+                  <p className="mt-1 flex items-center gap-1 text-xs text-text-tertiary">
                     {isPositive ? (
                       <ArrowUpRight className="h-3 w-3 text-emerald-400" />
                     ) : (
@@ -432,7 +432,7 @@ export default function DashboardPage() {
                 <TrendingUp className="h-5 w-5 text-gold" />
                 Cash Flow Trend
               </CardTitle>
-              <p className="text-xs text-white/40">Last 12 months (FY 2025-26)</p>
+              <p className="text-xs text-text-tertiary">Last 12 months (FY 2025-26)</p>
             </CardHeader>
             <CardContent>
               <div className="h-72">
@@ -444,17 +444,17 @@ export default function DashboardPage() {
                     >
                       <CartesianGrid
                         strokeDasharray="3 3"
-                        stroke="rgba(255,255,255,0.05)"
+                        stroke="rgba(0,0,0,0.06)"
                       />
                       <XAxis
                         dataKey="month"
-                        tick={{ fill: "rgba(255,255,255,0.4)", fontSize: 12 }}
-                        axisLine={{ stroke: "rgba(255,255,255,0.1)" }}
+                        tick={{ fill: "rgba(107,114,128,0.5)", fontSize: 12 }}
+                        axisLine={{ stroke: "rgba(107,114,128,0.3)" }}
                         tickLine={false}
                       />
                       <YAxis
-                        tick={{ fill: "rgba(255,255,255,0.4)", fontSize: 12 }}
-                        axisLine={{ stroke: "rgba(255,255,255,0.1)" }}
+                        tick={{ fill: "rgba(107,114,128,0.5)", fontSize: 12 }}
+                        axisLine={{ stroke: "rgba(107,114,128,0.3)" }}
                         tickLine={false}
                         tickFormatter={(v: number) =>
                           v >= 100000 ? `${(v / 100000).toFixed(1)}L` : `${(v / 1000).toFixed(0)}K`
@@ -482,7 +482,7 @@ export default function DashboardPage() {
                     </LineChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="flex items-center justify-center h-full text-white/30 text-sm">
+                  <div className="flex items-center justify-center h-full text-text-tertiary text-sm">
                     No cash flow data yet
                   </div>
                 )}
@@ -497,7 +497,7 @@ export default function DashboardPage() {
                 <PieChartIcon className="h-5 w-5 text-gold" />
                 Monthly Breakdown
               </CardTitle>
-              <p className="text-xs text-white/40">Expense categories</p>
+              <p className="text-xs text-text-tertiary">Expense categories</p>
             </CardHeader>
             <CardContent>
               {expenseBreakdown.length > 0 ? (
@@ -536,8 +536,8 @@ export default function DashboardPage() {
                             backgroundColor: CATEGORY_COLORS[entry.category] ?? "#6B7280",
                           }}
                         />
-                        <span className="text-white/50 truncate">{entry.name}</span>
-                        <span className="stat-number text-white/70 ml-auto">
+                        <span className="text-text-secondary truncate">{entry.name}</span>
+                        <span className="stat-number text-text-secondary ml-auto">
                           {formatCurrency(entry.value)}
                         </span>
                       </div>
@@ -545,7 +545,7 @@ export default function DashboardPage() {
                   </div>
                 </>
               ) : (
-                <div className="flex items-center justify-center h-52 text-white/30 text-sm">
+                <div className="flex items-center justify-center h-52 text-text-tertiary text-sm">
                   No expense data yet
                 </div>
               )}
@@ -571,7 +571,7 @@ export default function DashboardPage() {
                     return (
                       <div
                         key={idx}
-                        className="flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.02] px-4 py-3 transition-colors hover:bg-white/[0.04]"
+                        className="flex items-center justify-between rounded-lg border border-border-light bg-surface-tertiary/50 px-4 py-3 transition-colors hover:bg-surface-tertiary"
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           <div
@@ -584,11 +584,11 @@ export default function DashboardPage() {
                             }`}
                           />
                           <div className="min-w-0">
-                            <p className="text-sm text-white truncate">{reminder.title}</p>
-                            <p className="text-xs text-white/40">
+                            <p className="text-sm text-text-primary truncate">{reminder.title}</p>
+                            <p className="text-xs text-text-tertiary">
                               {formatDate(reminder.due_date)}
                               {reminder.amount != null && (
-                                <span className="ml-2 text-white/50">
+                                <span className="ml-2 text-text-secondary">
                                   {formatCurrency(reminder.amount)}
                                 </span>
                               )}
@@ -602,7 +602,7 @@ export default function DashboardPage() {
                     );
                   })
                 ) : (
-                  <div className="flex items-center justify-center py-8 text-white/30 text-sm">
+                  <div className="flex items-center justify-center py-8 text-text-tertiary text-sm">
                     No upcoming reminders
                   </div>
                 )}
@@ -617,7 +617,7 @@ export default function DashboardPage() {
                 <Calculator className="h-5 w-5 text-gold" />
                 Tax Regime Comparison
               </CardTitle>
-              <p className="text-xs text-white/40">
+              <p className="text-xs text-text-tertiary">
                 Gross Income: {formatCurrency(taxComparison.grossIncome)}
               </p>
             </CardHeader>
@@ -628,11 +628,11 @@ export default function DashboardPage() {
                   className={`rounded-lg border p-4 transition-colors ${
                     betterRegime === "Old Regime"
                       ? "border-gold/30 bg-gold/5"
-                      : "border-white/5 bg-white/[0.02]"
+                      : "border-border-light bg-surface-tertiary/50"
                   }`}
                 >
                   <div className="flex items-center justify-between mb-3">
-                    <h4 className="text-sm font-medium text-white/70">Old Regime</h4>
+                    <h4 className="text-sm font-medium text-text-secondary">Old Regime</h4>
                     {betterRegime === "Old Regime" && (
                       <Badge variant="default" className="text-[10px]">
                         Better
@@ -641,26 +641,26 @@ export default function DashboardPage() {
                   </div>
                   <div className="space-y-2">
                     <div className="flex justify-between text-xs">
-                      <span className="text-white/40">Deductions</span>
+                      <span className="text-text-tertiary">Deductions</span>
                       <span className="stat-number text-emerald-400">
                         {formatCurrency(taxComparison.oldRegime.deductions)}
                       </span>
                     </div>
                     <div className="flex justify-between text-xs">
-                      <span className="text-white/40">Taxable Income</span>
-                      <span className="stat-number text-white/70">
+                      <span className="text-text-tertiary">Taxable Income</span>
+                      <span className="stat-number text-text-secondary">
                         {formatCurrency(taxComparison.oldRegime.taxable)}
                       </span>
                     </div>
                     <div className="flex justify-between text-xs">
-                      <span className="text-white/40">Tax + Cess</span>
+                      <span className="text-text-tertiary">Tax + Cess</span>
                       <span className="stat-number text-rose-400">
                         {formatCurrency(taxComparison.oldRegime.total)}
                       </span>
                     </div>
-                    <div className="border-t border-white/10 pt-2 flex justify-between text-sm">
-                      <span className="text-white/60 font-medium">Total Tax</span>
-                      <span className="stat-number font-bold text-white">
+                    <div className="border-t border-border pt-2 flex justify-between text-sm">
+                      <span className="text-text-secondary font-medium">Total Tax</span>
+                      <span className="stat-number font-bold text-text-primary">
                         {formatCurrency(taxComparison.oldRegime.total)}
                       </span>
                     </div>
@@ -672,11 +672,11 @@ export default function DashboardPage() {
                   className={`rounded-lg border p-4 transition-colors ${
                     betterRegime === "New Regime"
                       ? "border-gold/30 bg-gold/5"
-                      : "border-white/5 bg-white/[0.02]"
+                      : "border-border-light bg-surface-tertiary/50"
                   }`}
                 >
                   <div className="flex items-center justify-between mb-3">
-                    <h4 className="text-sm font-medium text-white/70">New Regime</h4>
+                    <h4 className="text-sm font-medium text-text-secondary">New Regime</h4>
                     {betterRegime === "New Regime" && (
                       <Badge variant="default" className="text-[10px]">
                         Better
@@ -685,26 +685,26 @@ export default function DashboardPage() {
                   </div>
                   <div className="space-y-2">
                     <div className="flex justify-between text-xs">
-                      <span className="text-white/40">Deductions</span>
+                      <span className="text-text-tertiary">Deductions</span>
                       <span className="stat-number text-emerald-400">
                         {formatCurrency(taxComparison.newRegime.deductions)}
                       </span>
                     </div>
                     <div className="flex justify-between text-xs">
-                      <span className="text-white/40">Taxable Income</span>
-                      <span className="stat-number text-white/70">
+                      <span className="text-text-tertiary">Taxable Income</span>
+                      <span className="stat-number text-text-secondary">
                         {formatCurrency(taxComparison.newRegime.taxable)}
                       </span>
                     </div>
                     <div className="flex justify-between text-xs">
-                      <span className="text-white/40">Tax + Cess</span>
+                      <span className="text-text-tertiary">Tax + Cess</span>
                       <span className="stat-number text-rose-400">
                         {formatCurrency(taxComparison.newRegime.total)}
                       </span>
                     </div>
-                    <div className="border-t border-white/10 pt-2 flex justify-between text-sm">
-                      <span className="text-white/60 font-medium">Total Tax</span>
-                      <span className="stat-number font-bold text-white">
+                    <div className="border-t border-border pt-2 flex justify-between text-sm">
+                      <span className="text-text-secondary font-medium">Total Tax</span>
+                      <span className="stat-number font-bold text-text-primary">
                         {formatCurrency(taxComparison.newRegime.total)}
                       </span>
                     </div>
@@ -713,9 +713,9 @@ export default function DashboardPage() {
               </div>
 
               {/* Savings callout */}
-              <div className="mt-4 rounded-lg border border-gold/20 bg-gold/5 px-4 py-3 flex items-center justify-between">
+              <div className="mt-4 rounded-lg border border-gold/25 bg-gold/5 px-4 py-3 flex items-center justify-between">
                 <div>
-                  <p className="text-xs text-white/50">You save with {betterRegime}</p>
+                  <p className="text-xs text-text-secondary">You save with {betterRegime}</p>
                   <p className="stat-number text-lg font-bold text-gold">
                     {formatCurrency(savingsAmount)}
                   </p>
