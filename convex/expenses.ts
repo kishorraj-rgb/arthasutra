@@ -59,7 +59,17 @@ export const updateExpenseEntry = mutation({
         v.literal("school_fees"),
         v.literal("utilities"),
         v.literal("entertainment"),
-      v.literal("transfer"),
+        v.literal("clothing"),
+        v.literal("grocery"),
+        v.literal("shopping"),
+        v.literal("personal_care"),
+        v.literal("subscription"),
+        v.literal("donation"),
+        v.literal("emi"),
+        v.literal("rent"),
+        v.literal("travel"),
+        v.literal("cash_withdrawal"),
+        v.literal("transfer"),
         v.literal("other")
       )
     ),
