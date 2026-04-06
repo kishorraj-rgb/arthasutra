@@ -1,27 +1,85 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --navy: #0A0F1E;
+  --gold: #F0A500;
+  --emerald: #10B981;
+  --rose: #F43F5E;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(240, 165, 0, 0.2) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgba(240, 165, 0, 0.2);
+  border-radius: 3px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(240, 165, 0, 0.4);
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--navy);
+  color: white;
+  font-family: 'Inter', system-ui, sans-serif;
 }
 
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
+.glass-card {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(240, 165, 0, 0.1);
+  border-radius: 12px;
 }
+
+.glass-card:hover {
+  border-color: rgba(240, 165, 0, 0.2);
+  box-shadow: 0 0 20px rgba(240, 165, 0, 0.05);
+}
+
+.text-gradient-gold {
+  background: linear-gradient(135deg, #F0A500 0%, #FFD700 50%, #F0A500 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.stat-number {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+@keyframes enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-enter { animation: enter 0.4s ease-out forwards; }
+.animate-enter-delay-1 { animation-delay: 0.1s; opacity: 0; }
+.animate-enter-delay-2 { animation-delay: 0.2s; opacity: 0; }
+.animate-enter-delay-3 { animation-delay: 0.3s; opacity: 0; }
+.animate-enter-delay-4 { animation-delay: 0.4s; opacity: 0; }
+
+.recharts-tooltip-wrapper { outline: none !important; }
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] { -moz-appearance: textfield; }
