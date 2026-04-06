@@ -106,20 +106,22 @@ function expenseCategoryLabel(cat: string): string {
   return map[cat] || cat.charAt(0).toUpperCase() + cat.slice(1);
 }
 
-/** Auto-size columns based on header + data widths */
-function autoSizeColumns(ws: XLSX.WorkSheet, data: IncomeRow[] | ExpenseRow[]): void {
-  if (data.length === 0) return;
-  const first = data[0] as Record<string, unknown>;
-  const keys = Object.keys(first);
-  const colWidths: XLSX.ColInfo[] = keys.map((key) => {
-    let maxLen = key.length;
-    for (const row of data) {
-      const val = (row as Record<string, unknown>)[key];
-      const len = val != null ? String(val).length : 0;
-      if (len > maxLen) maxLen = len;
+/** Auto-size columns based on the worksheet range */
+function autoSizeColumns(ws: XLSX.WorkSheet): void {
+  const range = XLSX.utils.decode_range(ws["!ref"] || "A1");
+  const colWidths: XLSX.ColInfo[] = [];
+
+  for (let c = range.s.c; c <= range.e.c; c++) {
+    let maxLen = 8; // minimum width
+    for (let r = range.s.r; r <= range.e.r; r++) {
+      const cell = ws[XLSX.utils.encode_cell({ r, c })];
+      if (cell && cell.v != null) {
+        const len = String(cell.v).length;
+        if (len > maxLen) maxLen = len;
+      }
     }
-    return { wch: Math.min(maxLen + 2, 40) };
-  });
+    colWidths.push({ wch: Math.min(maxLen + 2, 40) });
+  }
   ws["!cols"] = colWidths;
 }
 
@@ -184,7 +186,7 @@ export function exportIncomeToExcel(entries: IncomeEntry[], fyLabel: string): vo
 
   const sheetName = `Income FY ${fyLabel}`;
   const ws = XLSX.utils.json_to_sheet(rows);
-  autoSizeColumns(ws, rows);
+  autoSizeColumns(ws);
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, sheetName.slice(0, 31)); // Excel 31-char limit
@@ -236,7 +238,7 @@ export function exportExpensesToExcel(entries: ExpenseEntry[], fyLabel: string):
 
   const sheetName = `Expenses FY ${fyLabel}`;
   const ws = XLSX.utils.json_to_sheet(rows);
-  autoSizeColumns(ws, rows);
+  autoSizeColumns(ws);
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, sheetName.slice(0, 31));
