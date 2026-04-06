@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
+
 import {
   Dialog,
   DialogContent,
@@ -42,14 +42,6 @@ import {
 // Helpers
 // ---------------------------------------------------------------------------
 
-const TYPE_BADGE_MAP: Record<string, { label: string; color: string }> = {
-  salary: { label: "Salary", color: "bg-emerald-500/10 text-emerald-400 border-emerald-500/30" },
-  freelance: { label: "Freelance", color: "bg-blue-500/10 text-blue-400 border-blue-500/30" },
-  rental: { label: "Rental", color: "bg-accent/100/10 text-amber-400 border-accent/100/30" },
-  interest: { label: "Interest", color: "bg-purple-500/10 text-purple-400 border-purple-500/30" },
-  dividend: { label: "Dividend", color: "bg-cyan-500/10 text-cyan-400 border-cyan-500/30" },
-  other: { label: "Other", color: "bg-surface-tertiary text-text-secondary border-border" },
-};
 
 const MONTH_LABELS = [
   "Apr", "May", "Jun", "Jul", "Aug", "Sep",
@@ -77,6 +69,7 @@ export default function IncomePage() {
     user ? { userId: user.userId } : "skip"
   );
   const addIncome = useMutation(api.income.addIncomeEntry);
+  const updateIncome = useMutation(api.income.updateIncomeEntry);
   const deleteIncome = useMutation(api.income.deleteIncomeEntry);
 
   // Dialog + form state
@@ -413,7 +406,6 @@ export default function IncomePage() {
                   </thead>
                   <tbody>
                     {filtered.map((entry) => {
-                      const badge = TYPE_BADGE_MAP[entry.type] ?? TYPE_BADGE_MAP.other;
                       return (
                         <tr
                           key={entry._id}
@@ -421,7 +413,15 @@ export default function IncomePage() {
                         >
                           <td className="py-3 pr-4 text-text-secondary">{formatDate(entry.date)}</td>
                           <td className="py-3 pr-4">
-                            <Badge className={badge.color}>{badge.label}</Badge>
+                            <select
+                              value={entry.type}
+                              onChange={(e) => updateIncome({ id: entry._id, type: e.target.value as "salary" | "freelance" | "rental" | "interest" | "dividend" | "other" })}
+                              className="text-xs rounded-lg border border-gray-200 px-2 py-1 bg-white focus:border-accent focus:outline-none cursor-pointer"
+                            >
+                              {INCOME_TYPES.map((t) => (
+                                <option key={t.value} value={t.value}>{t.label}</option>
+                              ))}
+                            </select>
                           </td>
                           <td className="py-3 pr-4 text-text-primary">{entry.description}</td>
                           <td className="py-3 pr-4 text-right font-semibold text-emerald-400 stat-number">

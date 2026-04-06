@@ -34,6 +34,7 @@ export default defineSchema({
       v.literal("rental"),
       v.literal("interest"),
       v.literal("dividend"),
+      v.literal("transfer"),
       v.literal("other")
     ),
     description: v.string(),
@@ -60,6 +61,7 @@ export default defineSchema({
       v.literal("school_fees"),
       v.literal("utilities"),
       v.literal("entertainment"),
+      v.literal("transfer"),
       v.literal("other")
     ),
     description: v.string(),

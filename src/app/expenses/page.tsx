@@ -106,6 +106,7 @@ function getCategoryLabel(value: string): string {
   return cat ? cat.label : value;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function getCategoryIcon(value: string) {
   return CATEGORY_ICON_MAP[value] || MoreHorizontal;
 }
@@ -144,6 +145,7 @@ export default function ExpensesPage() {
     user ? { userId: user.userId } : "skip"
   );
   const addExpense = useMutation(api.expenses.addExpenseEntry);
+  const updateExpense = useMutation(api.expenses.updateExpenseEntry);
   const deleteExpense = useMutation(api.expenses.deleteExpenseEntry);
 
   // Filter state
@@ -424,7 +426,6 @@ export default function ExpensesPage() {
                 </thead>
                 <tbody>
                   {filtered.map((expense) => {
-                    const Icon = getCategoryIcon(expense.category);
                     return (
                       <tr
                         key={expense._id}
@@ -437,26 +438,15 @@ export default function ExpensesPage() {
                           })}
                         </td>
                         <td className="px-5 py-3.5">
-                          <div className="flex items-center gap-2">
-                            <div
-                              className="flex h-7 w-7 items-center justify-center rounded-lg"
-                              style={{
-                                backgroundColor: `${CATEGORY_COLORS[expense.category] || "#6B7280"}20`,
-                              }}
-                            >
-                              <Icon
-                                className="h-3.5 w-3.5"
-                                style={{
-                                  color:
-                                    CATEGORY_COLORS[expense.category] ||
-                                    "#6B7280",
-                                }}
-                              />
-                            </div>
-                            <span className="text-text-primary">
-                              {getCategoryLabel(expense.category)}
-                            </span>
-                          </div>
+                          <select
+                            value={expense.category}
+                            onChange={(e) => updateExpense({ id: expense._id, category: e.target.value as typeof expense.category })}
+                            className="text-xs rounded-lg border border-gray-200 px-2 py-1 bg-white focus:border-accent focus:outline-none cursor-pointer"
+                          >
+                            {EXPENSE_CATEGORIES.map((c) => (
+                              <option key={c.value} value={c.value}>{c.label}</option>
+                            ))}
+                          </select>
                         </td>
                         <td className="px-5 py-3.5 text-text-secondary">
                           {expense.description}

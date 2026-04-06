@@ -16,6 +16,7 @@ export const batchImportTransactions = mutation({
           v.literal("rental"),
           v.literal("interest"),
           v.literal("dividend"),
+          v.literal("transfer"),
           v.literal("other")
         ),
         expenseCategory: v.union(
@@ -30,6 +31,7 @@ export const batchImportTransactions = mutation({
           v.literal("school_fees"),
           v.literal("utilities"),
           v.literal("entertainment"),
+          v.literal("transfer"),
           v.literal("other")
         ),
       })

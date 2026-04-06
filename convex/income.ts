@@ -12,6 +12,7 @@ export const addIncomeEntry = mutation({
       v.literal("rental"),
       v.literal("interest"),
       v.literal("dividend"),
+      v.literal("transfer"),
       v.literal("other")
     ),
     description: v.string(),
@@ -36,6 +37,7 @@ export const updateIncomeEntry = mutation({
         v.literal("rental"),
         v.literal("interest"),
         v.literal("dividend"),
+      v.literal("transfer"),
         v.literal("other")
       )
     ),

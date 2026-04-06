@@ -1,5 +1,18 @@
 import { ParsedTransaction, IncomeType, ExpenseCategory } from "./types";
 
+// Transfer detection - applied before income/expense rules
+const TRANSFER_KEYWORDS: RegExp[] = [
+  /NEFT|RTGS|IMPS/i,
+  /TRANSFER\s*(TO|FROM)/i,
+  /SELF\s*TRANSFER/i,
+  /OWN\s*ACCOUNT/i,
+  /FT\s*-\s*CR|FT\s*-\s*DR/i,
+  /A\/C\s*TRANSFER/i,
+  /FUND\s*TRANSFER/i,
+  /INT\.?BANK/i,
+  /IB\s*FUND/i,
+];
+
 const INCOME_RULES: { type: IncomeType; keywords: RegExp[] }[] = [
   {
     type: "salary",
@@ -73,7 +86,19 @@ const EXPENSE_RULES: { category: ExpenseCategory; keywords: RegExp[] }[] = [
 export function categorizeTransaction(tx: ParsedTransaction): ParsedTransaction {
   const desc = tx.description.toUpperCase();
 
+  // Check for transfers first (both credits and debits)
+  const isTransfer = TRANSFER_KEYWORDS.some((kw) => kw.test(desc));
+
   if (tx.type === "credit") {
+    if (isTransfer) {
+      // Check if it matches a specific income type first
+      for (const rule of INCOME_RULES) {
+        if (rule.keywords.some((kw) => kw.test(desc))) {
+          return { ...tx, incomeType: rule.type };
+        }
+      }
+      return { ...tx, incomeType: "transfer" };
+    }
     for (const rule of INCOME_RULES) {
       if (rule.keywords.some((kw) => kw.test(desc))) {
         return { ...tx, incomeType: rule.type };
@@ -82,7 +107,15 @@ export function categorizeTransaction(tx: ParsedTransaction): ParsedTransaction 
     return { ...tx, incomeType: "other" };
   }
 
-  // Debit - categorize as expense
+  // Debit
+  if (isTransfer) {
+    for (const rule of EXPENSE_RULES) {
+      if (rule.keywords.some((kw) => kw.test(desc))) {
+        return { ...tx, expenseCategory: rule.category };
+      }
+    }
+    return { ...tx, expenseCategory: "transfer" };
+  }
   for (const rule of EXPENSE_RULES) {
     if (rule.keywords.some((kw) => kw.test(desc))) {
       return { ...tx, expenseCategory: rule.category };

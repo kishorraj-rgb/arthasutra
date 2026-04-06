@@ -18,6 +18,7 @@ export const addExpenseEntry = mutation({
       v.literal("school_fees"),
       v.literal("utilities"),
       v.literal("entertainment"),
+      v.literal("transfer"),
       v.literal("other")
     ),
     description: v.string(),
@@ -48,6 +49,7 @@ export const updateExpenseEntry = mutation({
         v.literal("school_fees"),
         v.literal("utilities"),
         v.literal("entertainment"),
+      v.literal("transfer"),
         v.literal("other")
       )
     ),

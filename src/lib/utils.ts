@@ -52,6 +52,7 @@ export const EXPENSE_CATEGORIES = [
   { value: "school_fees", label: "School Fees", icon: "School" },
   { value: "utilities", label: "Utilities", icon: "Zap" },
   { value: "entertainment", label: "Entertainment", icon: "Film" },
+  { value: "transfer", label: "Transfer", icon: "ArrowLeftRight" },
   { value: "other", label: "Other", icon: "MoreHorizontal" },
 ] as const;
 
@@ -61,6 +62,7 @@ export const INCOME_TYPES = [
   { value: "rental", label: "Rental Income" },
   { value: "interest", label: "Interest" },
   { value: "dividend", label: "Dividend" },
+  { value: "transfer", label: "Transfer" },
   { value: "other", label: "Other" },
 ] as const;
 
@@ -108,4 +110,5 @@ export const CATEGORY_COLORS: Record<string, string> = {
   rental: "#F0A500",
   interest: "#8B5CF6",
   dividend: "#06B6D4",
+  transfer: "#9CA3AF",
 };
