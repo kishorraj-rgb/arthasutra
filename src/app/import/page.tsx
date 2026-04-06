@@ -227,7 +227,7 @@ export default function ImportPage() {
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
                 className={cn(
-                  "border-2 border-dashed rounded-2xl p-12 text-center cursor-pointer transition-all duration-200",
+                  "border-2 border-dashed rounded-2xl p-12 text-center cursor-pointer transition-all duration-300",
                   dragOver
                     ? "border-accent bg-accent/5"
                     : file
@@ -356,7 +356,7 @@ export default function ImportPage() {
                       <tr className="border-b border-border text-left text-text-tertiary">
                         <th className="px-6 py-3 font-medium w-10"></th>
                         <th className="px-3 py-3 font-medium">Date</th>
-                        <th className="px-3 py-3 font-medium">Description</th>
+                        <th className="px-3 py-3 font-medium">Payee / Method</th>
                         <th className="px-3 py-3 font-medium">Type</th>
                         <th className="px-3 py-3 font-medium text-right">Amount</th>
                         <th className="px-3 py-3 font-medium">Category</th>

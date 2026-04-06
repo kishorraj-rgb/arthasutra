@@ -42,6 +42,7 @@ const config: Config = {
         "lg-soft": "0 1px 3px rgba(0,0,0,0.04)",
         "purple": "0 1px 2px rgba(0,0,0,0.03)",
         "glow-purple": "0 0 0 transparent",
+        "elevated": "0 2px 8px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04)",
       },
       animation: {
         "fade-in": "fadeIn 0.4s ease-out",

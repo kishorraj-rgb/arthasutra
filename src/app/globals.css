@@ -80,3 +80,35 @@ input[type="number"] { -moz-appearance: textfield; }
   background: rgba(79,70,229,0.12);
   color: #111827;
 }
+
+/* ═══ Premium Animations ═══ */
+
+/* Smooth page transitions */
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-page-enter { animation: fadeSlideUp 0.3s ease-out; }
+
+/* Row hover glow */
+@keyframes rowHighlight {
+  from { background-color: transparent; }
+  to { background-color: rgba(79,70,229,0.03); }
+}
+
+/* Smooth count animation */
+@keyframes countPulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+  100% { transform: scale(1); }
+}
+
+/* Button click effect */
+.btn-click:active { transform: scale(0.97); transition: transform 0.1s; }
+
+/* Card entrance */
+.card-enter { animation: fadeSlideUp 0.3s ease-out backwards; }
+.card-enter-1 { animation-delay: 0.05s; }
+.card-enter-2 { animation-delay: 0.1s; }
+.card-enter-3 { animation-delay: 0.15s; }
+.card-enter-4 { animation-delay: 0.2s; }

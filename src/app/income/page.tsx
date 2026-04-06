@@ -18,7 +18,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { formatCurrency, INCOME_TYPES, CATEGORY_COLORS, getCurrentFinancialYear, getFinancialYearDates } from "@/lib/utils";
+import { formatCurrency, amountInWords, INCOME_TYPES, CATEGORY_COLORS, getCurrentFinancialYear, getFinancialYearDates } from "@/lib/utils";
 import { parseDescription, getMethodColor } from "@/lib/bank-statement/description-parser";
 import {
   Plus,
@@ -268,7 +268,7 @@ export default function IncomePage() {
             <div>
               <h1 className="text-3xl font-display font-bold text-text-primary">Income</h1>
               <p className="text-text-secondary text-sm mt-1">
-                Track all income sources, TDS and GST for FY 2025-26
+                Track all income sources, TDS and GST
               </p>
             </div>
           </div>
@@ -301,13 +301,13 @@ export default function IncomePage() {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="space-y-6 animate-page-enter">
         {/* ---- Header ---- */}
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-display font-bold text-text-primary">Income</h1>
             <p className="text-text-secondary text-sm mt-1">
-              Track all income sources, TDS and GST for FY 2025-26
+              Track all income sources, TDS and GST{selectedFY ? ` for FY ${selectedFY}` : ""}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -332,56 +332,59 @@ export default function IncomePage() {
 
         {/* ---- Stats Row ---- */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card>
+          <Card className="card-enter card-enter-1">
             <CardContent className="p-4 flex items-center gap-4">
               <div className="h-12 w-12 rounded-xl bg-emerald-500/10 flex items-center justify-center">
                 <IndianRupee className="h-6 w-6 text-emerald-400" />
               </div>
               <div>
                 <p className="text-xs text-text-secondary uppercase tracking-wider">Total Income YTD</p>
-                <p className="text-xl font-display font-bold text-emerald-400 stat-number">
+                <p className="text-xl font-display font-bold text-emerald-400 stat-number tabular-nums">
                   {formatCurrency(totalIncome)}
+                </p>
+                <p className="text-[10px] text-text-tertiary truncate max-w-[180px]" title={amountInWords(totalIncome)}>
+                  {amountInWords(totalIncome)}
                 </p>
               </div>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="card-enter card-enter-2">
             <CardContent className="p-4 flex items-center gap-4">
               <div className="h-12 w-12 rounded-xl bg-rose-500/10 flex items-center justify-center">
                 <FileText className="h-6 w-6 text-rose-400" />
               </div>
               <div>
                 <p className="text-xs text-text-secondary uppercase tracking-wider">TDS Deducted</p>
-                <p className="text-xl font-display font-bold text-rose-400 stat-number">
+                <p className="text-xl font-display font-bold text-rose-400 stat-number tabular-nums">
                   {formatCurrency(totalTds)}
                 </p>
               </div>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="card-enter card-enter-3">
             <CardContent className="p-4 flex items-center gap-4">
               <div className="h-12 w-12 rounded-xl bg-blue-500/10 flex items-center justify-center">
                 <FileText className="h-6 w-6 text-blue-400" />
               </div>
               <div>
                 <p className="text-xs text-text-secondary uppercase tracking-wider">GST Collected</p>
-                <p className="text-xl font-display font-bold text-blue-400 stat-number">
+                <p className="text-xl font-display font-bold text-blue-400 stat-number tabular-nums">
                   {formatCurrency(totalGst)}
                 </p>
               </div>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="card-enter card-enter-4">
             <CardContent className="p-4 flex items-center gap-4">
               <div className="h-12 w-12 rounded-xl bg-accent/10 flex items-center justify-center">
                 <TrendingUp className="h-6 w-6 text-accent-light" />
               </div>
               <div>
                 <p className="text-xs text-text-secondary uppercase tracking-wider">Projected Annual</p>
-                <p className="text-xl font-display font-bold text-accent-light stat-number">
+                <p className="text-xl font-display font-bold text-accent-light stat-number tabular-nums">
                   {formatCurrency(projectedAnnual)}
                 </p>
               </div>
@@ -401,7 +404,7 @@ export default function IncomePage() {
                   placeholder="Search payee, description..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full h-9 pl-9 pr-3 rounded-lg border border-gray-200 bg-white text-sm placeholder:text-text-tertiary focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/10"
+                  className="w-full h-9 pl-9 pr-3 rounded-lg border border-gray-200 bg-white text-sm placeholder:text-text-tertiary transition-all duration-200 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/10 focus:shadow-sm"
                 />
               </div>
               {/* FY selector */}
@@ -446,7 +449,7 @@ export default function IncomePage() {
                   <button
                     key={m.label}
                     onClick={() => setSelectedMonth(selectedMonth === m.label ? "" : m.label)}
-                    className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                    className={`px-3 py-1 rounded-full text-xs font-medium transition-all duration-200 ${
                       selectedMonth === m.label
                         ? "bg-accent text-white"
                         : "bg-gray-100 text-text-secondary hover:bg-gray-200"
@@ -493,7 +496,7 @@ export default function IncomePage() {
                       return (
                         <tr
                           key={entry._id}
-                          className="border-b border-border-light hover:bg-surface-tertiary/50 transition-colors"
+                          className="border-b border-border-light transition-colors duration-150 hover:bg-accent/[0.02] hover:border-l-2 hover:border-l-accent"
                         >
                           <td className="py-3 pr-4 text-text-secondary">{formatDate(entry.date)}</td>
                           <td className="py-3 pr-4">

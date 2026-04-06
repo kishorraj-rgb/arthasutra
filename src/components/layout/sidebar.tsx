@@ -60,15 +60,18 @@ export function Sidebar() {
               key={item.name}
               href={item.href}
               className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors relative",
+                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 relative group",
                 isActive
                   ? "bg-accent/5 text-accent"
-                  : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                  : "text-gray-600 hover:text-gray-900 hover:bg-gray-50 hover:pl-4"
               )}
             >
-              {isActive && (
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-accent rounded-r-full" />
-              )}
+              <div className={cn(
+                "absolute left-0 top-1/2 -translate-y-1/2 w-[3px] rounded-r-full transition-all duration-200",
+                isActive
+                  ? "h-5 bg-accent"
+                  : "h-0 bg-accent/50 group-hover:h-4"
+              )} />
               <item.icon className={cn(
                 "h-[18px] w-[18px] shrink-0",
                 isActive && "text-accent"

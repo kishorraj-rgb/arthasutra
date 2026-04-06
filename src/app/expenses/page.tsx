@@ -20,7 +20,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { formatCurrency, EXPENSE_CATEGORIES, CATEGORY_COLORS, getCurrentFinancialYear, getFinancialYearDates } from "@/lib/utils";
+import { formatCurrency, amountInWords, EXPENSE_CATEGORIES, CATEGORY_COLORS, getCurrentFinancialYear, getFinancialYearDates } from "@/lib/utils";
 import { parseDescription, getMethodColor } from "@/lib/bank-statement/description-parser";
 import {
   Plus,
@@ -344,7 +344,7 @@ export default function ExpensesPage() {
   // -------------------------------------------------------------------------
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="space-y-6 animate-page-enter">
         {/* ---- Page Header ---- */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -378,13 +378,16 @@ export default function ExpensesPage() {
         {/* ---- Stats Row ---- */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {/* Total Expenses */}
-          <Card>
+          <Card className="card-enter card-enter-1">
             <CardContent className="p-5">
               <p className="text-xs font-medium uppercase tracking-wider text-text-secondary">
-                Total Expenses This Month
+                Total Expenses
               </p>
-              <p className="mt-2 font-display text-2xl font-bold text-rose-400 stat-number">
+              <p className="mt-2 font-display text-2xl font-bold text-rose-400 stat-number tabular-nums">
                 {formatCurrency(totalExpenses)}
+              </p>
+              <p className="mt-0.5 text-[10px] text-text-tertiary truncate" title={amountInWords(totalExpenses)}>
+                {amountInWords(totalExpenses)}
               </p>
               <p className="mt-1 text-xs text-text-tertiary">
                 {allExpenses.length} transactions
@@ -393,12 +396,12 @@ export default function ExpensesPage() {
           </Card>
 
           {/* Business */}
-          <Card>
+          <Card className="card-enter card-enter-2">
             <CardContent className="p-5">
               <p className="text-xs font-medium uppercase tracking-wider text-text-secondary">
                 Business Expenses
               </p>
-              <p className="mt-2 font-display text-2xl font-bold text-blue-400 stat-number">
+              <p className="mt-2 font-display text-2xl font-bold text-blue-400 stat-number tabular-nums">
                 {formatCurrency(businessExpenses)}
               </p>
               <p className="mt-1 text-xs text-text-tertiary">Tax deductible</p>
@@ -406,12 +409,12 @@ export default function ExpensesPage() {
           </Card>
 
           {/* Personal */}
-          <Card>
+          <Card className="card-enter card-enter-3">
             <CardContent className="p-5">
               <p className="text-xs font-medium uppercase tracking-wider text-text-secondary">
                 Personal Expenses
               </p>
-              <p className="mt-2 font-display text-2xl font-bold text-purple-400 stat-number">
+              <p className="mt-2 font-display text-2xl font-bold text-purple-400 stat-number tabular-nums">
                 {formatCurrency(personalExpenses)}
               </p>
               <p className="mt-1 text-xs text-text-tertiary">Non-deductible</p>
@@ -419,12 +422,12 @@ export default function ExpensesPage() {
           </Card>
 
           {/* GST Input Credit */}
-          <Card>
+          <Card className="card-enter card-enter-4">
             <CardContent className="p-5">
               <p className="text-xs font-medium uppercase tracking-wider text-text-secondary">
                 GST Input Credit
               </p>
-              <p className="mt-2 font-display text-2xl font-bold text-accent-light stat-number">
+              <p className="mt-2 font-display text-2xl font-bold text-accent-light stat-number tabular-nums">
                 {formatCurrency(totalGst)}
               </p>
               <p className="mt-1 text-xs text-text-tertiary">
@@ -446,7 +449,7 @@ export default function ExpensesPage() {
                   placeholder="Search payee, description..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full h-9 pl-9 pr-3 rounded-lg border border-gray-200 bg-white text-sm placeholder:text-text-tertiary focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/10"
+                  className="w-full h-9 pl-9 pr-3 rounded-lg border border-gray-200 bg-white text-sm placeholder:text-text-tertiary transition-all duration-200 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/10 focus:shadow-sm"
                 />
               </div>
               {/* FY selector */}
@@ -494,7 +497,7 @@ export default function ExpensesPage() {
                   <button
                     key={m.label}
                     onClick={() => setSelectedMonth(selectedMonth === m.label ? "" : m.label)}
-                    className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                    className={`px-3 py-1 rounded-full text-xs font-medium transition-all duration-200 ${
                       selectedMonth === m.label ? "bg-accent text-white" : "bg-gray-100 text-text-secondary hover:bg-gray-200"
                     }`}
                   >
@@ -535,7 +538,7 @@ export default function ExpensesPage() {
                     return (
                       <tr
                         key={expense._id}
-                        className="border-b border-border-light transition-colors hover:bg-surface-tertiary/50"
+                        className="border-b border-border-light transition-colors duration-150 hover:bg-accent/[0.02] hover:border-l-2 hover:border-l-accent"
                       >
                         <td className="whitespace-nowrap px-5 py-3.5 text-text-secondary">
                           {new Date(expense.date).toLocaleDateString("en-IN", {

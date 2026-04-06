@@ -3,7 +3,7 @@
 import { AppLayout } from "@/components/layout/app-layout";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { formatCurrency, CHART_COLORS, CATEGORY_COLORS } from "@/lib/utils";
+import { formatCurrency, amountInWords, CHART_COLORS, CATEGORY_COLORS } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
@@ -365,12 +365,12 @@ export default function DashboardPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-8">
+      <div className="space-y-8 animate-page-enter">
         {/* Header */}
         <div className="animate-enter">
           <h1 className="font-display text-3xl font-bold text-text-primary">Dashboard</h1>
           <p className="text-text-secondary mt-1">
-            Welcome back. Here is your financial overview for FY 2025-26.
+            Welcome back. Here is your financial overview for FY {metrics.fyLabel}.
           </p>
         </div>
 
@@ -379,17 +379,24 @@ export default function DashboardPage() {
           {statCards.map((card, index) => {
             const Icon = card.icon;
             const isPositive = card.value >= 0;
+            const isMonthly = card.title === "Monthly Income" || card.title === "Monthly Expenses";
+            const displayMonthLabel = metrics.displayMonth
+              ? new Date(metrics.displayMonth + "-01").toLocaleDateString("en-IN", { month: "short", year: "numeric" })
+              : "";
             return (
               <Card
                 key={card.title}
-                className="animate-enter group relative overflow-hidden"
-                style={{ animationDelay: `${index * 80}ms` }}
+                className={`card-enter card-enter-${Math.min(index + 1, 4)} group relative overflow-hidden`}
               >
-                {/* Subtle hover tint */}
                 <CardHeader className="relative flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium text-text-secondary">
-                    {card.title}
-                  </CardTitle>
+                  <div>
+                    <CardTitle className="text-sm font-medium text-text-secondary">
+                      {card.title}
+                    </CardTitle>
+                    {isMonthly && displayMonthLabel && (
+                      <span className="text-[10px] text-text-tertiary">{displayMonthLabel}</span>
+                    )}
+                  </div>
                   <div
                     className="flex h-9 w-9 items-center justify-center rounded-lg"
                     style={{ backgroundColor: `${card.color}15` }}
@@ -399,7 +406,7 @@ export default function DashboardPage() {
                 </CardHeader>
                 <CardContent className="relative">
                   <div className="flex items-baseline gap-2">
-                    <span className="stat-number text-2xl font-bold text-text-primary">
+                    <span className="stat-number text-2xl font-bold text-text-primary tabular-nums">
                       {formatCurrency(card.value)}
                     </span>
                   </div>
@@ -429,7 +436,7 @@ export default function DashboardPage() {
                 <TrendingUp className="h-5 w-5 text-accent-light" />
                 Cash Flow Trend
               </CardTitle>
-              <p className="text-xs text-text-tertiary">Last 12 months (FY 2025-26)</p>
+              <p className="text-xs text-text-tertiary">Last 12 months (FY {metrics.fyLabel})</p>
             </CardHeader>
             <CardContent>
               <div className="h-72">

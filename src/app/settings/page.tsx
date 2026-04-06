@@ -12,7 +12,7 @@ import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/lib/auth-context";
-import { User, Calculator, Receipt, Bell, Download, Loader2 } from "lucide-react";
+import { User, Calculator, Receipt, Bell, Download, Loader2, Lightbulb, Calendar, CheckCircle2 } from "lucide-react";
 
 export default function SettingsPage() {
   const { user } = useAuth();
@@ -76,13 +76,29 @@ export default function SettingsPage() {
     }
   };
 
+  // Profile completion calculation
+  const profileFields = [
+    { filled: !!name, label: "Full Name" },
+    { filled: !!pan, label: "PAN Number" },
+    { filled: !!aadhaar, label: "Aadhaar" },
+    { filled: !!annualCTC || userType === "consultant", label: "Annual CTC" },
+    { filled: !!regime, label: "Tax Regime" },
+    { filled: gstRegistered ? !!gstin : true, label: "GSTIN" },
+  ];
+  const completedFields = profileFields.filter((f) => f.filled).length;
+  const profilePct = Math.round((completedFields / profileFields.length) * 100);
+
   return (
     <AppLayout>
-      <div className="space-y-6 animate-enter max-w-3xl">
-        <div>
+      <div className="animate-page-enter">
+        <div className="mb-6">
           <h1 className="font-display text-2xl font-bold text-text-primary">Settings</h1>
           <p className="text-text-secondary text-sm mt-1">Manage your profile & preferences</p>
         </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left column: settings forms */}
+        <div className="lg:col-span-2 space-y-6">
 
         {/* Profile */}
         <Card>
@@ -304,6 +320,93 @@ export default function SettingsPage() {
             )}
           </Button>
         </div>
+        </div>{/* end left column */}
+
+        {/* Right column: guidance section */}
+        <div className="space-y-6">
+          {/* Profile Completion */}
+          <Card className="card-enter card-enter-1">
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <CheckCircle2 className="h-5 w-5 text-accent-light" />
+                <CardTitle className="text-base">Profile Completion</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-text-secondary">Completed</span>
+                <span className="font-display font-bold text-accent-light">{profilePct}%</span>
+              </div>
+              <div className="w-full bg-gray-100 rounded-full h-2.5">
+                <div
+                  className="bg-accent h-2.5 rounded-full transition-all duration-500"
+                  style={{ width: `${profilePct}%` }}
+                />
+              </div>
+              <div className="space-y-1.5 pt-1">
+                {profileFields.map((f) => (
+                  <div key={f.label} className="flex items-center gap-2 text-xs">
+                    <div className={`h-1.5 w-1.5 rounded-full ${f.filled ? "bg-emerald-400" : "bg-gray-300"}`} />
+                    <span className={f.filled ? "text-text-secondary" : "text-text-tertiary"}>
+                      {f.label}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Quick Tips */}
+          <Card className="card-enter card-enter-2">
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <Lightbulb className="h-5 w-5 text-amber-400" />
+                <CardTitle className="text-base">Quick Tips</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="rounded-lg bg-amber-50 border border-amber-100 px-3 py-2.5">
+                <p className="text-xs text-amber-800 font-medium">Keep your PAN and Aadhaar updated for accurate tax calculations.</p>
+              </div>
+              <div className="rounded-lg bg-blue-50 border border-blue-100 px-3 py-2.5">
+                <p className="text-xs text-blue-800 font-medium">Choose your tax regime wisely - New regime has lower rates but fewer deductions.</p>
+              </div>
+              <div className="rounded-lg bg-emerald-50 border border-emerald-100 px-3 py-2.5">
+                <p className="text-xs text-emerald-800 font-medium">Enable GST if registered to track input credit automatically.</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Important Deadlines */}
+          <Card className="card-enter card-enter-3">
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <Calendar className="h-5 w-5 text-rose" />
+                <CardTitle className="text-base">Key Deadlines</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {[
+                  { label: "ITR Filing Deadline", date: "July 31, 2026", urgent: true },
+                  { label: "Advance Tax Q1", date: "June 15, 2026", urgent: true },
+                  { label: "Advance Tax Q2", date: "Sep 15, 2026", urgent: false },
+                  { label: "Advance Tax Q3", date: "Dec 15, 2026", urgent: false },
+                  { label: "Advance Tax Q4", date: "Mar 15, 2027", urgent: false },
+                  { label: "GST Annual Return", date: "Dec 31, 2026", urgent: false },
+                ].map((item) => (
+                  <div key={item.label} className="flex items-center justify-between py-1.5 border-b border-border-light last:border-0">
+                    <span className="text-xs text-text-primary">{item.label}</span>
+                    <Badge variant={item.urgent ? "warning" : "secondary"} className="text-[10px]">
+                      {item.date}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>{/* end right column */}
+        </div>{/* end grid */}
       </div>
     </AppLayout>
   );
