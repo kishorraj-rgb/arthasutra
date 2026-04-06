@@ -20,7 +20,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { formatCurrency, EXPENSE_CATEGORIES, CATEGORY_COLORS } from "@/lib/utils";
+import { formatCurrency, EXPENSE_CATEGORIES, CATEGORY_COLORS, getCurrentFinancialYear, getFinancialYearDates } from "@/lib/utils";
 import { parseDescription, getMethodColor } from "@/lib/bank-statement/description-parser";
 import {
   Plus,
@@ -36,11 +36,11 @@ import {
   MoreHorizontal,
   Edit,
   Trash2,
-  Filter,
   Receipt,
   User,
   School,
   Loader2,
+  Search,
 } from "lucide-react";
 import {
   PieChart,
@@ -51,6 +51,13 @@ import {
   Legend,
 } from "recharts";
 import type { Id } from "../../../convex/_generated/dataModel";
+
+const FY_MONTHS = [
+  { label: "Apr", month: 3 }, { label: "May", month: 4 }, { label: "Jun", month: 5 },
+  { label: "Jul", month: 6 }, { label: "Aug", month: 7 }, { label: "Sep", month: 8 },
+  { label: "Oct", month: 9 }, { label: "Nov", month: 10 }, { label: "Dec", month: 11 },
+  { label: "Jan", month: 0 }, { label: "Feb", month: 1 }, { label: "Mar", month: 2 },
+];
 
 // ---------------------------------------------------------------------------
 // Category icon map
@@ -152,6 +159,9 @@ export default function ExpensesPage() {
   // Filter state
   const [showBusinessOnly, setShowBusinessOnly] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedFY, setSelectedFY] = useState(getCurrentFinancialYear());
+  const [selectedMonth, setSelectedMonth] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
 
   // Form state
@@ -167,15 +177,38 @@ export default function ExpensesPage() {
   // Derived data
   const allExpenses = useMemo(() => expenses ?? [], [expenses]);
 
-  const filtered = useMemo(
-    () =>
-      allExpenses.filter((e) => {
-        if (showBusinessOnly && !e.is_business_expense) return false;
-        if (categoryFilter && e.category !== categoryFilter) return false;
-        return true;
-      }),
-    [allExpenses, showBusinessOnly, categoryFilter]
-  );
+  // Available FYs from data
+  const availableFYs = useMemo(() => {
+    const fySet = new Set<string>();
+    for (const e of allExpenses) {
+      const d = new Date(e.date);
+      const year = d.getMonth() >= 3 ? d.getFullYear() : d.getFullYear() - 1;
+      fySet.add(`${year}-${(year + 1).toString().slice(-2)}`);
+    }
+    const sorted = Array.from(fySet).sort().reverse();
+    if (sorted.length === 0) sorted.push(getCurrentFinancialYear());
+    return sorted;
+  }, [allExpenses]);
+
+  const filtered = useMemo(() => {
+    const fyDates = selectedFY ? getFinancialYearDates(selectedFY) : null;
+    const query = searchQuery.toLowerCase().trim();
+
+    return allExpenses.filter((e) => {
+      if (fyDates && (e.date < fyDates.start || e.date > fyDates.end)) return false;
+      if (selectedMonth && selectedFY) {
+        const monthObj = FY_MONTHS.find((m) => m.label === selectedMonth);
+        if (monthObj && new Date(e.date).getMonth() !== monthObj.month) return false;
+      }
+      if (showBusinessOnly && !e.is_business_expense) return false;
+      if (categoryFilter && e.category !== categoryFilter) return false;
+      if (query) {
+        const haystack = `${e.description} ${e.category} ${e.date}`.toLowerCase();
+        if (!haystack.includes(query)) return false;
+      }
+      return true;
+    });
+  }, [allExpenses, showBusinessOnly, categoryFilter, selectedFY, selectedMonth, searchQuery]);
 
   const totalExpenses = useMemo(
     () => allExpenses.reduce((s, e) => s + e.amount, 0),
@@ -379,29 +412,77 @@ export default function ExpensesPage() {
           </Card>
         </div>
 
-        {/* ---- Filters Row ---- */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-text-tertiary" />
+        {/* ---- Filters ---- */}
+        <Card>
+          <CardContent className="p-4 space-y-3">
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Search */}
+              <div className="relative flex-1 min-w-[200px] max-w-md">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
+                <input
+                  type="text"
+                  placeholder="Search payee, description..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full h-9 pl-9 pr-3 rounded-lg border border-gray-200 bg-white text-sm placeholder:text-text-tertiary focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/10"
+                />
+              </div>
+              {/* FY selector */}
+              <Select
+                options={availableFYs.map((fy) => ({ value: fy, label: `FY ${fy}` }))}
+                value={selectedFY}
+                onChange={(e) => { setSelectedFY(e.target.value); setSelectedMonth(""); }}
+                className="w-36"
+              />
+              {/* Category filter */}
               <Select
                 options={categoryOptions}
                 value={categoryFilter}
                 onChange={(e) => setCategoryFilter(e.target.value)}
-                className="w-48"
+                className="w-44"
               />
+              {/* Business toggle */}
+              <div className="flex items-center gap-2">
+                <Switch checked={showBusinessOnly} onCheckedChange={setShowBusinessOnly} />
+                <span className="text-xs text-text-secondary">Business Only</span>
+              </div>
+              {(categoryFilter || searchQuery || selectedMonth) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => { setCategoryFilter(""); setSearchQuery(""); setSelectedMonth(""); }}
+                  className="text-text-secondary hover:text-text-primary text-xs"
+                >
+                  Clear
+                </Button>
+              )}
             </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-text-secondary">All</span>
-            <Switch
-              checked={showBusinessOnly}
-              onCheckedChange={setShowBusinessOnly}
-            />
-            <span className="text-sm text-text-secondary">Business Only</span>
-          </div>
-        </div>
+            {/* Month chips */}
+            {selectedFY && (
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  onClick={() => setSelectedMonth("")}
+                  className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                    !selectedMonth ? "bg-accent text-white" : "bg-gray-100 text-text-secondary hover:bg-gray-200"
+                  }`}
+                >
+                  All
+                </button>
+                {FY_MONTHS.map((m) => (
+                  <button
+                    key={m.label}
+                    onClick={() => setSelectedMonth(selectedMonth === m.label ? "" : m.label)}
+                    className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                      selectedMonth === m.label ? "bg-accent text-white" : "bg-gray-100 text-text-secondary hover:bg-gray-200"
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* ---- Expense Entries List ---- */}
         <Card>

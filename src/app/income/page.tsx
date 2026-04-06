@@ -18,7 +18,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { formatCurrency, INCOME_TYPES, CATEGORY_COLORS } from "@/lib/utils";
+import { formatCurrency, INCOME_TYPES, CATEGORY_COLORS, getCurrentFinancialYear, getFinancialYearDates } from "@/lib/utils";
 import { parseDescription, getMethodColor } from "@/lib/bank-statement/description-parser";
 import {
   Plus,
@@ -27,7 +27,7 @@ import {
   FileText,
   Edit,
   Trash2,
-  Filter,
+  Search,
 } from "lucide-react";
 import {
   BarChart,
@@ -43,6 +43,13 @@ import {
 // Helpers
 // ---------------------------------------------------------------------------
 
+
+const FY_MONTHS = [
+  { label: "Apr", month: 3 }, { label: "May", month: 4 }, { label: "Jun", month: 5 },
+  { label: "Jul", month: 6 }, { label: "Aug", month: 7 }, { label: "Sep", month: 8 },
+  { label: "Oct", month: 9 }, { label: "Nov", month: 10 }, { label: "Dec", month: 11 },
+  { label: "Jan", month: 0 }, { label: "Feb", month: 1 }, { label: "Mar", month: 2 },
+];
 
 const MONTH_LABELS = [
   "Apr", "May", "Jun", "Jul", "Aug", "Sep",
@@ -86,8 +93,9 @@ export default function IncomePage() {
 
   // Filter state
   const [typeFilter, setTypeFilter] = useState("");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedFY, setSelectedFY] = useState(getCurrentFinancialYear());
+  const [selectedMonth, setSelectedMonth] = useState("");
 
   // ---------------------------------------------------------------------------
   // Derived data
@@ -111,15 +119,45 @@ export default function IncomePage() {
 
   const projectedAnnual = Math.round(totalIncome * (12 / distinctMonths));
 
+  // Available FYs from data
+  const availableFYs = useMemo(() => {
+    const fySet = new Set<string>();
+    for (const e of safeEntries) {
+      const d = new Date(e.date);
+      const year = d.getMonth() >= 3 ? d.getFullYear() : d.getFullYear() - 1;
+      fySet.add(`${year}-${(year + 1).toString().slice(-2)}`);
+    }
+    const sorted = Array.from(fySet).sort().reverse();
+    if (sorted.length === 0) sorted.push(getCurrentFinancialYear());
+    return sorted;
+  }, [safeEntries]);
+
   // Filtered entries
   const filtered = useMemo(() => {
+    const fyDates = selectedFY ? getFinancialYearDates(selectedFY) : null;
+    const query = searchQuery.toLowerCase().trim();
+
     return safeEntries.filter((e) => {
+      // FY filter
+      if (fyDates && (e.date < fyDates.start || e.date > fyDates.end)) return false;
+      // Month filter
+      if (selectedMonth && selectedFY) {
+        const monthObj = FY_MONTHS.find((m) => m.label === selectedMonth);
+        if (monthObj) {
+          const d = new Date(e.date);
+          if (d.getMonth() !== monthObj.month) return false;
+        }
+      }
+      // Type filter
       if (typeFilter && e.type !== typeFilter) return false;
-      if (dateFrom && e.date < dateFrom) return false;
-      if (dateTo && e.date > dateTo) return false;
+      // Search
+      if (query) {
+        const haystack = `${e.description} ${e.type} ${e.date}`.toLowerCase();
+        if (!haystack.includes(query)) return false;
+      }
       return true;
     });
-  }, [safeEntries, typeFilter, dateFrom, dateTo]);
+  }, [safeEntries, typeFilter, selectedFY, selectedMonth, searchQuery]);
 
   // Monthly chart data grouped by month (FY order: Apr-Mar)
   const monthlyChartData = useMemo(() => {
@@ -331,51 +369,72 @@ export default function IncomePage() {
 
         {/* ---- Filter Bar ---- */}
         <Card>
-          <CardContent className="p-4">
-            <div className="flex flex-wrap items-center gap-4">
-              <div className="flex items-center gap-2 text-text-secondary">
-                <Filter className="h-4 w-4" />
-                <span className="text-sm font-medium">Filters</span>
+          <CardContent className="p-4 space-y-3">
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Search */}
+              <div className="relative flex-1 min-w-[200px] max-w-md">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
+                <input
+                  type="text"
+                  placeholder="Search payee, description..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full h-9 pl-9 pr-3 rounded-lg border border-gray-200 bg-white text-sm placeholder:text-text-tertiary focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/10"
+                />
               </div>
+              {/* FY selector */}
+              <Select
+                options={availableFYs.map((fy) => ({ value: fy, label: `FY ${fy}` }))}
+                value={selectedFY}
+                onChange={(e) => { setSelectedFY(e.target.value); setSelectedMonth(""); }}
+                className="w-36"
+              />
+              {/* Type filter */}
               <Select
                 options={[{ value: "", label: "All Types" }, ...INCOME_TYPES.map((t) => ({ value: t.value, label: t.label }))]}
                 value={typeFilter}
                 onChange={(e) => setTypeFilter(e.target.value)}
-                className="w-48"
+                className="w-44"
               />
-              <div className="flex items-center gap-2">
-                <Label className="text-text-secondary text-sm">From</Label>
-                <Input
-                  type="date"
-                  value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
-                  className="w-40"
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <Label className="text-text-secondary text-sm">To</Label>
-                <Input
-                  type="date"
-                  value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
-                  className="w-40"
-                />
-              </div>
-              {(typeFilter || dateFrom || dateTo) && (
+              {(typeFilter || searchQuery || selectedMonth) && (
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => {
-                    setTypeFilter("");
-                    setDateFrom("");
-                    setDateTo("");
-                  }}
-                  className="text-text-secondary hover:text-text-primary"
+                  onClick={() => { setTypeFilter(""); setSearchQuery(""); setSelectedMonth(""); }}
+                  className="text-text-secondary hover:text-text-primary text-xs"
                 >
                   Clear
                 </Button>
               )}
             </div>
+            {/* Month chips */}
+            {selectedFY && (
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  onClick={() => setSelectedMonth("")}
+                  className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                    !selectedMonth
+                      ? "bg-accent text-white"
+                      : "bg-gray-100 text-text-secondary hover:bg-gray-200"
+                  }`}
+                >
+                  All
+                </button>
+                {FY_MONTHS.map((m) => (
+                  <button
+                    key={m.label}
+                    onClick={() => setSelectedMonth(selectedMonth === m.label ? "" : m.label)}
+                    className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                      selectedMonth === m.label
+                        ? "bg-accent text-white"
+                        : "bg-gray-100 text-text-secondary hover:bg-gray-200"
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 
