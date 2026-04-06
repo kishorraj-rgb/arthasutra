@@ -1,6 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
 import { parseAmount, parseDate, generateId } from "@/lib/bank-statement/parse-utils";
 import type { ParsedTransaction } from "@/lib/bank-statement/types";
+// pdf-parse tries to load a test PDF on import which causes DOMMatrix errors.
+// We use the underlying pdf.js directly to avoid this.
+async function extractTextFromPDF(buffer: Buffer): Promise<string> {
+  // pdf-parse has a bug where it auto-loads a test file.
+  // Create a dummy test file path to prevent the error, then use pdf-parse properly.
+  const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
+
+  const uint8Array = new Uint8Array(buffer);
+  const doc = await pdfjsLib.getDocument({ data: uint8Array }).promise;
+
+  const pages: string[] = [];
+  for (let i = 1; i <= doc.numPages; i++) {
+    const page = await doc.getPage(i);
+    const textContent = await page.getTextContent();
+    const pageText = textContent.items
+      .map((item) => ("str" in item ? (item as { str: string }).str : ""))
+      .join(" ");
+    pages.push(pageText);
+  }
+
+  return pages.join("\n");
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,12 +35,7 @@ export async function POST(req: NextRequest) {
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
-
-    // Dynamic import for server-side only
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const pdfParse = require("pdf-parse");
-    const pdfData = await pdfParse(buffer);
-    const text = pdfData.text;
+    const text = await extractTextFromPDF(buffer);
 
     const lines = text.split("\n").map((l: string) => l.trim()).filter((l: string) => l.length > 0);
     const transactions = extractTransactionsFromText(lines);
@@ -49,22 +66,20 @@ function extractTransactionsFromText(
   const transactions: ParsedTransaction[] = [];
 
   // Generic PDF parsing: look for lines that start with a date pattern
-  const datePattern = /^(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}|\d{1,2}[\s\-][A-Za-z]{3}[\s\-]\d{2,4})/;
-  const dateFormats = ["dd/MM/yyyy", "dd-MM-yyyy", "dd MMM yyyy", "dd-MMM-yyyy"];
+  const datePattern = /(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}|\d{1,2}[\s\-][A-Za-z]{3}[\s\-]\d{2,4})/;
 
   for (const line of lines) {
     const dateMatch = line.match(datePattern);
     if (!dateMatch) continue;
 
     const rawDate = dateMatch[1];
-    const date = parseDate(rawDate, dateFormats);
+    const date = parseDate(rawDate);
     if (!date) continue;
 
     // Rest of line after date
-    const rest = line.substring(dateMatch[0].length).trim();
+    const rest = line.substring(dateMatch.index! + dateMatch[0].length).trim();
 
     // Try to extract amounts from the line
-    // Look for number patterns (with commas and decimals)
     const amounts = rest.match(/[\d,]+\.\d{2}/g);
     if (!amounts || amounts.length === 0) continue;
 
@@ -73,14 +88,12 @@ function extractTransactionsFromText(
     const description = rest.substring(0, firstAmountIdx).trim().replace(/\s+/g, " ");
     if (!description || description.length < 2) continue;
 
-    // Parse amounts - typically: debit, credit, balance (2-3 numbers)
     const parsedAmounts = amounts.map(parseAmount);
 
     let amount = 0;
     let type: "credit" | "debit" = "debit";
 
     if (parsedAmounts.length >= 2) {
-      // If first amount > 0 and second is 0, it's debit; vice versa
       if (parsedAmounts[0] > 0 && parsedAmounts[1] === 0) {
         amount = parsedAmounts[0];
         type = "debit";
@@ -93,7 +106,6 @@ function extractTransactionsFromText(
       }
     } else if (parsedAmounts.length === 1 && parsedAmounts[0] > 0) {
       amount = parsedAmounts[0];
-      // Check description for credit indicators
       type = /CR|CREDIT|DEPOSIT|RECEIVED|SALARY|NEFT CR/i.test(description) ? "credit" : "debit";
     }
 
