@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 import { AppLayout } from "@/components/layout/app-layout";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,17 +11,69 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { User, Calculator, Receipt, Bell, Download } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
+import { User, Calculator, Receipt, Bell, Download, Loader2 } from "lucide-react";
 
 export default function SettingsPage() {
+  const { user } = useAuth();
+  const profile = useQuery(api.users.getUser, user ? { userId: user.userId } : "skip");
+  const updateProfile = useMutation(api.users.updateUserProfile);
+
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [pan, setPan] = useState("");
+  const [aadhaar, setAadhaar] = useState("");
   const [userType, setUserType] = useState("both");
+  const [annualCTC, setAnnualCTC] = useState("");
+  const [monthlySalary, setMonthlySalary] = useState("");
   const [regime, setRegime] = useState("new");
-  const [gstRegistered, setGstRegistered] = useState(true);
+  const [gstRegistered, setGstRegistered] = useState(false);
+  const [gstin, setGstin] = useState("");
+  const [fyStart, setFyStart] = useState("april");
+  const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  const handleSave = () => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  // Load profile data into state when it arrives
+  useEffect(() => {
+    if (profile) {
+      setName(profile.name || "");
+      setEmail(profile.email || "");
+      setPan(profile.pan_number || "");
+      setAadhaar(profile.aadhaar_last4 || "");
+      setUserType(profile.user_type || "both");
+      setAnnualCTC(profile.annual_ctc?.toString() || "");
+      setMonthlySalary(profile.monthly_salary?.toString() || "");
+      setRegime(profile.regime_preference || "new");
+      setGstRegistered(profile.gst_registered || false);
+      setGstin(profile.gstin || "");
+      setFyStart(profile.financial_year_start || "april");
+    }
+  }, [profile]);
+
+  const handleSave = async () => {
+    if (!user) return;
+    setSaving(true);
+    try {
+      await updateProfile({
+        userId: user.userId,
+        name: name || undefined,
+        pan_number: pan || undefined,
+        aadhaar_last4: aadhaar || undefined,
+        user_type: userType as "employee" | "consultant" | "both",
+        annual_ctc: annualCTC ? Number(annualCTC) : undefined,
+        monthly_salary: monthlySalary ? Number(monthlySalary) : undefined,
+        regime_preference: regime as "old" | "new",
+        gst_registered: gstRegistered,
+        gstin: gstin || undefined,
+        financial_year_start: fyStart || undefined,
+      });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err) {
+      console.error("Failed to save:", err);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -42,21 +96,22 @@ export default function SettingsPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Full Name</Label>
-                <Input defaultValue="Rajesh Kumar" />
+                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" />
               </div>
               <div className="space-y-2">
                 <Label>Email</Label>
-                <Input defaultValue="rajesh@example.com" />
+                <Input value={email} disabled className="opacity-50 cursor-not-allowed" />
+                <p className="text-white/30 text-xs">Email cannot be changed</p>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>PAN Number</Label>
-                <Input defaultValue="ABCPK1234A" placeholder="ABCDE1234F" />
+                <Input value={pan} onChange={(e) => setPan(e.target.value.toUpperCase())} placeholder="ABCDE1234F" maxLength={10} />
               </div>
               <div className="space-y-2">
                 <Label>Aadhaar (Last 4 digits)</Label>
-                <Input defaultValue="5678" placeholder="Last 4 digits" maxLength={4} />
+                <Input value={aadhaar} onChange={(e) => setAadhaar(e.target.value)} placeholder="Last 4 digits" maxLength={4} />
               </div>
             </div>
             <div className="space-y-2">
@@ -75,11 +130,11 @@ export default function SettingsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Annual CTC</Label>
-                  <Input type="number" defaultValue={4200000} />
+                  <Input type="number" value={annualCTC} onChange={(e) => setAnnualCTC(e.target.value)} placeholder="0" />
                 </div>
                 <div className="space-y-2">
                   <Label>Monthly In-Hand Salary</Label>
-                  <Input type="number" defaultValue={285000} />
+                  <Input type="number" value={monthlySalary} onChange={(e) => setMonthlySalary(e.target.value)} placeholder="0" />
                 </div>
               </div>
             )}
@@ -114,8 +169,9 @@ export default function SettingsPage() {
             <div className="space-y-2">
               <Label>Financial Year Start</Label>
               <Select
+                value={fyStart}
+                onChange={(e) => setFyStart(e.target.value)}
                 options={[{ value: "april", label: "April (Standard)" }]}
-                defaultValue="april"
               />
             </div>
           </CardContent>
@@ -144,7 +200,7 @@ export default function SettingsPage() {
               <div className="space-y-4 pt-2">
                 <div className="space-y-2">
                   <Label>GSTIN</Label>
-                  <Input defaultValue="29ABCPK1234A1Z5" placeholder="15-digit GSTIN" />
+                  <Input value={gstin} onChange={(e) => setGstin(e.target.value.toUpperCase())} placeholder="15-digit GSTIN" maxLength={15} />
                 </div>
                 <div className="space-y-2">
                   <Label>Default GST Rate</Label>
@@ -235,8 +291,17 @@ export default function SettingsPage() {
 
         {/* Save Button */}
         <div className="flex justify-end pb-8">
-          <Button onClick={handleSave} className="px-8">
-            {saved ? "Saved!" : "Save Changes"}
+          <Button onClick={handleSave} className="px-8" disabled={saving}>
+            {saving ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Saving...
+              </>
+            ) : saved ? (
+              "Saved!"
+            ) : (
+              "Save Changes"
+            )}
           </Button>
         </div>
       </div>
