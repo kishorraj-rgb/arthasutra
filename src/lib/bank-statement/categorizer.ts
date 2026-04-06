@@ -86,6 +86,46 @@ const EXPENSE_RULES: { category: ExpenseCategory; keywords: RegExp[] }[] = [
     keywords: [/SCHOOL(?!\s*FEE)/i, /DAYCARE/i, /CRECHE/i, /PLAYSCHOOL/i, /NURSERY/i],
   },
   {
+    category: "clothing",
+    keywords: [/CLOTHING/i, /APPAREL/i, /FASHION/i, /MYNTRA/i, /AJIO/i, /H&M/i, /ZARA/i, /LEVIS/i, /PUMA/i, /NIKE/i, /ADIDAS/i, /RAYMOND/i, /PETER\s*ENGLAND/i, /ALLEN\s*SOLLY/i, /VAN\s*HEUSEN/i, /FABINDIA/i, /WESTSIDE/i, /PANTALOONS/i, /LIFESTYLE/i, /MAX\s*FASHION/i, /RELIANCE\s*TRENDS/i, /SAI\s*SILKS/i, /RAMRAJ/i, /COTTON/i, /SILK/i, /SAREE/i, /TRENT/i],
+  },
+  {
+    category: "grocery",
+    keywords: [/GROCERY/i, /BIGBASKET/i, /BLINKIT/i, /ZEPTO/i, /DMART/i, /MORE\s*MEGA/i, /RELIANCE\s*FRESH/i, /STAR\s*BAZAAR/i, /LULU/i, /SPAR/i, /NATURE.*BASKET/i, /SPENCERS/i, /METRO\s*CASH/i],
+  },
+  {
+    category: "shopping",
+    keywords: [/AMAZON/i, /FLIPKART/i, /MEESHO/i, /SNAPDEAL/i, /CROMA/i, /VIJAY\s*SALES/i, /RELIANCE\s*DIGITAL/i],
+  },
+  {
+    category: "personal_care",
+    keywords: [/SALON/i, /SPA/i, /PARLOUR/i, /PARLOR/i, /BEAUTY/i, /NYKAA/i, /PURPLLE/i, /BODYSHOP/i, /LAKME/i, /BARBER/i, /HAIRCUT/i],
+  },
+  {
+    category: "subscription",
+    keywords: [/SUBSCRIPTION/i, /ANNUAL\s*PLAN/i, /MONTHLY\s*PLAN/i, /CHATGPT/i, /OPENAI/i, /NOTION/i, /FIGMA/i, /GITHUB/i, /GOOGLE\s*ONE/i, /ICLOUD/i, /APPLE.*STORAGE/i],
+  },
+  {
+    category: "donation",
+    keywords: [/DONATION/i, /CHARITY/i, /NGO/i, /TEMPLE/i, /CHURCH/i, /MOSQUE/i, /GURUDWARA/i, /POOJA/i, /DAKSHINA/i],
+  },
+  {
+    category: "emi",
+    keywords: [/EMI/i, /LOAN\s*REPAY/i, /HOME\s*LOAN/i, /CAR\s*LOAN/i, /PERSONAL\s*LOAN/i, /BAJAJ\s*FINSERV/i, /CREDIT\s*CARD\s*BILL/i, /AUTO\s*DEBIT.*CC/i],
+  },
+  {
+    category: "rent",
+    keywords: [/RENT\s*PAY/i, /HOUSE\s*RENT/i, /FLAT\s*RENT/i, /PG\s*RENT/i, /INDIQUBE/i, /COWORK/i],
+  },
+  {
+    category: "travel",
+    keywords: [/TRAVEL/i, /HOTEL/i, /OYO/i, /TREEBO/i, /GOIBIBO/i, /BOOKING\.COM/i, /AIRBNB/i, /MAKE\s*MY\s*TRIP/i, /YATRA/i, /IXIGO/i, /CLEARTRIP/i, /FLIGHT/i, /AIRLINE/i],
+  },
+  {
+    category: "cash_withdrawal",
+    keywords: [/CASH\s*WDL/i, /ATM\s*WDL/i, /NFS.*CASH/i, /CASH\s*WITHDRAWAL/i],
+  },
+  {
     category: "driver_salary",
     keywords: [/DRIVER/i, /CHAUFFEUR/i, /MAID/i, /COOK/i, /DOMESTIC\s*HELP/i, /SERVANT/i, /GARDENER/i],
   },

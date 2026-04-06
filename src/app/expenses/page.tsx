@@ -443,7 +443,8 @@ export default function ExpensesPage() {
                         <td className="px-5 py-3.5">
                           <select
                             value={expense.category}
-                            onChange={(e) => updateExpense({ id: expense._id, category: e.target.value as typeof expense.category })}
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            onChange={(e) => updateExpense({ id: expense._id, category: e.target.value as any })}
                             className="text-xs rounded-lg border border-gray-200 px-2 py-1 bg-white focus:border-accent focus:outline-none cursor-pointer"
                           >
                             {EXPENSE_CATEGORIES.map((c) => (
