@@ -209,6 +209,14 @@ export default function ExpensesPage() {
     setSelectedIds(new Set());
   };
 
+  // Sort state
+  const [sortField, setSortField] = useState<"date" | "amount" | "category" | "payee">("date");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const toggleSort = (field: typeof sortField) => {
+    if (sortField === field) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortField(field); setSortDir("desc"); }
+  };
+
   // Form state
   const [formDate, setFormDate] = useState("");
   const [formAmount, setFormAmount] = useState("");
@@ -263,6 +271,20 @@ export default function ExpensesPage() {
       return true;
     });
   }, [allExpenses, showBusinessOnly, categoryFilter, selectedFY, selectedMonth, searchQuery]);
+
+  // Sorted entries
+  const sorted = useMemo(() => {
+    const arr = [...filtered];
+    arr.sort((a, b) => {
+      let cmp = 0;
+      if (sortField === "date") cmp = a.date.localeCompare(b.date);
+      else if (sortField === "amount") cmp = a.amount - b.amount;
+      else if (sortField === "category") cmp = a.category.localeCompare(b.category);
+      else if (sortField === "payee") cmp = a.description.localeCompare(b.description);
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+    return arr;
+  }, [filtered, sortField, sortDir]);
 
   const totalExpenses = useMemo(
     () => allExpenses.reduce((s, e) => s + e.amount, 0),
@@ -592,23 +614,31 @@ export default function ExpensesPage() {
                     <th className="px-3 py-3 w-10">
                       <input
                         type="checkbox"
-                        checked={selectedIds.size === filtered.length && filtered.length > 0}
+                        checked={selectedIds.size === sorted.length && sorted.length > 0}
                         onChange={toggleSelectAll}
                         className="rounded border-gray-300 text-accent focus:ring-accent/20"
                       />
                     </th>
-                    <th className="px-5 py-3">Date</th>
-                    <th className="px-5 py-3">Category</th>
-                    <th className="px-5 py-3">Payee</th>
+                    <th className="px-5 py-3 cursor-pointer select-none hover:text-text-primary transition-colors" onClick={() => toggleSort("date")}>
+                      Date {sortField === "date" && (sortDir === "asc" ? "↑" : "↓")}
+                    </th>
+                    <th className="px-5 py-3 cursor-pointer select-none hover:text-text-primary transition-colors" onClick={() => toggleSort("category")}>
+                      Category {sortField === "category" && (sortDir === "asc" ? "↑" : "↓")}
+                    </th>
+                    <th className="px-5 py-3 cursor-pointer select-none hover:text-text-primary transition-colors" onClick={() => toggleSort("payee")}>
+                      Payee {sortField === "payee" && (sortDir === "asc" ? "↑" : "↓")}
+                    </th>
                     <th className="px-5 py-3">Method</th>
-                    <th className="px-5 py-3 text-right">Amount</th>
+                    <th className="px-5 py-3 text-right cursor-pointer select-none hover:text-text-primary transition-colors" onClick={() => toggleSort("amount")}>
+                      Amount {sortField === "amount" && (sortDir === "asc" ? "↑" : "↓")}
+                    </th>
                     <th className="px-5 py-3 text-right">GST Paid</th>
                     <th className="px-5 py-3 text-center">Type</th>
                     <th className="px-5 py-3 text-center">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((expense) => {
+                  {sorted.map((expense) => {
                     const parsed = parseDescription(expense.description);
                     return (
                       <tr

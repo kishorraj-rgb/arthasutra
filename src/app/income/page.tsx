@@ -202,6 +202,27 @@ export default function IncomePage() {
     });
   }, [safeEntries, typeFilter, selectedFY, selectedMonth, searchQuery]);
 
+  // Sort state
+  const [sortField, setSortField] = useState<"date" | "amount" | "type" | "payee">("date");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const toggleSort = (field: typeof sortField) => {
+    if (sortField === field) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortField(field); setSortDir("desc"); }
+  };
+
+  const sorted = useMemo(() => {
+    const arr = [...filtered];
+    arr.sort((a, b) => {
+      let cmp = 0;
+      if (sortField === "date") cmp = a.date.localeCompare(b.date);
+      else if (sortField === "amount") cmp = a.amount - b.amount;
+      else if (sortField === "type") cmp = a.type.localeCompare(b.type);
+      else if (sortField === "payee") cmp = a.description.localeCompare(b.description);
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+    return arr;
+  }, [filtered, sortField, sortDir]);
+
   // Monthly chart data grouped by month (FY order: Apr-Mar)
   const monthlyChartData = useMemo(() => {
     const buckets: Record<string, Record<string, number>> = {};
@@ -538,18 +559,26 @@ export default function IncomePage() {
                           className="rounded border-gray-300 text-accent focus:ring-accent/20"
                         />
                       </th>
-                      <th className="pb-3 pr-4 font-medium">Date</th>
-                      <th className="pb-3 pr-4 font-medium">Type</th>
-                      <th className="pb-3 pr-4 font-medium">Payee</th>
+                      <th className="pb-3 pr-4 font-medium cursor-pointer select-none hover:text-text-primary transition-colors" onClick={() => toggleSort("date")}>
+                        Date {sortField === "date" && (sortDir === "asc" ? "↑" : "↓")}
+                      </th>
+                      <th className="pb-3 pr-4 font-medium cursor-pointer select-none hover:text-text-primary transition-colors" onClick={() => toggleSort("type")}>
+                        Type {sortField === "type" && (sortDir === "asc" ? "↑" : "↓")}
+                      </th>
+                      <th className="pb-3 pr-4 font-medium cursor-pointer select-none hover:text-text-primary transition-colors" onClick={() => toggleSort("payee")}>
+                        Payee {sortField === "payee" && (sortDir === "asc" ? "↑" : "↓")}
+                      </th>
                       <th className="pb-3 pr-4 font-medium">Method</th>
-                      <th className="pb-3 pr-4 font-medium text-right">Amount</th>
+                      <th className="pb-3 pr-4 font-medium text-right cursor-pointer select-none hover:text-text-primary transition-colors" onClick={() => toggleSort("amount")}>
+                        Amount {sortField === "amount" && (sortDir === "asc" ? "↑" : "↓")}
+                      </th>
                       <th className="pb-3 pr-4 font-medium text-right">TDS</th>
                       <th className="pb-3 pr-4 font-medium text-right">GST</th>
                       <th className="pb-3 font-medium text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filtered.map((entry) => {
+                    {sorted.map((entry) => {
                       const parsed = parseDescription(entry.description);
                       return (
                         <tr
