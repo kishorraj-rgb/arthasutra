@@ -1,11 +1,11 @@
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 /* ═══════════════════════════════════════════════════════════════
-   DARK NAVY THEME — Inspired by HDFC Bank
+   CLOUDFLARE-STYLE LIGHT THEME
    ═══════════════════════════════════════════════════════════════ */
 
 :root {
@@ -15,8 +15,8 @@
   --emerald-light: #D1FAE5;
   --rose: #E11D48;
   --rose-light: #FFE4E6;
-  --accent: #6366F1;
-  --accent-light: #818CF8;
+  --accent: #4F46E5;
+  --accent-light: #6366F1;
   --navy: #0B1225;
   --navy-light: #111B36;
   --navy-card: #141E3A;
@@ -24,16 +24,16 @@
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(99,102,241,0.25) transparent;
+  scrollbar-color: rgba(79,70,229,0.2) transparent;
 }
 
 *::-webkit-scrollbar { width: 6px; }
 *::-webkit-scrollbar-track { background: transparent; }
-*::-webkit-scrollbar-thumb { background: rgba(99,102,241,0.2); border-radius: 3px; }
-*::-webkit-scrollbar-thumb:hover { background: rgba(99,102,241,0.4); }
+*::-webkit-scrollbar-thumb { background: rgba(79,70,229,0.15); border-radius: 3px; }
+*::-webkit-scrollbar-thumb:hover { background: rgba(79,70,229,0.3); }
 
 body {
-  background-color: #F8F9FC;
+  background-color: #F5F6FA;
   color: #111827;
   font-family: 'Inter', system-ui, sans-serif;
 }
@@ -42,61 +42,19 @@ body {
 .glass-card {
   background: #FFFFFF;
   border: 1px solid #E5E7EB;
-  border-radius: 16px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06);
-  transition: all 0.3s cubic-bezier(0.16,1,0.3,1);
-}
-.glass-card:hover {
-  border-color: rgba(99,102,241,0.15);
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
 }
 
 /* ═══ Typography ═══ */
 .text-gradient-gold {
-  color: #6366F1;
+  color: #4F46E5;
 }
 
 .stat-number {
   font-family: 'JetBrains Mono', monospace;
   font-weight: 600;
   letter-spacing: -0.02em;
-}
-
-/* ═══ Page Transition Animations ═══ */
-@keyframes pageEnter {
-  from { opacity: 0; transform: translateY(16px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes pageFadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes slideFromRight {
-  from { opacity: 0; transform: translateX(24px); }
-  to { opacity: 1; transform: translateX(0); }
-}
-
-.animate-enter {
-  animation: pageEnter 0.5s cubic-bezier(0.16,1,0.3,1) forwards;
-}
-
-.animate-enter-delay-1 { animation: pageEnter 0.5s cubic-bezier(0.16,1,0.3,1) 0.06s both; }
-.animate-enter-delay-2 { animation: pageEnter 0.5s cubic-bezier(0.16,1,0.3,1) 0.12s both; }
-.animate-enter-delay-3 { animation: pageEnter 0.5s cubic-bezier(0.16,1,0.3,1) 0.18s both; }
-.animate-enter-delay-4 { animation: pageEnter 0.5s cubic-bezier(0.16,1,0.3,1) 0.24s both; }
-.animate-enter-delay-5 { animation: pageEnter 0.5s cubic-bezier(0.16,1,0.3,1) 0.30s both; }
-
-.animate-slide-right {
-  animation: slideFromRight 0.5s cubic-bezier(0.16,1,0.3,1) forwards;
-}
-
-/* ═══ Hover Lift Effect ═══ */
-.hover-lift {
-  transition: opacity 0.2s ease;
-}
-.hover-lift:hover {
-  opacity: 0.85;
 }
 
 /* ═══ Recharts ═══ */
@@ -113,12 +71,12 @@ input[type="number"] { -moz-appearance: textfield; }
 /* ═══ Smooth focus rings ═══ */
 *:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px rgba(99,102,241,0.4);
+  box-shadow: 0 0 0 2px rgba(79,70,229,0.3);
   border-radius: 8px;
 }
 
 /* ═══ Selection color ═══ */
 ::selection {
-  background: rgba(99,102,241,0.15);
+  background: rgba(79,70,229,0.12);
   color: #111827;
 }
