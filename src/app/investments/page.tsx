@@ -1,6 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "../../../convex/_generated/api";
+import { useAuth } from "@/lib/auth-context";
 import { AppLayout } from "@/components/layout/app-layout";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -28,6 +31,8 @@ import {
   Briefcase,
   ArrowUpRight,
   ArrowDownRight,
+  Trash2,
+  Loader2,
 } from "lucide-react";
 import {
   PieChart,
@@ -38,78 +43,7 @@ import {
   Legend,
 } from "recharts";
 
-// --------------- Mock Data ---------------
-
-const portfolioOverview = {
-  totalInvested: 3250000,
-  currentValue: 3875000,
-  totalGain: 625000,
-  totalGainPercent: 19.2,
-  xirr: 14.8,
-};
-
-const categoryBreakdown = [
-  { name: "Mutual Funds", key: "mutual_fund", invested: 1200000, current: 1440000 },
-  { name: "Stocks", key: "stocks", invested: 800000, current: 1020000 },
-  { name: "PPF", key: "ppf", invested: 450000, current: 510000 },
-  { name: "NPS", key: "nps", invested: 300000, current: 345000 },
-  { name: "FD", key: "fd", invested: 200000, current: 214000 },
-  { name: "ELSS", key: "elss", invested: 150000, current: 186000 },
-  { name: "Gold", key: "gold", invested: 150000, current: 160000 },
-];
-
-const PIE_COLORS = [
-  CHART_COLORS.blue,
-  CHART_COLORS.purple,
-  CHART_COLORS.income,
-  CHART_COLORS.cyan,
-  CHART_COLORS.orange,
-  CHART_COLORS.indigo,
-  CHART_COLORS.gold,
-];
-
-const pieData = categoryBreakdown.map((c, i) => ({
-  name: c.name,
-  value: c.current,
-  color: PIE_COLORS[i],
-}));
-
-const taxSaving80C = {
-  limit: 150000,
-  utilized: 135000,
-  sections: [
-    { label: "PPF", amount: 50000 },
-    { label: "ELSS", amount: 50000 },
-    { label: "LIC Premium", amount: 25000 },
-    { label: "Home Loan Principal", amount: 10000 },
-  ],
-};
-
-interface Investment {
-  id: string;
-  name: string;
-  type: string;
-  invested: number;
-  current: number;
-  returnPercent: number;
-  dateInvested: string;
-  maturityDate: string | null;
-}
-
-const investments: Investment[] = [
-  { id: "1", name: "Axis Bluechip Fund", type: "mutual_fund", invested: 400000, current: 492000, returnPercent: 23.0, dateInvested: "2022-03-15", maturityDate: null },
-  { id: "2", name: "Parag Parikh Flexi Cap", type: "mutual_fund", invested: 350000, current: 413000, returnPercent: 18.0, dateInvested: "2021-06-10", maturityDate: null },
-  { id: "3", name: "Mirae Asset Large Cap", type: "mutual_fund", invested: 450000, current: 535000, returnPercent: 18.9, dateInvested: "2021-01-05", maturityDate: null },
-  { id: "4", name: "Reliance Industries", type: "stocks", invested: 300000, current: 405000, returnPercent: 35.0, dateInvested: "2022-01-20", maturityDate: null },
-  { id: "5", name: "HDFC Bank", type: "stocks", invested: 250000, current: 290000, returnPercent: 16.0, dateInvested: "2022-05-12", maturityDate: null },
-  { id: "6", name: "Infosys", type: "stocks", invested: 250000, current: 325000, returnPercent: 30.0, dateInvested: "2021-09-18", maturityDate: null },
-  { id: "7", name: "Public Provident Fund", type: "ppf", invested: 450000, current: 510000, returnPercent: 7.1, dateInvested: "2019-04-01", maturityDate: "2034-04-01" },
-  { id: "8", name: "National Pension System", type: "nps", invested: 300000, current: 345000, returnPercent: 15.0, dateInvested: "2020-07-01", maturityDate: "2050-07-01" },
-  { id: "9", name: "SBI FD - 5 Year", type: "fd", invested: 200000, current: 214000, returnPercent: 7.0, dateInvested: "2023-01-10", maturityDate: "2028-01-10" },
-  { id: "10", name: "Axis ELSS Tax Saver", type: "elss", invested: 150000, current: 186000, returnPercent: 24.0, dateInvested: "2022-02-25", maturityDate: "2025-02-25" },
-  { id: "11", name: "Sovereign Gold Bond 2028", type: "gold", invested: 150000, current: 160000, returnPercent: 6.7, dateInvested: "2023-06-15", maturityDate: "2031-06-15" },
-  { id: "12", name: "Tata Digital India Fund", type: "mutual_fund", invested: 100000, current: 88000, returnPercent: -12.0, dateInvested: "2024-01-08", maturityDate: null },
-];
+// --------------- Static Data (Goal-Based Planning - future feature) ---------------
 
 const goals = [
   {
@@ -151,6 +85,19 @@ const TAX_SECTIONS = [
   { value: "80CCD", label: "Section 80CCD" },
 ];
 
+const PIE_COLORS = [
+  CHART_COLORS.blue,
+  CHART_COLORS.purple,
+  CHART_COLORS.income,
+  CHART_COLORS.cyan,
+  CHART_COLORS.orange,
+  CHART_COLORS.indigo,
+  CHART_COLORS.gold,
+  "#ec4899",
+  "#14b8a6",
+  "#f43f5e",
+];
+
 // --------------- Custom Tooltip ---------------
 
 function CustomPieTooltip({ active, payload }: { active?: boolean; payload?: Array<{ name: string; value: number; payload: { color: string } }> }) {
@@ -185,10 +132,84 @@ function getTypeLabel(type: string) {
   return INVESTMENT_TYPES.find((t) => t.value === type)?.label ?? type;
 }
 
+// --------------- Loading Skeleton ---------------
+
+function InvestmentsSkeleton() {
+  return (
+    <div className="space-y-8 animate-pulse">
+      {/* Stats skeleton */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Card key={i}>
+            <CardHeader className="pb-2">
+              <div className="h-4 w-24 rounded bg-white/10" />
+            </CardHeader>
+            <CardContent>
+              <div className="h-8 w-32 rounded bg-white/10" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Category + Pie skeleton */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Card key={i}>
+              <CardHeader className="pb-2">
+                <div className="h-4 w-20 rounded bg-white/10" />
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div className="h-4 w-full rounded bg-white/10" />
+                <div className="h-4 w-full rounded bg-white/10" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <Card>
+          <CardHeader>
+            <div className="h-5 w-40 rounded bg-white/10" />
+          </CardHeader>
+          <CardContent className="flex items-center justify-center min-h-[320px]">
+            <Loader2 className="h-8 w-8 animate-spin text-white/20" />
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Investment cards skeleton */}
+      <div>
+        <div className="h-6 w-40 rounded bg-white/10 mb-4" />
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Card key={i}>
+              <CardHeader className="pb-3">
+                <div className="h-5 w-36 rounded bg-white/10" />
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="h-4 w-full rounded bg-white/10" />
+                <div className="h-4 w-full rounded bg-white/10" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // --------------- Page ---------------
 
 export default function InvestmentsPage() {
+  const { user } = useAuth();
+  const portfolio = useQuery(
+    api.investments.getInvestmentPortfolio,
+    user ? { userId: user.userId } : "skip"
+  );
+  const addInvestment = useMutation(api.investments.addInvestment);
+  const deleteInvestment = useMutation(api.investments.deleteInvestment);
+
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     type: "",
     name: "",
@@ -206,8 +227,7 @@ export default function InvestmentsPage() {
     setFormData((prev) => ({ ...prev, [field]: value }));
   }
 
-  function handleSubmit() {
-    setDialogOpen(false);
+  function resetForm() {
     setFormData({
       type: "",
       name: "",
@@ -221,6 +241,59 @@ export default function InvestmentsPage() {
       taxSection: "none",
     });
   }
+
+  async function handleSubmit() {
+    if (!user || !formData.type || !formData.name || !formData.investedAmount || !formData.dateInvested) return;
+
+    setSubmitting(true);
+    try {
+      await addInvestment({
+        userId: user.userId,
+        type: formData.type as "mutual_fund" | "stocks" | "ppf" | "nps" | "fd" | "rd" | "gold" | "real_estate" | "elss" | "ulip",
+        name: formData.name,
+        invested_amount: parseFloat(formData.investedAmount),
+        current_value: parseFloat(formData.currentValue) || parseFloat(formData.investedAmount),
+        date_invested: formData.dateInvested,
+        maturity_date: formData.maturityDate || undefined,
+        expected_return_rate: parseFloat(formData.expectedReturn) || 0,
+        lock_in_period: formData.lockInPeriod ? parseFloat(formData.lockInPeriod) : undefined,
+        tax_saving: formData.taxSaving,
+        section: (formData.taxSaving ? formData.taxSection : "none") as "80C" | "80D" | "80CCD" | "none",
+      });
+      setDialogOpen(false);
+      resetForm();
+    } catch (error) {
+      console.error("Failed to add investment:", error);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await deleteInvestment({ id: id as any });
+    } catch (error) {
+      console.error("Failed to delete investment:", error);
+    }
+  }
+
+  // Build category breakdown and pie data from portfolio
+  const categoryBreakdown = portfolio
+    ? Object.entries(portfolio.byType).map(([key, data]) => ({
+        key,
+        name: getTypeLabel(key),
+        invested: data.invested,
+        current: data.current,
+        count: data.count,
+      }))
+    : [];
+
+  const pieData = categoryBreakdown.map((c, i) => ({
+    name: c.name,
+    value: c.current,
+    color: PIE_COLORS[i % PIE_COLORS.length],
+  }));
 
   return (
     <AppLayout>
@@ -241,261 +314,340 @@ export default function InvestmentsPage() {
           </Button>
         </div>
 
-        {/* ---- Portfolio Overview ---- */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* ---- Loading State ---- */}
+        {portfolio === undefined ? (
+          <InvestmentsSkeleton />
+        ) : portfolio.investments.length === 0 ? (
+          /* ---- Empty State ---- */
           <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-white/50">
-                Total Invested
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="font-mono text-2xl font-bold text-white">
-                {formatCurrency(portfolioOverview.totalInvested)}
+            <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gold/10 mb-4">
+                <TrendingUp className="h-8 w-8 text-gold" />
+              </div>
+              <h3 className="text-lg font-semibold text-white mb-2">
+                No investments tracked yet
+              </h3>
+              <p className="text-white/50 text-sm max-w-md mb-6">
+                Start building your portfolio! Add your first investment to track performance, tax savings, and progress toward your financial goals.
               </p>
+              <Button onClick={() => setDialogOpen(true)} className="gap-2">
+                <Plus className="h-4 w-4" />
+                Add Investment
+              </Button>
             </CardContent>
           </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-white/50">
-                Current Value
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="font-mono text-2xl font-bold text-gold">
-                {formatCurrency(portfolioOverview.currentValue)}
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-white/50">
-                Total Gain
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-2">
-                <p className="font-mono text-2xl font-bold text-emerald-400">
-                  +{formatCurrency(portfolioOverview.totalGain)}
-                </p>
-                <span className="flex items-center text-sm text-emerald-400">
-                  <ArrowUpRight className="h-4 w-4" />
-                  {portfolioOverview.totalGainPercent}%
-                </span>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-white/50">
-                XIRR
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-2">
-                <p className="font-mono text-2xl font-bold text-emerald-400">
-                  {portfolioOverview.xirr}%
-                </p>
-                <TrendingUp className="h-5 w-5 text-emerald-400" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* ---- Category Breakdown + Pie Chart ---- */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Category cards */}
-          <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-            {categoryBreakdown.map((cat, idx) => {
-              const gain = cat.current - cat.invested;
-              const gainPercent = ((gain / cat.invested) * 100).toFixed(1);
-              const isPositive = gain >= 0;
-              return (
-                <Card key={cat.key}>
-                  <CardHeader className="pb-2">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-sm font-medium text-white/70">
-                        {cat.name}
-                      </CardTitle>
-                      <span
-                        className="h-2.5 w-2.5 rounded-full"
-                        style={{ backgroundColor: PIE_COLORS[idx] }}
-                      />
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-1">
-                    <div className="flex items-baseline justify-between">
-                      <span className="text-xs text-white/40">Invested</span>
-                      <span className="font-mono text-sm text-white/70">
-                        {formatCurrency(cat.invested)}
-                      </span>
-                    </div>
-                    <div className="flex items-baseline justify-between">
-                      <span className="text-xs text-white/40">Current</span>
-                      <span className="font-mono text-sm font-semibold text-white">
-                        {formatCurrency(cat.current)}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-end gap-1 pt-1">
-                      {isPositive ? (
-                        <ArrowUpRight className="h-3.5 w-3.5 text-emerald-400" />
-                      ) : (
-                        <ArrowDownRight className="h-3.5 w-3.5 text-rose-400" />
-                      )}
-                      <span
-                        className={`font-mono text-xs font-semibold ${
-                          isPositive ? "text-emerald-400" : "text-rose-400"
-                        }`}
-                      >
-                        {isPositive ? "+" : ""}
-                        {formatCurrency(gain)} ({gainPercent}%)
-                      </span>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-
-          {/* Pie Chart */}
-          <Card className="flex flex-col">
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <PieChartIcon className="h-5 w-5 text-gold" />
-                <CardTitle>Portfolio Allocation</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="flex-1 min-h-[320px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={pieData}
-                    cx="50%"
-                    cy="45%"
-                    innerRadius={60}
-                    outerRadius={100}
-                    paddingAngle={3}
-                    dataKey="value"
-                    stroke="none"
-                  >
-                    {pieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip content={<CustomPieTooltip />} />
-                  <Legend content={<CustomLegend />} />
-                </PieChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* ---- 80C Tax Saving Progress ---- */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <Target className="h-5 w-5 text-gold" />
-                Section 80C Tax Saving
-              </CardTitle>
-              <Badge variant={taxSaving80C.utilized >= taxSaving80C.limit ? "success" : "warning"}>
-                {formatCurrency(taxSaving80C.utilized)} of {formatCurrency(taxSaving80C.limit)}
-              </Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Progress
-              value={(taxSaving80C.utilized / taxSaving80C.limit) * 100}
-              indicatorClassName="bg-gradient-to-r from-gold to-amber-500"
-              className="h-3"
-            />
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              {taxSaving80C.sections.map((s) => (
-                <div
-                  key={s.label}
-                  className="rounded-lg border border-white/5 bg-white/[0.02] p-3 text-center"
-                >
-                  <p className="text-xs text-white/40 mb-1">{s.label}</p>
-                  <p className="font-mono text-sm font-semibold text-white">
-                    {formatCurrency(s.amount)}
+        ) : (
+          <>
+            {/* ---- Portfolio Overview ---- */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-white/50">
+                    Total Invested
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="font-mono text-2xl font-bold text-white">
+                    {formatCurrency(portfolio.totalInvested)}
                   </p>
-                </div>
-              ))}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-white/50">
+                    Current Value
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="font-mono text-2xl font-bold text-gold">
+                    {formatCurrency(portfolio.totalCurrent)}
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-white/50">
+                    Total Gain / Loss
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center gap-2">
+                    <p
+                      className={`font-mono text-2xl font-bold ${
+                        portfolio.gainLoss >= 0 ? "text-emerald-400" : "text-rose-400"
+                      }`}
+                    >
+                      {portfolio.gainLoss >= 0 ? "+" : ""}
+                      {formatCurrency(portfolio.gainLoss)}
+                    </p>
+                    <span
+                      className={`flex items-center text-sm ${
+                        portfolio.gainLoss >= 0 ? "text-emerald-400" : "text-rose-400"
+                      }`}
+                    >
+                      {portfolio.gainLoss >= 0 ? (
+                        <ArrowUpRight className="h-4 w-4" />
+                      ) : (
+                        <ArrowDownRight className="h-4 w-4" />
+                      )}
+                      {portfolio.gainLossPercent.toFixed(1)}%
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-white/50">
+                    Total Holdings
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center gap-2">
+                    <p className="font-mono text-2xl font-bold text-white">
+                      {portfolio.investments.length}
+                    </p>
+                    <TrendingUp className="h-5 w-5 text-gold" />
+                  </div>
+                </CardContent>
+              </Card>
             </div>
-            <p className="text-xs text-white/40 text-right">
-              Remaining: {formatCurrency(taxSaving80C.limit - taxSaving80C.utilized)}
-            </p>
-          </CardContent>
-        </Card>
 
-        {/* ---- Individual Investment Cards ---- */}
-        <div>
-          <h2 className="font-display text-xl font-semibold text-white mb-4">
-            Your Investments
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {investments.map((inv) => {
-              const isPositive = inv.returnPercent >= 0;
-              return (
-                <Card key={inv.id}>
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <CardTitle className="text-base leading-snug">
-                        {inv.name}
-                      </CardTitle>
-                      <Badge variant="secondary" className="shrink-0 text-[10px]">
-                        {getTypeLabel(inv.type)}
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                      <div>
-                        <p className="text-white/40 text-xs">Invested</p>
-                        <p className="font-mono text-white/80">
-                          {formatCurrency(inv.invested)}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-white/40 text-xs">Current Value</p>
-                        <p className="font-mono font-semibold text-white">
-                          {formatCurrency(inv.current)}
-                        </p>
-                      </div>
-                    </div>
+            {/* ---- Category Breakdown + Pie Chart ---- */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Category cards */}
+              <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                {categoryBreakdown.map((cat, idx) => {
+                  const gain = cat.current - cat.invested;
+                  const gainPercent =
+                    cat.invested > 0
+                      ? ((gain / cat.invested) * 100).toFixed(1)
+                      : "0.0";
+                  const isPositive = gain >= 0;
+                  return (
+                    <Card key={cat.key}>
+                      <CardHeader className="pb-2">
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="text-sm font-medium text-white/70">
+                            {cat.name}
+                          </CardTitle>
+                          <span
+                            className="h-2.5 w-2.5 rounded-full"
+                            style={{
+                              backgroundColor:
+                                PIE_COLORS[idx % PIE_COLORS.length],
+                            }}
+                          />
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-1">
+                        <div className="flex items-baseline justify-between">
+                          <span className="text-xs text-white/40">Invested</span>
+                          <span className="font-mono text-sm text-white/70">
+                            {formatCurrency(cat.invested)}
+                          </span>
+                        </div>
+                        <div className="flex items-baseline justify-between">
+                          <span className="text-xs text-white/40">Current</span>
+                          <span className="font-mono text-sm font-semibold text-white">
+                            {formatCurrency(cat.current)}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-end gap-1 pt-1">
+                          {isPositive ? (
+                            <ArrowUpRight className="h-3.5 w-3.5 text-emerald-400" />
+                          ) : (
+                            <ArrowDownRight className="h-3.5 w-3.5 text-rose-400" />
+                          )}
+                          <span
+                            className={`font-mono text-xs font-semibold ${
+                              isPositive ? "text-emerald-400" : "text-rose-400"
+                            }`}
+                          >
+                            {isPositive ? "+" : ""}
+                            {formatCurrency(gain)} ({gainPercent}%)
+                          </span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
 
-                    <div className="flex items-center justify-between border-t border-white/5 pt-3">
-                      <div className="flex items-center gap-1">
-                        {isPositive ? (
-                          <ArrowUpRight className="h-4 w-4 text-emerald-400" />
-                        ) : (
-                          <ArrowDownRight className="h-4 w-4 text-rose-400" />
-                        )}
-                        <span
-                          className={`font-mono text-sm font-bold ${
-                            isPositive ? "text-emerald-400" : "text-rose-400"
-                          }`}
+              {/* Pie Chart */}
+              <Card className="flex flex-col">
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <PieChartIcon className="h-5 w-5 text-gold" />
+                    <CardTitle>Portfolio Allocation</CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent className="flex-1 min-h-[320px]">
+                  {pieData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={pieData}
+                          cx="50%"
+                          cy="45%"
+                          innerRadius={60}
+                          outerRadius={100}
+                          paddingAngle={3}
+                          dataKey="value"
+                          stroke="none"
                         >
-                          {isPositive ? "+" : ""}
-                          {inv.returnPercent}%
-                        </span>
-                      </div>
-                      <div className="text-right text-xs text-white/40">
-                        <p>Invested: {inv.dateInvested}</p>
-                        {inv.maturityDate && <p>Maturity: {inv.maturityDate}</p>}
-                      </div>
+                          {pieData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip content={<CustomPieTooltip />} />
+                        <Legend content={<CustomLegend />} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-white/40 text-sm">
+                      No allocation data
                     </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
 
-        {/* ---- Goal-Based Planning ---- */}
+            {/* ---- 80C Tax Saving Progress ---- */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <Target className="h-5 w-5 text-gold" />
+                    Section 80C Tax Saving
+                  </CardTitle>
+                  <Badge
+                    variant={
+                      portfolio.taxSavingUsed >= portfolio.taxSavingLimit
+                        ? "success"
+                        : "warning"
+                    }
+                  >
+                    {formatCurrency(portfolio.taxSavingUsed)} of{" "}
+                    {formatCurrency(portfolio.taxSavingLimit)}
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Progress
+                  value={
+                    portfolio.taxSavingLimit > 0
+                      ? (portfolio.taxSavingUsed / portfolio.taxSavingLimit) *
+                        100
+                      : 0
+                  }
+                  indicatorClassName="bg-gradient-to-r from-gold to-amber-500"
+                  className="h-3"
+                />
+                <p className="text-xs text-white/40 text-right">
+                  Remaining:{" "}
+                  {formatCurrency(
+                    Math.max(
+                      0,
+                      portfolio.taxSavingLimit - portfolio.taxSavingUsed
+                    )
+                  )}
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* ---- Individual Investment Cards ---- */}
+            <div>
+              <h2 className="font-display text-xl font-semibold text-white mb-4">
+                Your Investments
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {portfolio.investments.map((inv) => {
+                  const gain = inv.current_value - inv.invested_amount;
+                  const returnPercent =
+                    inv.invested_amount > 0
+                      ? (gain / inv.invested_amount) * 100
+                      : 0;
+                  const isPositive = returnPercent >= 0;
+                  return (
+                    <Card key={inv._id}>
+                      <CardHeader className="pb-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <CardTitle className="text-base leading-snug">
+                            {inv.name}
+                          </CardTitle>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <Badge
+                              variant="secondary"
+                              className="text-[10px]"
+                            >
+                              {getTypeLabel(inv.type)}
+                            </Badge>
+                            <button
+                              onClick={() => handleDelete(inv._id)}
+                              className="rounded p-1 text-white/30 hover:text-rose-400 hover:bg-rose-400/10 transition-colors"
+                              title="Delete investment"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                          <div>
+                            <p className="text-white/40 text-xs">Invested</p>
+                            <p className="font-mono text-white/80">
+                              {formatCurrency(inv.invested_amount)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-white/40 text-xs">
+                              Current Value
+                            </p>
+                            <p className="font-mono font-semibold text-white">
+                              {formatCurrency(inv.current_value)}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between border-t border-white/5 pt-3">
+                          <div className="flex items-center gap-1">
+                            {isPositive ? (
+                              <ArrowUpRight className="h-4 w-4 text-emerald-400" />
+                            ) : (
+                              <ArrowDownRight className="h-4 w-4 text-rose-400" />
+                            )}
+                            <span
+                              className={`font-mono text-sm font-bold ${
+                                isPositive
+                                  ? "text-emerald-400"
+                                  : "text-rose-400"
+                              }`}
+                            >
+                              {isPositive ? "+" : ""}
+                              {returnPercent.toFixed(1)}%
+                            </span>
+                          </div>
+                          <div className="text-right text-xs text-white/40">
+                            <p>Invested: {inv.date_invested}</p>
+                            {inv.maturity_date && (
+                              <p>Maturity: {inv.maturity_date}</p>
+                            )}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* ---- Goal-Based Planning (static/demo - future feature) ---- */}
         <div>
           <h2 className="font-display text-xl font-semibold text-white mb-4">
             Goal-Based Planning
@@ -513,7 +665,8 @@ export default function InvestmentsPage() {
                       <div>
                         <CardTitle className="text-base">{goal.name}</CardTitle>
                         <p className="text-xs text-white/40 mt-0.5">
-                          Target: {formatCurrency(goal.target)} in {goal.years} yrs
+                          Target: {formatCurrency(goal.target)} in {goal.years}{" "}
+                          yrs
                         </p>
                       </div>
                     </div>
@@ -528,7 +681,9 @@ export default function InvestmentsPage() {
                       <span className="text-xs font-mono text-white/50">
                         {goal.progress}%
                       </span>
-                      <span className={`text-xs font-medium ${goal.statusColor}`}>
+                      <span
+                        className={`text-xs font-medium ${goal.statusColor}`}
+                      >
                         {goal.status}
                       </span>
                     </div>
@@ -682,7 +837,10 @@ export default function InvestmentsPage() {
               >
                 Cancel
               </Button>
-              <Button onClick={handleSubmit}>Add Investment</Button>
+              <Button onClick={handleSubmit} disabled={submitting}>
+                {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Add Investment
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

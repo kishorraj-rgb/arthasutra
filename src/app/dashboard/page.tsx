@@ -4,6 +4,9 @@ import { AppLayout } from "@/components/layout/app-layout";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, CHART_COLORS, CATEGORY_COLORS } from "@/lib/utils";
+import { useAuth } from "@/lib/auth-context";
+import { useQuery } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 import {
   Wallet,
   TrendingUp,
@@ -29,69 +32,8 @@ import {
 } from "recharts";
 
 // ---------------------------------------------------------------------------
-// Mock data
+// Static demo data for tax regime comparison (depends on tax calculator inputs)
 // ---------------------------------------------------------------------------
-
-const cashFlowData = [
-  { month: "Apr", income: 275000, expense: 128000 },
-  { month: "May", income: 280000, expense: 135000 },
-  { month: "Jun", income: 285000, expense: 142000 },
-  { month: "Jul", income: 290000, expense: 138000 },
-  { month: "Aug", income: 285000, expense: 148000 },
-  { month: "Sep", income: 295000, expense: 155000 },
-  { month: "Oct", income: 285000, expense: 140000 },
-  { month: "Nov", income: 310000, expense: 162000 },
-  { month: "Dec", income: 340000, expense: 175000 },
-  { month: "Jan", income: 285000, expense: 138000 },
-  { month: "Feb", income: 285000, expense: 132000 },
-  { month: "Mar", income: 285000, expense: 142000 },
-];
-
-const expenseBreakdown = [
-  { name: "Housing", value: 35000, category: "housing" },
-  { name: "Food & Dining", value: 22000, category: "food" },
-  { name: "Transport", value: 12000, category: "transport" },
-  { name: "School Fees", value: 18000, category: "school_fees" },
-  { name: "Insurance", value: 15000, category: "insurance" },
-  { name: "Utilities", value: 8000, category: "utilities" },
-  { name: "Medical", value: 6000, category: "medical" },
-  { name: "Entertainment", value: 10000, category: "entertainment" },
-  { name: "Driver Salary", value: 9000, category: "driver_salary" },
-  { name: "Other", value: 7000, category: "other" },
-];
-
-const reminders = [
-  {
-    id: 1,
-    title: "GST Filing - GSTR-3B",
-    date: "2026-04-01",
-    status: "overdue" as const,
-  },
-  {
-    id: 2,
-    title: "Advance Tax - Q1 Instalment",
-    date: "2026-04-15",
-    status: "due_soon" as const,
-  },
-  {
-    id: 3,
-    title: "LIC Premium Payment",
-    date: "2026-04-10",
-    status: "due_soon" as const,
-  },
-  {
-    id: 4,
-    title: "SIP - HDFC Flexi Cap Fund",
-    date: "2026-04-20",
-    status: "upcoming" as const,
-  },
-  {
-    id: 5,
-    title: "PPF Annual Contribution Deadline",
-    date: "2026-04-30",
-    status: "upcoming" as const,
-  },
-];
 
 const taxComparison = {
   grossIncome: 3420000,
@@ -112,66 +54,92 @@ const taxComparison = {
 };
 
 // ---------------------------------------------------------------------------
-// Stat cards config
+// Skeleton loading component
 // ---------------------------------------------------------------------------
 
-const statCards = [
-  {
-    title: "Net Worth",
-    value: 12450000,
-    icon: Wallet,
-    color: "#F0A500",
-    bgGlow: "from-gold/20 to-gold/5",
-    trend: "+8.2% from last year",
-    trendUp: true,
-  },
-  {
-    title: "Monthly Income",
-    value: 285000,
-    icon: TrendingUp,
-    color: "#10B981",
-    bgGlow: "from-emerald-500/20 to-emerald-500/5",
-    trend: "+5.1% from last month",
-    trendUp: true,
-  },
-  {
-    title: "Monthly Expenses",
-    value: 142000,
-    icon: TrendingDown,
-    color: "#F43F5E",
-    bgGlow: "from-rose-500/20 to-rose-500/5",
-    trend: "+2.3% from last month",
-    trendUp: false,
-  },
-  {
-    title: "Portfolio Gain/Loss",
-    value: 340000,
-    icon: PieChartIcon,
-    color: "#F0A500",
-    bgGlow: "from-gold/20 to-gold/5",
-    trend: "+12.4% returns",
-    trendUp: true,
-    suffix: "+12.4%",
-  },
-  {
-    title: "Tax Saved YTD",
-    value: 187500,
-    icon: Calculator,
-    color: "#8B5CF6",
-    bgGlow: "from-purple-500/20 to-purple-500/5",
-    trend: "FY 2025-26",
-    trendUp: true,
-  },
-  {
-    title: "GST Liability",
-    value: 18000,
-    icon: IndianRupee,
-    color: "#F97316",
-    bgGlow: "from-orange-500/20 to-orange-500/5",
-    trend: "This month",
-    trendUp: false,
-  },
-];
+function SkeletonCard() {
+  return (
+    <div className="animate-pulse bg-white/5 rounded-lg h-[132px] border border-white/5" />
+  );
+}
+
+function SkeletonChartWide() {
+  return (
+    <div className="animate-pulse bg-white/5 rounded-lg h-[400px] border border-white/5 lg:col-span-2" />
+  );
+}
+
+function SkeletonChartNarrow() {
+  return (
+    <div className="animate-pulse bg-white/5 rounded-lg h-[400px] border border-white/5" />
+  );
+}
+
+function SkeletonBottomCard() {
+  return (
+    <div className="animate-pulse bg-white/5 rounded-lg h-[320px] border border-white/5" />
+  );
+}
+
+function DashboardSkeleton() {
+  return (
+    <div className="space-y-8">
+      {/* Header skeleton */}
+      <div className="animate-enter">
+        <div className="animate-pulse bg-white/5 rounded-lg h-9 w-48" />
+        <div className="animate-pulse bg-white/5 rounded-lg h-5 w-80 mt-2" />
+      </div>
+
+      {/* Stat cards skeleton */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <SkeletonCard key={i} />
+        ))}
+      </div>
+
+      {/* Charts row skeleton */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <SkeletonChartWide />
+        <SkeletonChartNarrow />
+      </div>
+
+      {/* Bottom row skeleton */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <SkeletonBottomCard />
+        <SkeletonBottomCard />
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Empty state for new users
+// ---------------------------------------------------------------------------
+
+function DashboardEmptyState() {
+  return (
+    <div className="space-y-8">
+      <div className="animate-enter">
+        <h1 className="font-display text-3xl font-bold text-white">Dashboard</h1>
+        <p className="text-white/50 mt-1">Your financial overview</p>
+      </div>
+
+      <div className="flex flex-col items-center justify-center py-24">
+        <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-gold/10 mb-6">
+          <Wallet className="h-10 w-10 text-gold" />
+        </div>
+        <h2 className="font-display text-2xl font-bold text-white mb-2">
+          Welcome to ArthaSutra!
+        </h2>
+        <p className="text-white/50 text-center max-w-md">
+          Start by adding your income and expenses. Once you have some data,
+          your financial dashboard will come to life with insights, charts, and
+          smart reminders.
+        </p>
+      </div>
+    </div>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Custom tooltip for Recharts
@@ -236,6 +204,18 @@ function PieTooltip({
 // Reminder helpers
 // ---------------------------------------------------------------------------
 
+function getReminderStatus(
+  reminder: { due_date: string; is_completed: boolean }
+): "overdue" | "due_soon" | "upcoming" {
+  if (reminder.is_completed) return "upcoming";
+  const now = new Date();
+  const due = new Date(reminder.due_date);
+  const diffDays = Math.ceil((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  if (diffDays < 0) return "overdue";
+  if (diffDays <= 7) return "due_soon";
+  return "upcoming";
+}
+
 function reminderColor(status: "overdue" | "due_soon" | "upcoming") {
   switch (status) {
     case "overdue":
@@ -266,13 +246,122 @@ function formatDate(dateStr: string) {
 }
 
 // ---------------------------------------------------------------------------
+// Check if all metrics are zero (new user with no data)
+// ---------------------------------------------------------------------------
+
+function isEmptyMetrics(metrics: {
+  netWorth: number;
+  totalIncome: number;
+  totalExpenses: number;
+  currentMonthIncome: number;
+  currentMonthExpenses: number;
+  totalInvested: number;
+  totalCurrentValue: number;
+  portfolioGainLoss: number;
+  totalLoanOutstanding: number;
+}): boolean {
+  return (
+    metrics.netWorth === 0 &&
+    metrics.totalIncome === 0 &&
+    metrics.totalExpenses === 0 &&
+    metrics.currentMonthIncome === 0 &&
+    metrics.currentMonthExpenses === 0 &&
+    metrics.totalInvested === 0 &&
+    metrics.totalCurrentValue === 0 &&
+    metrics.portfolioGainLoss === 0 &&
+    metrics.totalLoanOutstanding === 0
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Page Component
 // ---------------------------------------------------------------------------
 
 export default function DashboardPage() {
+  const { user } = useAuth();
+  const metrics = useQuery(
+    api.dashboard.getDashboardMetrics,
+    user ? { userId: user.userId } : "skip"
+  );
+
   const savings = taxComparison.oldRegime.total - taxComparison.newRegime.total;
   const betterRegime = savings < 0 ? "Old Regime" : "New Regime";
   const savingsAmount = Math.abs(savings);
+
+  // --- Loading state ---
+  if (!user || metrics === undefined) {
+    return (
+      <AppLayout>
+        <DashboardSkeleton />
+      </AppLayout>
+    );
+  }
+
+  // --- Empty state for new users ---
+  if (isEmptyMetrics(metrics)) {
+    return (
+      <AppLayout>
+        <DashboardEmptyState />
+      </AppLayout>
+    );
+  }
+
+  // --- Build stat cards from real data ---
+  const statCards = [
+    {
+      title: "Net Worth",
+      value: metrics.netWorth,
+      icon: Wallet,
+      color: "#F0A500",
+      bgGlow: "from-gold/20 to-gold/5",
+    },
+    {
+      title: "Monthly Income",
+      value: metrics.currentMonthIncome,
+      icon: TrendingUp,
+      color: "#10B981",
+      bgGlow: "from-emerald-500/20 to-emerald-500/5",
+    },
+    {
+      title: "Monthly Expenses",
+      value: metrics.currentMonthExpenses,
+      icon: TrendingDown,
+      color: "#F43F5E",
+      bgGlow: "from-rose-500/20 to-rose-500/5",
+    },
+    {
+      title: "Portfolio Gain/Loss",
+      value: metrics.portfolioGainLoss,
+      icon: PieChartIcon,
+      color: "#F0A500",
+      bgGlow: "from-gold/20 to-gold/5",
+    },
+    {
+      title: "Tax Saved YTD",
+      value: metrics.taxSaving80C,
+      icon: Calculator,
+      color: "#8B5CF6",
+      bgGlow: "from-purple-500/20 to-purple-500/5",
+    },
+    {
+      title: "GST Liability",
+      value: metrics.gstLiability,
+      icon: IndianRupee,
+      color: "#F97316",
+      bgGlow: "from-orange-500/20 to-orange-500/5",
+    },
+  ];
+
+  // --- Build expense breakdown from real data ---
+  const expenseBreakdown = Object.entries(metrics.expenseByCategory).map(
+    ([category, value]) => ({
+      name: category
+        .replace(/_/g, " ")
+        .replace(/\b\w/g, (c) => c.toUpperCase()),
+      value,
+      category,
+    })
+  );
 
   return (
     <AppLayout>
@@ -289,6 +378,7 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {statCards.map((card, index) => {
             const Icon = card.icon;
+            const isPositive = card.value >= 0;
             return (
               <Card
                 key={card.title}
@@ -315,19 +405,14 @@ export default function DashboardPage() {
                     <span className="stat-number text-2xl font-bold text-white">
                       {formatCurrency(card.value)}
                     </span>
-                    {card.suffix && (
-                      <Badge variant="success" className="text-xs">
-                        {card.suffix}
-                      </Badge>
-                    )}
                   </div>
                   <p className="mt-1 flex items-center gap-1 text-xs text-white/40">
-                    {card.trendUp ? (
+                    {isPositive ? (
                       <ArrowUpRight className="h-3 w-3 text-emerald-400" />
                     ) : (
                       <ArrowDownRight className="h-3 w-3 text-rose-400" />
                     )}
-                    {card.trend}
+                    {card.title}
                   </p>
                 </CardContent>
               </Card>
@@ -351,50 +436,56 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart
-                    data={cashFlowData}
-                    margin={{ top: 5, right: 10, left: 10, bottom: 5 }}
-                  >
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      stroke="rgba(255,255,255,0.05)"
-                    />
-                    <XAxis
-                      dataKey="month"
-                      tick={{ fill: "rgba(255,255,255,0.4)", fontSize: 12 }}
-                      axisLine={{ stroke: "rgba(255,255,255,0.1)" }}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      tick={{ fill: "rgba(255,255,255,0.4)", fontSize: 12 }}
-                      axisLine={{ stroke: "rgba(255,255,255,0.1)" }}
-                      tickLine={false}
-                      tickFormatter={(v: number) =>
-                        v >= 100000 ? `${(v / 100000).toFixed(1)}L` : `${(v / 1000).toFixed(0)}K`
-                      }
-                    />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Line
-                      type="monotone"
-                      dataKey="income"
-                      name="Income"
-                      stroke={CHART_COLORS.income}
-                      strokeWidth={2.5}
-                      dot={false}
-                      activeDot={{ r: 5, strokeWidth: 2, fill: CHART_COLORS.income }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="expense"
-                      name="Expense"
-                      stroke={CHART_COLORS.expense}
-                      strokeWidth={2.5}
-                      dot={false}
-                      activeDot={{ r: 5, strokeWidth: 2, fill: CHART_COLORS.expense }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
+                {metrics.cashFlow.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart
+                      data={metrics.cashFlow}
+                      margin={{ top: 5, right: 10, left: 10, bottom: 5 }}
+                    >
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        stroke="rgba(255,255,255,0.05)"
+                      />
+                      <XAxis
+                        dataKey="month"
+                        tick={{ fill: "rgba(255,255,255,0.4)", fontSize: 12 }}
+                        axisLine={{ stroke: "rgba(255,255,255,0.1)" }}
+                        tickLine={false}
+                      />
+                      <YAxis
+                        tick={{ fill: "rgba(255,255,255,0.4)", fontSize: 12 }}
+                        axisLine={{ stroke: "rgba(255,255,255,0.1)" }}
+                        tickLine={false}
+                        tickFormatter={(v: number) =>
+                          v >= 100000 ? `${(v / 100000).toFixed(1)}L` : `${(v / 1000).toFixed(0)}K`
+                        }
+                      />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Line
+                        type="monotone"
+                        dataKey="income"
+                        name="Income"
+                        stroke={CHART_COLORS.income}
+                        strokeWidth={2.5}
+                        dot={false}
+                        activeDot={{ r: 5, strokeWidth: 2, fill: CHART_COLORS.income }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="expense"
+                        name="Expense"
+                        stroke={CHART_COLORS.expense}
+                        strokeWidth={2.5}
+                        dot={false}
+                        activeDot={{ r: 5, strokeWidth: 2, fill: CHART_COLORS.expense }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex items-center justify-center h-full text-white/30 text-sm">
+                    No cash flow data yet
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -409,47 +500,55 @@ export default function DashboardPage() {
               <p className="text-xs text-white/40">Expense categories</p>
             </CardHeader>
             <CardContent>
-              <div className="h-52">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={expenseBreakdown}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={55}
-                      outerRadius={80}
-                      paddingAngle={2}
-                      dataKey="value"
-                      stroke="none"
-                    >
-                      {expenseBreakdown.map((entry) => (
-                        <Cell
-                          key={entry.category}
-                          fill={CATEGORY_COLORS[entry.category] ?? "#6B7280"}
-                        />
-                      ))}
-                    </Pie>
-                    <Tooltip content={<PieTooltip />} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              {/* Legend */}
-              <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
-                {expenseBreakdown.slice(0, 6).map((entry) => (
-                  <div key={entry.category} className="flex items-center gap-1.5">
-                    <span
-                      className="inline-block h-2 w-2 rounded-full flex-shrink-0"
-                      style={{
-                        backgroundColor: CATEGORY_COLORS[entry.category] ?? "#6B7280",
-                      }}
-                    />
-                    <span className="text-white/50 truncate">{entry.name}</span>
-                    <span className="stat-number text-white/70 ml-auto">
-                      {formatCurrency(entry.value)}
-                    </span>
+              {expenseBreakdown.length > 0 ? (
+                <>
+                  <div className="h-52">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={expenseBreakdown}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={55}
+                          outerRadius={80}
+                          paddingAngle={2}
+                          dataKey="value"
+                          stroke="none"
+                        >
+                          {expenseBreakdown.map((entry) => (
+                            <Cell
+                              key={entry.category}
+                              fill={CATEGORY_COLORS[entry.category] ?? "#6B7280"}
+                            />
+                          ))}
+                        </Pie>
+                        <Tooltip content={<PieTooltip />} />
+                      </PieChart>
+                    </ResponsiveContainer>
                   </div>
-                ))}
-              </div>
+                  {/* Legend */}
+                  <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
+                    {expenseBreakdown.slice(0, 6).map((entry) => (
+                      <div key={entry.category} className="flex items-center gap-1.5">
+                        <span
+                          className="inline-block h-2 w-2 rounded-full flex-shrink-0"
+                          style={{
+                            backgroundColor: CATEGORY_COLORS[entry.category] ?? "#6B7280",
+                          }}
+                        />
+                        <span className="text-white/50 truncate">{entry.name}</span>
+                        <span className="stat-number text-white/70 ml-auto">
+                          {formatCurrency(entry.value)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <div className="flex items-center justify-center h-52 text-white/30 text-sm">
+                  No expense data yet
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -466,36 +565,52 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {reminders.map((reminder) => (
-                  <div
-                    key={reminder.id}
-                    className="flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.02] px-4 py-3 transition-colors hover:bg-white/[0.04]"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
+                {metrics.upcomingReminders.length > 0 ? (
+                  metrics.upcomingReminders.map((reminder, idx) => {
+                    const status = getReminderStatus(reminder);
+                    return (
                       <div
-                        className={`h-2 w-2 rounded-full flex-shrink-0 ${
-                          reminder.status === "overdue"
-                            ? "bg-rose-500 animate-pulse"
-                            : reminder.status === "due_soon"
-                              ? "bg-amber-400"
-                              : "bg-emerald-400"
-                        }`}
-                      />
-                      <div className="min-w-0">
-                        <p className="text-sm text-white truncate">{reminder.title}</p>
-                        <p className="text-xs text-white/40">{formatDate(reminder.date)}</p>
+                        key={idx}
+                        className="flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.02] px-4 py-3 transition-colors hover:bg-white/[0.04]"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div
+                            className={`h-2 w-2 rounded-full flex-shrink-0 ${
+                              status === "overdue"
+                                ? "bg-rose-500 animate-pulse"
+                                : status === "due_soon"
+                                  ? "bg-amber-400"
+                                  : "bg-emerald-400"
+                            }`}
+                          />
+                          <div className="min-w-0">
+                            <p className="text-sm text-white truncate">{reminder.title}</p>
+                            <p className="text-xs text-white/40">
+                              {formatDate(reminder.due_date)}
+                              {reminder.amount != null && (
+                                <span className="ml-2 text-white/50">
+                                  {formatCurrency(reminder.amount)}
+                                </span>
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                        <Badge variant={reminderColor(status)} className="flex-shrink-0 ml-3">
+                          {reminderLabel(status)}
+                        </Badge>
                       </div>
-                    </div>
-                    <Badge variant={reminderColor(reminder.status)} className="flex-shrink-0 ml-3">
-                      {reminderLabel(reminder.status)}
-                    </Badge>
+                    );
+                  })
+                ) : (
+                  <div className="flex items-center justify-center py-8 text-white/30 text-sm">
+                    No upcoming reminders
                   </div>
-                ))}
+                )}
               </div>
             </CardContent>
           </Card>
 
-          {/* Tax Regime Comparison */}
+          {/* Tax Regime Comparison (static demo) */}
           <Card className="animate-enter" style={{ animationDelay: "800ms" }}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">

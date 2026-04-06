@@ -1,6 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "../../../convex/_generated/api";
+import { useAuth } from "@/lib/auth-context";
 import { AppLayout } from "@/components/layout/app-layout";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -36,128 +39,6 @@ import {
 } from "recharts";
 
 // ---------------------------------------------------------------------------
-// Demo data
-// ---------------------------------------------------------------------------
-
-const incomeEntries = [
-  {
-    id: "1",
-    date: "2026-03-31",
-    type: "salary",
-    description: "Monthly Salary - TCS Ltd",
-    amount: 235000,
-    tds: 19500,
-    gst: 0,
-    invoice: "",
-  },
-  {
-    id: "2",
-    date: "2026-03-15",
-    type: "freelance",
-    description: "UI/UX Consulting - FinEdge",
-    amount: 75000,
-    tds: 7500,
-    gst: 13500,
-    invoice: "INV-2026-042",
-  },
-  {
-    id: "3",
-    date: "2026-03-01",
-    type: "rental",
-    description: "Flat Rental - Koramangala 2BHK",
-    amount: 25000,
-    tds: 0,
-    gst: 0,
-    invoice: "",
-  },
-  {
-    id: "4",
-    date: "2026-02-28",
-    type: "salary",
-    description: "Monthly Salary - TCS Ltd",
-    amount: 235000,
-    tds: 19500,
-    gst: 0,
-    invoice: "",
-  },
-  {
-    id: "5",
-    date: "2026-02-20",
-    type: "interest",
-    description: "FD Interest - SBI 3-Year",
-    amount: 4200,
-    tds: 420,
-    gst: 0,
-    invoice: "",
-  },
-  {
-    id: "6",
-    date: "2026-02-10",
-    type: "dividend",
-    description: "HDFC Bank Equity Dividend",
-    amount: 3500,
-    tds: 350,
-    gst: 0,
-    invoice: "",
-  },
-  {
-    id: "7",
-    date: "2026-02-01",
-    type: "rental",
-    description: "Flat Rental - Koramangala 2BHK",
-    amount: 25000,
-    tds: 0,
-    gst: 0,
-    invoice: "",
-  },
-  {
-    id: "8",
-    date: "2026-01-31",
-    type: "salary",
-    description: "Monthly Salary - TCS Ltd",
-    amount: 235000,
-    tds: 19500,
-    gst: 0,
-    invoice: "",
-  },
-  {
-    id: "9",
-    date: "2026-01-18",
-    type: "freelance",
-    description: "Mobile App Design - HealthFirst",
-    amount: 120000,
-    tds: 12000,
-    gst: 21600,
-    invoice: "INV-2026-031",
-  },
-  {
-    id: "10",
-    date: "2026-01-05",
-    type: "interest",
-    description: "Savings Account Interest - ICICI",
-    amount: 1850,
-    tds: 0,
-    gst: 0,
-    invoice: "",
-  },
-];
-
-const monthlyChartData = [
-  { month: "Apr", salary: 235000, freelance: 50000, rental: 25000, interest: 1200, dividend: 0 },
-  { month: "May", salary: 235000, freelance: 0, rental: 25000, interest: 1200, dividend: 2800 },
-  { month: "Jun", salary: 235000, freelance: 85000, rental: 25000, interest: 1200, dividend: 0 },
-  { month: "Jul", salary: 235000, freelance: 0, rental: 25000, interest: 4200, dividend: 0 },
-  { month: "Aug", salary: 235000, freelance: 60000, rental: 25000, interest: 1200, dividend: 3500 },
-  { month: "Sep", salary: 235000, freelance: 0, rental: 25000, interest: 1200, dividend: 0 },
-  { month: "Oct", salary: 235000, freelance: 110000, rental: 25000, interest: 1200, dividend: 0 },
-  { month: "Nov", salary: 235000, freelance: 0, rental: 25000, interest: 4200, dividend: 2800 },
-  { month: "Dec", salary: 235000, freelance: 45000, rental: 25000, interest: 1200, dividend: 0 },
-  { month: "Jan", salary: 235000, freelance: 120000, rental: 25000, interest: 1850, dividend: 0 },
-  { month: "Feb", salary: 235000, freelance: 0, rental: 25000, interest: 4200, dividend: 3500 },
-  { month: "Mar", salary: 235000, freelance: 75000, rental: 25000, interest: 0, dividend: 0 },
-];
-
-// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -169,6 +50,11 @@ const TYPE_BADGE_MAP: Record<string, { label: string; color: string }> = {
   dividend: { label: "Dividend", color: "bg-cyan-500/10 text-cyan-400 border-cyan-500/30" },
   other: { label: "Other", color: "bg-white/5 text-white/70 border-white/10" },
 };
+
+const MONTH_LABELS = [
+  "Apr", "May", "Jun", "Jul", "Aug", "Sep",
+  "Oct", "Nov", "Dec", "Jan", "Feb", "Mar",
+];
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-IN", {
@@ -183,29 +69,192 @@ function formatDate(iso: string) {
 // ---------------------------------------------------------------------------
 
 export default function IncomePage() {
+  const { user } = useAuth();
+
+  // Convex data
+  const entries = useQuery(
+    api.income.getIncomeEntries,
+    user ? { userId: user.userId } : "skip"
+  );
+  const addIncome = useMutation(api.income.addIncomeEntry);
+  const deleteIncome = useMutation(api.income.deleteIncomeEntry);
+
+  // Dialog + form state
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [formDate, setFormDate] = useState("");
+  const [formAmount, setFormAmount] = useState("");
+  const [formType, setFormType] = useState("");
+  const [formDescription, setFormDescription] = useState("");
+  const [formTDS, setFormTDS] = useState("");
+  const [formGST, setFormGST] = useState("");
+  const [formInvoice, setFormInvoice] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  // Filter state
   const [typeFilter, setTypeFilter] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
+  // ---------------------------------------------------------------------------
+  // Derived data
+  // ---------------------------------------------------------------------------
+
+  const safeEntries = useMemo(() => entries ?? [], [entries]);
+
   // Stats
-  const totalIncome = incomeEntries.reduce((s, e) => s + e.amount, 0);
-  const totalTds = incomeEntries.reduce((s, e) => s + e.tds, 0);
-  const totalGst = incomeEntries.reduce((s, e) => s + e.gst, 0);
-  const projectedAnnual = Math.round(totalIncome * (12 / 3)); // 3 months of data shown
+  const totalIncome = safeEntries.reduce((s, e) => s + e.amount, 0);
+  const totalTds = safeEntries.reduce((s, e) => s + e.tds_deducted, 0);
+  const totalGst = safeEntries.reduce((s, e) => s + e.gst_collected, 0);
+
+  // Determine how many distinct months are present
+  const distinctMonths = useMemo(() => {
+    const set = new Set<string>();
+    for (const e of safeEntries) {
+      set.add(e.date.slice(0, 7)); // "YYYY-MM"
+    }
+    return Math.max(set.size, 1);
+  }, [safeEntries]);
+
+  const projectedAnnual = Math.round(totalIncome * (12 / distinctMonths));
 
   // Filtered entries
-  const filtered = incomeEntries.filter((e) => {
-    if (typeFilter && e.type !== typeFilter) return false;
-    if (dateFrom && e.date < dateFrom) return false;
-    if (dateTo && e.date > dateTo) return false;
-    return true;
-  });
+  const filtered = useMemo(() => {
+    return safeEntries.filter((e) => {
+      if (typeFilter && e.type !== typeFilter) return false;
+      if (dateFrom && e.date < dateFrom) return false;
+      if (dateTo && e.date > dateTo) return false;
+      return true;
+    });
+  }, [safeEntries, typeFilter, dateFrom, dateTo]);
 
-  function handleFormSubmit(ev: React.FormEvent) {
-    ev.preventDefault();
-    setDialogOpen(false);
+  // Monthly chart data grouped by month (FY order: Apr-Mar)
+  const monthlyChartData = useMemo(() => {
+    const buckets: Record<string, Record<string, number>> = {};
+    for (const label of MONTH_LABELS) {
+      buckets[label] = { salary: 0, freelance: 0, rental: 0, interest: 0, dividend: 0, other: 0 };
+    }
+
+    for (const e of safeEntries) {
+      const d = new Date(e.date);
+      const monthIndex = d.getMonth(); // 0=Jan
+      // Map calendar month to FY month label: Apr=0..Mar=11
+      const fyIndex = (monthIndex + 9) % 12; // Apr(3)->0, May(4)->1, ..., Mar(2)->11
+      const label = MONTH_LABELS[fyIndex];
+      if (buckets[label]) {
+        const key = e.type in buckets[label] ? e.type : "other";
+        buckets[label][key] += e.amount;
+      }
+    }
+
+    return MONTH_LABELS.map((month) => ({
+      month,
+      ...buckets[month],
+    }));
+  }, [safeEntries]);
+
+  // ---------------------------------------------------------------------------
+  // Handlers
+  // ---------------------------------------------------------------------------
+
+  function resetForm() {
+    setFormDate("");
+    setFormAmount("");
+    setFormType("");
+    setFormDescription("");
+    setFormTDS("");
+    setFormGST("");
+    setFormInvoice("");
   }
+
+  function handleDialogChange(open: boolean) {
+    setDialogOpen(open);
+    if (!open) resetForm();
+  }
+
+  async function handleFormSubmit(ev: React.FormEvent) {
+    ev.preventDefault();
+    if (!user) return;
+    setSubmitting(true);
+    try {
+      await addIncome({
+        userId: user.userId,
+        date: formDate,
+        amount: Number(formAmount),
+        type: formType as "salary" | "freelance" | "rental" | "interest" | "dividend" | "other",
+        description: formDescription,
+        tds_deducted: Number(formTDS) || 0,
+        gst_collected: Number(formGST) || 0,
+        invoice_number: formInvoice || undefined,
+      });
+      setDialogOpen(false);
+      resetForm();
+    } catch (err) {
+      console.error("Failed to add income entry:", err);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleDelete(id: typeof safeEntries[number]["_id"]) {
+    try {
+      await deleteIncome({ id });
+    } catch (err) {
+      console.error("Failed to delete income entry:", err);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Loading / auth guard
+  // ---------------------------------------------------------------------------
+
+  if (!user) {
+    return (
+      <AppLayout>
+        <div className="flex items-center justify-center h-96">
+          <p className="text-white/50">Loading user data...</p>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (entries === undefined) {
+    return (
+      <AppLayout>
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-display font-bold text-white">Income</h1>
+              <p className="text-white/50 text-sm mt-1">
+                Track all income sources, TDS and GST for FY 2025-26
+              </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[...Array(4)].map((_, i) => (
+              <Card key={i}>
+                <CardContent className="p-4 flex items-center gap-4">
+                  <div className="h-12 w-12 rounded-xl bg-white/5 animate-pulse" />
+                  <div className="space-y-2 flex-1">
+                    <div className="h-3 w-24 bg-white/5 animate-pulse rounded" />
+                    <div className="h-6 w-32 bg-white/5 animate-pulse rounded" />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+          <Card>
+            <CardContent className="p-8 text-center">
+              <p className="text-white/30">Loading income data...</p>
+            </CardContent>
+          </Card>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------------------
 
   return (
     <AppLayout>
@@ -342,64 +391,75 @@ export default function IncomePage() {
             <CardTitle className="text-white font-display">Income Entries</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-white/10 text-white/50 text-left">
-                    <th className="pb-3 pr-4 font-medium">Date</th>
-                    <th className="pb-3 pr-4 font-medium">Type</th>
-                    <th className="pb-3 pr-4 font-medium">Description</th>
-                    <th className="pb-3 pr-4 font-medium text-right">Amount</th>
-                    <th className="pb-3 pr-4 font-medium text-right">TDS</th>
-                    <th className="pb-3 pr-4 font-medium text-right">GST</th>
-                    <th className="pb-3 font-medium text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((entry) => {
-                    const badge = TYPE_BADGE_MAP[entry.type] ?? TYPE_BADGE_MAP.other;
-                    return (
-                      <tr
-                        key={entry.id}
-                        className="border-b border-white/5 hover:bg-white/[0.02] transition-colors"
-                      >
-                        <td className="py-3 pr-4 text-white/70">{formatDate(entry.date)}</td>
-                        <td className="py-3 pr-4">
-                          <Badge className={badge.color}>{badge.label}</Badge>
-                        </td>
-                        <td className="py-3 pr-4 text-white">{entry.description}</td>
-                        <td className="py-3 pr-4 text-right font-semibold text-emerald-400 stat-number">
-                          {formatCurrency(entry.amount)}
-                        </td>
-                        <td className="py-3 pr-4 text-right text-white/50 stat-number">
-                          {entry.tds ? formatCurrency(entry.tds) : "-"}
-                        </td>
-                        <td className="py-3 pr-4 text-right text-white/50 stat-number">
-                          {entry.gst ? formatCurrency(entry.gst) : "-"}
-                        </td>
-                        <td className="py-3 text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <button className="p-1.5 rounded-lg hover:bg-white/5 text-white/40 hover:text-white transition-colors">
-                              <Edit className="h-4 w-4" />
-                            </button>
-                            <button className="p-1.5 rounded-lg hover:bg-rose-500/10 text-white/40 hover:text-rose-400 transition-colors">
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </div>
+            {safeEntries.length === 0 ? (
+              <div className="py-12 text-center">
+                <p className="text-white/30">
+                  No income entries yet. Add your first income entry.
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-white/10 text-white/50 text-left">
+                      <th className="pb-3 pr-4 font-medium">Date</th>
+                      <th className="pb-3 pr-4 font-medium">Type</th>
+                      <th className="pb-3 pr-4 font-medium">Description</th>
+                      <th className="pb-3 pr-4 font-medium text-right">Amount</th>
+                      <th className="pb-3 pr-4 font-medium text-right">TDS</th>
+                      <th className="pb-3 pr-4 font-medium text-right">GST</th>
+                      <th className="pb-3 font-medium text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((entry) => {
+                      const badge = TYPE_BADGE_MAP[entry.type] ?? TYPE_BADGE_MAP.other;
+                      return (
+                        <tr
+                          key={entry._id}
+                          className="border-b border-white/5 hover:bg-white/[0.02] transition-colors"
+                        >
+                          <td className="py-3 pr-4 text-white/70">{formatDate(entry.date)}</td>
+                          <td className="py-3 pr-4">
+                            <Badge className={badge.color}>{badge.label}</Badge>
+                          </td>
+                          <td className="py-3 pr-4 text-white">{entry.description}</td>
+                          <td className="py-3 pr-4 text-right font-semibold text-emerald-400 stat-number">
+                            {formatCurrency(entry.amount)}
+                          </td>
+                          <td className="py-3 pr-4 text-right text-white/50 stat-number">
+                            {entry.tds_deducted ? formatCurrency(entry.tds_deducted) : "-"}
+                          </td>
+                          <td className="py-3 pr-4 text-right text-white/50 stat-number">
+                            {entry.gst_collected ? formatCurrency(entry.gst_collected) : "-"}
+                          </td>
+                          <td className="py-3 text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <button className="p-1.5 rounded-lg hover:bg-white/5 text-white/40 hover:text-white transition-colors">
+                                <Edit className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDelete(entry._id)}
+                                className="p-1.5 rounded-lg hover:bg-rose-500/10 text-white/40 hover:text-rose-400 transition-colors"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {filtered.length === 0 && (
+                      <tr>
+                        <td colSpan={7} className="py-8 text-center text-white/30">
+                          No income entries match the selected filters.
                         </td>
                       </tr>
-                    );
-                  })}
-                  {filtered.length === 0 && (
-                    <tr>
-                      <td colSpan={7} className="py-8 text-center text-white/30">
-                        No income entries match the selected filters.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -461,7 +521,7 @@ export default function IncomePage() {
         </Card>
 
         {/* ---- Add Income Dialog ---- */}
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <Dialog open={dialogOpen} onOpenChange={handleDialogChange}>
           <DialogContent className="max-w-lg">
             <DialogHeader>
               <DialogTitle>Add Income</DialogTitle>
@@ -470,11 +530,23 @@ export default function IncomePage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Date</Label>
-                  <Input type="date" required />
+                  <Input
+                    type="date"
+                    required
+                    value={formDate}
+                    onChange={(e) => setFormDate(e.target.value)}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Amount</Label>
-                  <Input type="number" placeholder="0" min={0} required />
+                  <Input
+                    type="number"
+                    placeholder="0"
+                    min={0}
+                    required
+                    value={formAmount}
+                    onChange={(e) => setFormAmount(e.target.value)}
+                  />
                 </div>
               </div>
 
@@ -485,27 +557,52 @@ export default function IncomePage() {
                     options={INCOME_TYPES.map((t) => ({ value: t.value, label: t.label }))}
                     placeholder="Select type"
                     required
+                    value={formType}
+                    onChange={(e) => setFormType(e.target.value)}
                   />
                 </div>
                 <div className="space-y-2">
                   <Label>Invoice Number</Label>
-                  <Input type="text" placeholder="INV-2026-XXX (optional)" />
+                  <Input
+                    type="text"
+                    placeholder="INV-2026-XXX (optional)"
+                    value={formInvoice}
+                    onChange={(e) => setFormInvoice(e.target.value)}
+                  />
                 </div>
               </div>
 
               <div className="space-y-2">
                 <Label>Description</Label>
-                <Input type="text" placeholder="e.g. Monthly Salary - Infosys" required />
+                <Input
+                  type="text"
+                  placeholder="e.g. Monthly Salary - Infosys"
+                  required
+                  value={formDescription}
+                  onChange={(e) => setFormDescription(e.target.value)}
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>TDS Deducted</Label>
-                  <Input type="number" placeholder="0" min={0} />
+                  <Input
+                    type="number"
+                    placeholder="0"
+                    min={0}
+                    value={formTDS}
+                    onChange={(e) => setFormTDS(e.target.value)}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>GST Collected</Label>
-                  <Input type="number" placeholder="0" min={0} />
+                  <Input
+                    type="number"
+                    placeholder="0"
+                    min={0}
+                    value={formGST}
+                    onChange={(e) => setFormGST(e.target.value)}
+                  />
                 </div>
               </div>
 
@@ -513,16 +610,17 @@ export default function IncomePage() {
                 <Button
                   type="button"
                   variant="ghost"
-                  onClick={() => setDialogOpen(false)}
+                  onClick={() => handleDialogChange(false)}
                   className="text-white/50 hover:text-white"
                 >
                   Cancel
                 </Button>
                 <Button
                   type="submit"
+                  disabled={submitting}
                   className="bg-gradient-to-r from-gold to-amber-600 hover:from-gold/90 hover:to-amber-600/90 text-navy font-semibold"
                 >
-                  Save Income
+                  {submitting ? "Saving..." : "Save Income"}
                 </Button>
               </DialogFooter>
             </form>

@@ -1,6 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "../../../convex/_generated/api";
+import { useAuth } from "@/lib/auth-context";
 import { AppLayout } from "@/components/layout/app-layout";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -36,6 +39,7 @@ import {
   Receipt,
   User,
   School,
+  Loader2,
 } from "lucide-react";
 import {
   PieChart,
@@ -45,6 +49,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
+import type { Id } from "../../../convex/_generated/dataModel";
 
 // ---------------------------------------------------------------------------
 // Category icon map
@@ -65,144 +70,33 @@ const CATEGORY_ICON_MAP: Record<string, React.ElementType> = {
 };
 
 // ---------------------------------------------------------------------------
-// Types
+// Category type (mirrors Convex schema)
 // ---------------------------------------------------------------------------
-interface Expense {
-  id: string;
-  date: string;
-  category: string;
-  description: string;
-  amount: number;
-  gstPaid: number;
-  isBusiness: boolean;
-  receiptUrl?: string;
-}
+type ExpenseCategory =
+  | "housing"
+  | "food"
+  | "transport"
+  | "medical"
+  | "education"
+  | "insurance"
+  | "investment"
+  | "driver_salary"
+  | "school_fees"
+  | "utilities"
+  | "entertainment"
+  | "other";
 
 // ---------------------------------------------------------------------------
-// Demo data
+// Monthly budget constants (editable)
 // ---------------------------------------------------------------------------
-const DEMO_EXPENSES: Expense[] = [
-  {
-    id: "1",
-    date: "2026-04-01",
-    category: "housing",
-    description: "Monthly Rent - 3BHK Indiranagar",
-    amount: 35000,
-    gstPaid: 0,
-    isBusiness: false,
-  },
-  {
-    id: "2",
-    date: "2026-04-02",
-    category: "food",
-    description: "BigBasket Groceries",
-    amount: 12000,
-    gstPaid: 600,
-    isBusiness: false,
-  },
-  {
-    id: "3",
-    date: "2026-04-03",
-    category: "transport",
-    description: "Petrol - Honda City",
-    amount: 5500,
-    gstPaid: 0,
-    isBusiness: false,
-  },
-  {
-    id: "4",
-    date: "2026-04-03",
-    category: "school_fees",
-    description: "DPS School Fees - Q1",
-    amount: 15000,
-    gstPaid: 2700,
-    isBusiness: false,
-  },
-  {
-    id: "5",
-    date: "2026-04-04",
-    category: "driver_salary",
-    description: "Driver Raju - April Salary",
-    amount: 12000,
-    gstPaid: 0,
-    isBusiness: false,
-  },
-  {
-    id: "6",
-    date: "2026-04-04",
-    category: "utilities",
-    description: "BESCOM Electricity Bill",
-    amount: 3200,
-    gstPaid: 576,
-    isBusiness: false,
-  },
-  {
-    id: "7",
-    date: "2026-04-05",
-    category: "insurance",
-    description: "Star Health Insurance Premium",
-    amount: 2500,
-    gstPaid: 450,
-    isBusiness: false,
-  },
-  {
-    id: "8",
-    date: "2026-04-05",
-    category: "entertainment",
-    description: "Netflix Subscription",
-    amount: 649,
-    gstPaid: 117,
-    isBusiness: false,
-  },
-  {
-    id: "9",
-    date: "2026-04-05",
-    category: "food",
-    description: "Dining Out - Toit Brewpub",
-    amount: 4500,
-    gstPaid: 225,
-    isBusiness: false,
-  },
-  {
-    id: "10",
-    date: "2026-04-06",
-    category: "other",
-    description: "Office Supplies - Amazon Business",
-    amount: 8000,
-    gstPaid: 1440,
-    isBusiness: true,
-  },
-  {
-    id: "11",
-    date: "2026-04-06",
-    category: "other",
-    description: "Cloud Hosting - AWS",
-    amount: 6200,
-    gstPaid: 1116,
-    isBusiness: true,
-  },
-  {
-    id: "12",
-    date: "2026-04-06",
-    category: "medical",
-    description: "Apollo Pharmacy - Medicines",
-    amount: 1850,
-    gstPaid: 222,
-    isBusiness: false,
-  },
-];
-
-// ---------------------------------------------------------------------------
-// Budget vs Actual data
-// ---------------------------------------------------------------------------
-const BUDGET_DATA = [
-  { category: "Housing", budget: 40000, actual: 35000 },
-  { category: "Food", budget: 15000, actual: 16500 },
-  { category: "Transport", budget: 8000, actual: 5500 },
-  { category: "Education", budget: 18000, actual: 15000 },
-  { category: "Utilities", budget: 5000, actual: 3200 },
-  { category: "Entertainment", budget: 3000, actual: 5149 },
-];
+const MONTHLY_BUDGETS: Record<string, number> = {
+  housing: 40000,
+  food: 15000,
+  transport: 8000,
+  education: 18000,
+  utilities: 5000,
+  entertainment: 3000,
+};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -216,22 +110,16 @@ function getCategoryIcon(value: string) {
   return CATEGORY_ICON_MAP[value] || MoreHorizontal;
 }
 
-function buildPieData(expenses: Expense[]) {
-  const map: Record<string, number> = {};
-  for (const e of expenses) {
-    map[e.category] = (map[e.category] || 0) + e.amount;
-  }
-  return Object.entries(map).map(([key, value]) => ({
-    name: getCategoryLabel(key),
-    value,
-    color: CATEGORY_COLORS[key] || "#6B7280",
-  }));
-}
-
 // ---------------------------------------------------------------------------
 // Custom tooltip for the pie chart
 // ---------------------------------------------------------------------------
-function CustomPieTooltip({ active, payload }: { active?: boolean; payload?: Array<{ name: string; value: number }> }) {
+function CustomPieTooltip({
+  active,
+  payload,
+}: {
+  active?: boolean;
+  payload?: Array<{ name: string; value: number }>;
+}) {
   if (!active || !payload?.length) return null;
   const data = payload[0];
   return (
@@ -248,7 +136,17 @@ function CustomPieTooltip({ active, payload }: { active?: boolean; payload?: Arr
 // Page Component
 // ---------------------------------------------------------------------------
 export default function ExpensesPage() {
-  const [expenses] = useState<Expense[]>(DEMO_EXPENSES);
+  const { user } = useAuth();
+
+  // Convex queries & mutations
+  const expenses = useQuery(
+    api.expenses.getExpenseEntries,
+    user ? { userId: user.userId } : "skip"
+  );
+  const addExpense = useMutation(api.expenses.addExpenseEntry);
+  const deleteExpense = useMutation(api.expenses.deleteExpenseEntry);
+
+  // Filter state
   const [showBusinessOnly, setShowBusinessOnly] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -261,22 +159,73 @@ export default function ExpensesPage() {
   const [formGst, setFormGst] = useState("");
   const [formIsBusiness, setFormIsBusiness] = useState(false);
   const [formReceiptUrl, setFormReceiptUrl] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Derived
-  const filtered = expenses.filter((e) => {
-    if (showBusinessOnly && !e.isBusiness) return false;
-    if (categoryFilter && e.category !== categoryFilter) return false;
-    return true;
-  });
+  // Derived data
+  const allExpenses = useMemo(() => expenses ?? [], [expenses]);
 
-  const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0);
-  const businessExpenses = expenses
-    .filter((e) => e.isBusiness)
-    .reduce((s, e) => s + e.amount, 0);
+  const filtered = useMemo(
+    () =>
+      allExpenses.filter((e) => {
+        if (showBusinessOnly && !e.is_business_expense) return false;
+        if (categoryFilter && e.category !== categoryFilter) return false;
+        return true;
+      }),
+    [allExpenses, showBusinessOnly, categoryFilter]
+  );
+
+  const totalExpenses = useMemo(
+    () => allExpenses.reduce((s, e) => s + e.amount, 0),
+    [allExpenses]
+  );
+  const businessExpenses = useMemo(
+    () =>
+      allExpenses
+        .filter((e) => e.is_business_expense)
+        .reduce((s, e) => s + e.amount, 0),
+    [allExpenses]
+  );
   const personalExpenses = totalExpenses - businessExpenses;
-  const totalGst = expenses.reduce((s, e) => s + e.gstPaid, 0);
+  const totalGst = useMemo(
+    () => allExpenses.reduce((s, e) => s + e.gst_paid, 0),
+    [allExpenses]
+  );
 
-  const pieData = buildPieData(expenses);
+  // Pie chart data from real entries
+  const pieData = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const e of allExpenses) {
+      map[e.category] = (map[e.category] || 0) + e.amount;
+    }
+    return Object.entries(map).map(([key, value]) => ({
+      name: getCategoryLabel(key),
+      value,
+      color: CATEGORY_COLORS[key] || "#6B7280",
+    }));
+  }, [allExpenses]);
+
+  // Budget vs Actual - compute actuals from current month real data
+  const budgetData = useMemo(() => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth(); // 0-indexed
+    const currentMonthEntries = allExpenses.filter((e) => {
+      const d = new Date(e.date);
+      return d.getFullYear() === year && d.getMonth() === month;
+    });
+
+    const actualsByCategory: Record<string, number> = {};
+    for (const e of currentMonthEntries) {
+      actualsByCategory[e.category] =
+        (actualsByCategory[e.category] || 0) + e.amount;
+    }
+
+    return Object.entries(MONTHLY_BUDGETS).map(([cat, budget]) => ({
+      category: getCategoryLabel(cat),
+      budget,
+      actual: actualsByCategory[cat] || 0,
+    }));
+  }, [allExpenses]);
 
   const categoryOptions = [
     { value: "", label: "All Categories" },
@@ -288,9 +237,7 @@ export default function ExpensesPage() {
     label: c.label,
   }));
 
-  function handleAddExpense() {
-    // In a real app this would persist data
-    setDialogOpen(false);
+  function resetForm() {
     setFormDate("");
     setFormAmount("");
     setFormCategory("");
@@ -298,6 +245,51 @@ export default function ExpensesPage() {
     setFormGst("");
     setFormIsBusiness(false);
     setFormReceiptUrl("");
+  }
+
+  async function handleAddExpense() {
+    if (!user || !formDate || !formAmount || !formCategory || !formDescription) {
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      await addExpense({
+        userId: user.userId,
+        date: formDate,
+        amount: parseFloat(formAmount),
+        category: formCategory as ExpenseCategory,
+        description: formDescription,
+        gst_paid: formGst ? parseFloat(formGst) : 0,
+        is_business_expense: formIsBusiness,
+        ...(formReceiptUrl ? { receipt_url: formReceiptUrl } : {}),
+      });
+      setDialogOpen(false);
+      resetForm();
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleDelete(id: Id<"expense_entries">) {
+    await deleteExpense({ id });
+  }
+
+  function handleDialogChange(open: boolean) {
+    setDialogOpen(open);
+    if (!open) resetForm();
+  }
+
+  // -------------------------------------------------------------------------
+  // Loading state
+  // -------------------------------------------------------------------------
+  if (!user || expenses === undefined) {
+    return (
+      <AppLayout>
+        <div className="flex h-[60vh] items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-white/40" />
+        </div>
+      </AppLayout>
+    );
   }
 
   // -------------------------------------------------------------------------
@@ -337,7 +329,7 @@ export default function ExpensesPage() {
                 {formatCurrency(totalExpenses)}
               </p>
               <p className="mt-1 text-xs text-white/40">
-                {expenses.length} transactions
+                {allExpenses.length} transactions
               </p>
             </CardContent>
           </Card>
@@ -377,7 +369,9 @@ export default function ExpensesPage() {
               <p className="mt-2 font-display text-2xl font-bold text-gold stat-number">
                 {formatCurrency(totalGst)}
               </p>
-              <p className="mt-1 text-xs text-white/40">Claimable this quarter</p>
+              <p className="mt-1 text-xs text-white/40">
+                Claimable this quarter
+              </p>
             </CardContent>
           </Card>
         </div>
@@ -433,7 +427,7 @@ export default function ExpensesPage() {
                     const Icon = getCategoryIcon(expense.category);
                     return (
                       <tr
-                        key={expense.id}
+                        key={expense._id}
                         className="border-b border-white/5 transition-colors hover:bg-white/[0.02]"
                       >
                         <td className="whitespace-nowrap px-5 py-3.5 text-white/70">
@@ -453,7 +447,9 @@ export default function ExpensesPage() {
                               <Icon
                                 className="h-3.5 w-3.5"
                                 style={{
-                                  color: CATEGORY_COLORS[expense.category] || "#6B7280",
+                                  color:
+                                    CATEGORY_COLORS[expense.category] ||
+                                    "#6B7280",
                                 }}
                               />
                             </div>
@@ -469,12 +465,12 @@ export default function ExpensesPage() {
                           {formatCurrency(expense.amount)}
                         </td>
                         <td className="whitespace-nowrap px-5 py-3.5 text-right text-white/50 stat-number">
-                          {expense.gstPaid > 0
-                            ? formatCurrency(expense.gstPaid)
+                          {expense.gst_paid > 0
+                            ? formatCurrency(expense.gst_paid)
                             : "-"}
                         </td>
                         <td className="px-5 py-3.5 text-center">
-                          {expense.isBusiness ? (
+                          {expense.is_business_expense ? (
                             <Badge variant="default">Business</Badge>
                           ) : (
                             <Badge variant="secondary">Personal</Badge>
@@ -485,7 +481,14 @@ export default function ExpensesPage() {
                             <button className="rounded-lg p-1.5 text-white/30 transition-colors hover:bg-white/5 hover:text-white/70">
                               <Edit className="h-3.5 w-3.5" />
                             </button>
-                            <button className="rounded-lg p-1.5 text-white/30 transition-colors hover:bg-rose-500/10 hover:text-rose-400">
+                            <button
+                              onClick={() =>
+                                handleDelete(
+                                  expense._id as Id<"expense_entries">
+                                )
+                              }
+                              className="rounded-lg p-1.5 text-white/30 transition-colors hover:bg-rose-500/10 hover:text-rose-400"
+                            >
                               <Trash2 className="h-3.5 w-3.5" />
                             </button>
                           </div>
@@ -493,9 +496,22 @@ export default function ExpensesPage() {
                       </tr>
                     );
                   })}
-                  {filtered.length === 0 && (
+                  {allExpenses.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="px-5 py-10 text-center text-white/30">
+                      <td
+                        colSpan={7}
+                        className="px-5 py-10 text-center text-white/30"
+                      >
+                        No expenses recorded yet. Add your first expense.
+                      </td>
+                    </tr>
+                  )}
+                  {allExpenses.length > 0 && filtered.length === 0 && (
+                    <tr>
+                      <td
+                        colSpan={7}
+                        className="px-5 py-10 text-center text-white/30"
+                      >
                         No expenses match the current filters.
                       </td>
                     </tr>
@@ -516,7 +532,7 @@ export default function ExpensesPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-5">
-              {BUDGET_DATA.map((row) => {
+              {budgetData.map((row) => {
                 const pct = Math.min(
                   Math.round((row.actual / row.budget) * 100),
                   100
@@ -539,7 +555,10 @@ export default function ExpensesPage() {
                           {formatCurrency(row.budget)}
                         </span>
                         {isOver && (
-                          <Badge variant="destructive" className="ml-1 text-[10px] px-1.5 py-0">
+                          <Badge
+                            variant="destructive"
+                            className="ml-1 text-[10px] px-1.5 py-0"
+                          >
                             Over
                           </Badge>
                         )}
@@ -564,39 +583,45 @@ export default function ExpensesPage() {
             </CardHeader>
             <CardContent>
               <div className="h-[320px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={pieData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={70}
-                      outerRadius={110}
-                      paddingAngle={3}
-                      dataKey="value"
-                      stroke="none"
-                    >
-                      {pieData.map((entry, idx) => (
-                        <Cell key={idx} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip content={<CustomPieTooltip />} />
-                    <Legend
-                      verticalAlign="bottom"
-                      height={36}
-                      formatter={(value: string) => (
-                        <span className="text-xs text-white/60">{value}</span>
-                      )}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
+                {pieData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={pieData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={70}
+                        outerRadius={110}
+                        paddingAngle={3}
+                        dataKey="value"
+                        stroke="none"
+                      >
+                        {pieData.map((entry, idx) => (
+                          <Cell key={idx} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip content={<CustomPieTooltip />} />
+                      <Legend
+                        verticalAlign="bottom"
+                        height={36}
+                        formatter={(value: string) => (
+                          <span className="text-xs text-white/60">{value}</span>
+                        )}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex h-full items-center justify-center text-sm text-white/30">
+                    No expense data to display
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
         </div>
 
         {/* ---- Add Expense Dialog ---- */}
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <Dialog open={dialogOpen} onOpenChange={handleDialogChange}>
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>Add Expense</DialogTitle>
@@ -675,7 +700,9 @@ export default function ExpensesPage() {
 
               {/* Receipt URL */}
               <div className="space-y-2">
-                <Label htmlFor="expense-receipt">Receipt URL (optional)</Label>
+                <Label htmlFor="expense-receipt">
+                  Receipt URL (optional)
+                </Label>
                 <Input
                   id="expense-receipt"
                   placeholder="https://..."
@@ -688,14 +715,24 @@ export default function ExpensesPage() {
             <DialogFooter>
               <Button
                 variant="outline"
-                onClick={() => setDialogOpen(false)}
+                onClick={() => handleDialogChange(false)}
               >
                 Cancel
               </Button>
               <Button
                 onClick={handleAddExpense}
+                disabled={
+                  isSubmitting ||
+                  !formDate ||
+                  !formAmount ||
+                  !formCategory ||
+                  !formDescription
+                }
                 className="bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 text-white"
               >
+                {isSubmitting ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : null}
                 Save Expense
               </Button>
             </DialogFooter>
