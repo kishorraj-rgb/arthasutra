@@ -32,7 +32,32 @@ export const getDashboardMetrics = query({
 
     // Current financial year (Apr-Mar)
     const now = new Date();
-    const fyStartYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+    const currentFYStart = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+
+    // Auto-detect the FY with the most data (fallback to current FY)
+    const allEntryDates = [
+      ...incomeEntries.map((e) => e.date),
+      ...expenseEntries.map((e) => e.date),
+    ];
+    let fyStartYear = currentFYStart;
+    if (allEntryDates.length > 0) {
+      // Count entries per FY
+      const fyCounts: Record<number, number> = {};
+      for (const date of allEntryDates) {
+        const d = new Date(date);
+        const fy = d.getMonth() >= 3 ? d.getFullYear() : d.getFullYear() - 1;
+        fyCounts[fy] = (fyCounts[fy] || 0) + 1;
+      }
+      // Pick FY with most entries
+      let maxCount = 0;
+      for (const [fy, count] of Object.entries(fyCounts)) {
+        if (count > maxCount) {
+          maxCount = count;
+          fyStartYear = parseInt(fy);
+        }
+      }
+    }
+
     const fyStart = `${fyStartYear}-04-01`;
     const fyEnd = `${fyStartYear + 1}-03-31`;
 
