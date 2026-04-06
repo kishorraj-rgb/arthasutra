@@ -15,6 +15,14 @@ const TRANSFER_KEYWORDS: RegExp[] = [
 
 const INCOME_RULES: { type: IncomeType; keywords: RegExp[] }[] = [
   {
+    type: "refund",
+    keywords: [/REFUND/i, /REVERSAL/i, /REV\s*CR/i, /MANDATE\s*REFUND/i, /CASHBACK/i, /RETURN/i, /REVERSED/i, /CREDIT\s*REVERSAL/i],
+  },
+  {
+    type: "reimbursement",
+    keywords: [/REIMBURSE/i, /REIMBURSEMENT/i, /EXPENSE\s*CLAIM/i],
+  },
+  {
     type: "salary",
     keywords: [/SALARY/i, /SAL\s*CR/i, /PAYROLL/i, /NEFT.*SALARY/i, /MONTHLY\s*PAY/i, /WAGES/i],
   },

@@ -19,6 +19,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { formatCurrency, INCOME_TYPES, CATEGORY_COLORS } from "@/lib/utils";
+import { parseDescription, getMethodColor } from "@/lib/bank-statement/description-parser";
 import {
   Plus,
   TrendingUp,
@@ -397,7 +398,8 @@ export default function IncomePage() {
                     <tr className="border-b border-border text-text-secondary text-left">
                       <th className="pb-3 pr-4 font-medium">Date</th>
                       <th className="pb-3 pr-4 font-medium">Type</th>
-                      <th className="pb-3 pr-4 font-medium">Description</th>
+                      <th className="pb-3 pr-4 font-medium">Payee</th>
+                      <th className="pb-3 pr-4 font-medium">Method</th>
                       <th className="pb-3 pr-4 font-medium text-right">Amount</th>
                       <th className="pb-3 pr-4 font-medium text-right">TDS</th>
                       <th className="pb-3 pr-4 font-medium text-right">GST</th>
@@ -406,6 +408,7 @@ export default function IncomePage() {
                   </thead>
                   <tbody>
                     {filtered.map((entry) => {
+                      const parsed = parseDescription(entry.description);
                       return (
                         <tr
                           key={entry._id}
@@ -415,7 +418,7 @@ export default function IncomePage() {
                           <td className="py-3 pr-4">
                             <select
                               value={entry.type}
-                              onChange={(e) => updateIncome({ id: entry._id, type: e.target.value as "salary" | "freelance" | "rental" | "interest" | "dividend" | "other" })}
+                              onChange={(e) => updateIncome({ id: entry._id, type: e.target.value as "salary" | "freelance" | "rental" | "interest" | "dividend" | "transfer" | "other" })}
                               className="text-xs rounded-lg border border-gray-200 px-2 py-1 bg-white focus:border-accent focus:outline-none cursor-pointer"
                             >
                               {INCOME_TYPES.map((t) => (
@@ -423,7 +426,19 @@ export default function IncomePage() {
                               ))}
                             </select>
                           </td>
-                          <td className="py-3 pr-4 text-text-primary">{entry.description}</td>
+                          <td className="py-3 pr-4" title={parsed.rawDescription}>
+                            <div className="flex flex-col">
+                              <span className="text-text-primary font-medium">{parsed.payee}</span>
+                              {parsed.bank && (
+                                <span className="text-xs text-text-tertiary">{parsed.bank}</span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-3 pr-4">
+                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${getMethodColor(parsed.method)}`}>
+                              {parsed.method}
+                            </span>
+                          </td>
                           <td className="py-3 pr-4 text-right font-semibold text-emerald-400 stat-number">
                             {formatCurrency(entry.amount)}
                           </td>
@@ -451,7 +466,7 @@ export default function IncomePage() {
                     })}
                     {filtered.length === 0 && (
                       <tr>
-                        <td colSpan={7} className="py-8 text-center text-text-tertiary">
+                        <td colSpan={8} className="py-8 text-center text-text-tertiary">
                           No income entries match the selected filters.
                         </td>
                       </tr>

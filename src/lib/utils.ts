@@ -62,6 +62,8 @@ export const INCOME_TYPES = [
   { value: "rental", label: "Rental Income" },
   { value: "interest", label: "Interest" },
   { value: "dividend", label: "Dividend" },
+  { value: "refund", label: "Refund/Reversal" },
+  { value: "reimbursement", label: "Reimbursement" },
   { value: "transfer", label: "Transfer" },
   { value: "other", label: "Other" },
 ] as const;
@@ -110,5 +112,7 @@ export const CATEGORY_COLORS: Record<string, string> = {
   rental: "#F0A500",
   interest: "#8B5CF6",
   dividend: "#06B6D4",
+  refund: "#F59E0B",
+  reimbursement: "#10B981",
   transfer: "#9CA3AF",
 };

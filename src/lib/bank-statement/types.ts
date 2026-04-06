@@ -6,7 +6,7 @@ export interface ParsedTransaction {
   type: "credit" | "debit";
   balance?: number;
   reference?: string;
-  incomeType: "salary" | "freelance" | "rental" | "interest" | "dividend" | "transfer" | "other";
+  incomeType: "salary" | "freelance" | "rental" | "interest" | "dividend" | "refund" | "reimbursement" | "transfer" | "other";
   expenseCategory: "housing" | "food" | "transport" | "medical" | "education" | "insurance" | "investment" | "driver_salary" | "school_fees" | "utilities" | "entertainment" | "transfer" | "other";
   isDuplicate: boolean;
   selected: boolean;

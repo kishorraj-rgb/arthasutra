@@ -15,6 +15,7 @@ import {
   ArrowRight, RotateCcw, FileText, X,
 } from "lucide-react";
 import { cn, formatCurrency, EXPENSE_CATEGORIES, INCOME_TYPES } from "@/lib/utils";
+import { parseDescription, getMethodColor } from "@/lib/bank-statement/description-parser";
 import {
   parseCSV, parseXLSX, parsePDF, categorizeAll, markDuplicates,
   ALL_BANK_FORMATS,
@@ -383,8 +384,21 @@ export default function ImportPage() {
                           <td className="px-3 py-3 font-mono text-xs whitespace-nowrap">
                             {tx.date}
                           </td>
-                          <td className="px-3 py-3 max-w-[300px] truncate" title={tx.description}>
-                            {tx.description}
+                          <td className="px-3 py-3 max-w-[350px]" title={tx.description}>
+                            {(() => {
+                              const parsed = parseDescription(tx.description);
+                              return (
+                                <div className="flex items-center gap-2">
+                                  <div className="flex flex-col min-w-0">
+                                    <span className="text-text-primary font-medium truncate">{parsed.payee}</span>
+                                    {parsed.bank && <span className="text-xs text-text-tertiary truncate">{parsed.bank}</span>}
+                                  </div>
+                                  <span className={`shrink-0 inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${getMethodColor(parsed.method)}`}>
+                                    {parsed.method}
+                                  </span>
+                                </div>
+                              );
+                            })()}
                             {tx.isDuplicate && (
                               <Badge className="ml-2 bg-amber-100 text-amber-400 text-[10px]">
                                 Duplicate?

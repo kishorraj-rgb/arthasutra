@@ -21,6 +21,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { formatCurrency, EXPENSE_CATEGORIES, CATEGORY_COLORS } from "@/lib/utils";
+import { parseDescription, getMethodColor } from "@/lib/bank-statement/description-parser";
 import {
   Plus,
   Home,
@@ -417,7 +418,8 @@ export default function ExpensesPage() {
                   <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-text-tertiary">
                     <th className="px-5 py-3">Date</th>
                     <th className="px-5 py-3">Category</th>
-                    <th className="px-5 py-3">Description</th>
+                    <th className="px-5 py-3">Payee</th>
+                    <th className="px-5 py-3">Method</th>
                     <th className="px-5 py-3 text-right">Amount</th>
                     <th className="px-5 py-3 text-right">GST Paid</th>
                     <th className="px-5 py-3 text-center">Type</th>
@@ -426,6 +428,7 @@ export default function ExpensesPage() {
                 </thead>
                 <tbody>
                   {filtered.map((expense) => {
+                    const parsed = parseDescription(expense.description);
                     return (
                       <tr
                         key={expense._id}
@@ -448,8 +451,18 @@ export default function ExpensesPage() {
                             ))}
                           </select>
                         </td>
-                        <td className="px-5 py-3.5 text-text-secondary">
-                          {expense.description}
+                        <td className="px-5 py-3.5" title={parsed.rawDescription}>
+                          <div className="flex flex-col">
+                            <span className="text-text-primary font-medium">{parsed.payee}</span>
+                            {parsed.bank && (
+                              <span className="text-xs text-text-tertiary">{parsed.bank}</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-5 py-3.5">
+                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${getMethodColor(parsed.method)}`}>
+                            {parsed.method}
+                          </span>
                         </td>
                         <td className="whitespace-nowrap px-5 py-3.5 text-right font-display font-semibold text-rose-400 stat-number">
                           {formatCurrency(expense.amount)}
