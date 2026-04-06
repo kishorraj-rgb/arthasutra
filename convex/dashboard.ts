@@ -30,29 +30,57 @@ export const getDashboardMetrics = query({
       .withIndex("by_user", (q) => q.eq("userId", args.userId))
       .collect();
 
-    // Calculate totals
-    const totalIncome = incomeEntries.reduce((sum, e) => sum + e.amount, 0);
-    const totalExpenses = expenseEntries.reduce((sum, e) => sum + e.amount, 0);
+    // Current financial year (Apr-Mar)
+    const now = new Date();
+    const fyStartYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+    const fyStart = `${fyStartYear}-04-01`;
+    const fyEnd = `${fyStartYear + 1}-03-31`;
+
+    // FY-filtered entries
+    const fyIncome = incomeEntries.filter((e) => e.date >= fyStart && e.date <= fyEnd);
+    const fyExpenses = expenseEntries.filter((e) => e.date >= fyStart && e.date <= fyEnd);
+
+    // FY totals
+    const totalIncome = fyIncome.reduce((sum, e) => sum + e.amount, 0);
+    const totalExpenses = fyExpenses.reduce((sum, e) => sum + e.amount, 0);
+    const totalTDS = fyIncome.reduce((sum, e) => sum + e.tds_deducted, 0);
+    const totalGSTCollected = fyIncome.reduce((sum, e) => sum + e.gst_collected, 0);
+    const totalGSTPaid = fyExpenses.reduce((sum, e) => sum + e.gst_paid, 0);
+
+    // Investments
     const totalInvested = investments.reduce((sum, i) => sum + i.invested_amount, 0);
     const totalCurrentValue = investments.reduce((sum, i) => sum + i.current_value, 0);
     const totalLoanOutstanding = loans.reduce((sum, l) => sum + l.outstanding, 0);
-    const totalTDS = incomeEntries.reduce((sum, e) => sum + e.tds_deducted, 0);
-    const totalGSTCollected = incomeEntries.reduce((sum, e) => sum + e.gst_collected, 0);
-    const totalGSTPaid = expenseEntries.reduce((sum, e) => sum + e.gst_paid, 0);
 
-    const netWorth = totalCurrentValue - totalLoanOutstanding;
+    const netWorth = totalCurrentValue - totalLoanOutstanding + (totalIncome - totalExpenses);
     const portfolioGainLoss = totalCurrentValue - totalInvested;
 
-    // Monthly cash flow (last 12 months)
-    const now = new Date();
+    // Find the latest month with data for "current month" display
+    const allDates = [...fyIncome.map((e) => e.date), ...fyExpenses.map((e) => e.date)];
+    let displayMonth: string;
+    if (allDates.length > 0) {
+      const latestDate = allDates.sort().reverse()[0];
+      displayMonth = latestDate.slice(0, 7); // "YYYY-MM"
+    } else {
+      displayMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    }
+
+    const currentMonthIncome = fyIncome
+      .filter((e) => e.date.startsWith(displayMonth))
+      .reduce((sum, e) => sum + e.amount, 0);
+    const currentMonthExpenses = fyExpenses
+      .filter((e) => e.date.startsWith(displayMonth))
+      .reduce((sum, e) => sum + e.amount, 0);
+
+    // Monthly cash flow for FY (Apr-Mar)
     const cashFlow = [];
-    for (let i = 11; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const monthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      const monthIncome = incomeEntries
+    for (let i = 0; i < 12; i++) {
+      const monthDate = new Date(fyStartYear, 3 + i, 1); // Start from April
+      const monthStr = `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, "0")}`;
+      const monthIncome = fyIncome
         .filter((e) => e.date.startsWith(monthStr))
         .reduce((sum, e) => sum + e.amount, 0);
-      const monthExpense = expenseEntries
+      const monthExpense = fyExpenses
         .filter((e) => e.date.startsWith(monthStr))
         .reduce((sum, e) => sum + e.amount, 0);
       cashFlow.push({
@@ -63,30 +91,15 @@ export const getDashboardMetrics = query({
       });
     }
 
-    // Current month breakdown
-    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-    const currentMonthIncome = incomeEntries
-      .filter((e) => e.date.startsWith(currentMonth))
-      .reduce((sum, e) => sum + e.amount, 0);
-    const currentMonthExpenses = expenseEntries
-      .filter((e) => e.date.startsWith(currentMonth))
-      .reduce((sum, e) => sum + e.amount, 0);
-
-    // Income by type for donut chart
+    // Income by type for entire FY
     const incomeByType: Record<string, number> = {};
-    const currentMonthIncomeEntries = incomeEntries.filter((e) =>
-      e.date.startsWith(currentMonth)
-    );
-    for (const entry of currentMonthIncomeEntries) {
+    for (const entry of fyIncome) {
       incomeByType[entry.type] = (incomeByType[entry.type] || 0) + entry.amount;
     }
 
-    // Expenses by category for donut chart
+    // Expenses by category for entire FY
     const expenseByCategory: Record<string, number> = {};
-    const currentMonthExpenseEntries = expenseEntries.filter((e) =>
-      e.date.startsWith(currentMonth)
-    );
-    for (const entry of currentMonthExpenseEntries) {
+    for (const entry of fyExpenses) {
       expenseByCategory[entry.category] =
         (expenseByCategory[entry.category] || 0) + entry.amount;
     }
@@ -111,6 +124,7 @@ export const getDashboardMetrics = query({
       totalExpenses,
       currentMonthIncome,
       currentMonthExpenses,
+      displayMonth,
       totalInvested,
       totalCurrentValue,
       portfolioGainLoss,
@@ -125,6 +139,7 @@ export const getDashboardMetrics = query({
       upcomingReminders,
       taxSaving80C,
       taxSavingLimit: 150000,
+      fyLabel: `${fyStartYear}-${(fyStartYear + 1).toString().slice(-2)}`,
     };
   },
 });

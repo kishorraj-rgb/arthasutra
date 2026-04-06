@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { useAuth } from "@/lib/auth-context";
@@ -160,7 +160,7 @@ export default function ExpensesPage() {
   const [showBusinessOnly, setShowBusinessOnly] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedFY, setSelectedFY] = useState(getCurrentFinancialYear());
+  const [selectedFY, setSelectedFY] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -189,6 +189,13 @@ export default function ExpensesPage() {
     if (sorted.length === 0) sorted.push(getCurrentFinancialYear());
     return sorted;
   }, [allExpenses]);
+
+  // Auto-select FY with most data on load
+  useEffect(() => {
+    if (!selectedFY && availableFYs.length > 0) {
+      setSelectedFY(availableFYs[0]);
+    }
+  }, [availableFYs, selectedFY]);
 
   const filtered = useMemo(() => {
     const fyDates = selectedFY ? getFinancialYearDates(selectedFY) : null;

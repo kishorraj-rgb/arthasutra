@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { useAuth } from "@/lib/auth-context";
@@ -94,7 +94,7 @@ export default function IncomePage() {
   // Filter state
   const [typeFilter, setTypeFilter] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedFY, setSelectedFY] = useState(getCurrentFinancialYear());
+  const [selectedFY, setSelectedFY] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("");
 
   // ---------------------------------------------------------------------------
@@ -131,6 +131,13 @@ export default function IncomePage() {
     if (sorted.length === 0) sorted.push(getCurrentFinancialYear());
     return sorted;
   }, [safeEntries]);
+
+  // Auto-select FY with most data on load
+  useEffect(() => {
+    if (!selectedFY && availableFYs.length > 0) {
+      setSelectedFY(availableFYs[0]); // Most recent FY with data
+    }
+  }, [availableFYs, selectedFY]);
 
   // Filtered entries
   const filtered = useMemo(() => {
