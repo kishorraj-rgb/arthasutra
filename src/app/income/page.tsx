@@ -45,7 +45,7 @@ import {
 const TYPE_BADGE_MAP: Record<string, { label: string; color: string }> = {
   salary: { label: "Salary", color: "bg-emerald-500/10 text-emerald-400 border-emerald-500/30" },
   freelance: { label: "Freelance", color: "bg-blue-500/10 text-blue-400 border-blue-500/30" },
-  rental: { label: "Rental", color: "bg-amber-500/10 text-amber-400 border-amber-500/30" },
+  rental: { label: "Rental", color: "bg-accent/100/10 text-amber-400 border-accent/100/30" },
   interest: { label: "Interest", color: "bg-purple-500/10 text-purple-400 border-purple-500/30" },
   dividend: { label: "Dividend", color: "bg-cyan-500/10 text-cyan-400 border-cyan-500/30" },
   other: { label: "Other", color: "bg-surface-tertiary text-text-secondary border-border" },
@@ -269,7 +269,7 @@ export default function IncomePage() {
           </div>
           <Button
             onClick={() => setDialogOpen(true)}
-            className="bg-gradient-to-r from-gold to-amber-600 hover:from-gold/90 hover:to-amber-600/90 text-navy font-semibold"
+            className="bg-gradient-to-r from-purple-grad-from to-amber-600 hover:from-purple-grad-from/90 hover:to-amber-600/90 text-navy font-semibold"
           >
             <Plus className="h-4 w-4 mr-2" />
             Add Income
@@ -322,12 +322,12 @@ export default function IncomePage() {
 
           <Card>
             <CardContent className="p-4 flex items-center gap-4">
-              <div className="h-12 w-12 rounded-xl bg-gold/10 flex items-center justify-center">
-                <TrendingUp className="h-6 w-6 text-gold" />
+              <div className="h-12 w-12 rounded-xl bg-accent/10 flex items-center justify-center">
+                <TrendingUp className="h-6 w-6 text-accent-light" />
               </div>
               <div>
                 <p className="text-xs text-text-secondary uppercase tracking-wider">Projected Annual</p>
-                <p className="text-xl font-display font-bold text-gold stat-number">
+                <p className="text-xl font-display font-bold text-accent-light stat-number">
                   {formatCurrency(projectedAnnual)}
                 </p>
               </div>
@@ -618,7 +618,7 @@ export default function IncomePage() {
                 <Button
                   type="submit"
                   disabled={submitting}
-                  className="bg-gradient-to-r from-gold to-amber-600 hover:from-gold/90 hover:to-amber-600/90 text-navy font-semibold"
+                  className="bg-gradient-to-r from-purple-grad-from to-amber-600 hover:from-purple-grad-from/90 hover:to-amber-600/90 text-navy font-semibold"
                 >
                   {submitting ? "Saving..." : "Save Income"}
                 </Button>

@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, TrendingUp, TrendingDown, Calculator, PieChart,
-  Shield, Landmark, Bell, FileText, Settings, LogOut, ChevronLeft, ChevronRight,
+  Shield, Landmark, Bell, FileText, Settings, LogOut, ChevronLeft, ChevronRight, Upload,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useState } from "react";
@@ -14,6 +14,7 @@ const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Income", href: "/income", icon: TrendingUp },
   { name: "Expenses", href: "/expenses", icon: TrendingDown },
+  { name: "Import", href: "/import", icon: Upload },
   { name: "Tax", href: "/tax", icon: Calculator },
   { name: "Investments", href: "/investments", icon: PieChart },
   { name: "Insurance", href: "/insurance", icon: Shield },
@@ -31,13 +32,13 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        "fixed left-0 top-0 z-40 h-screen bg-white border-r border-border transition-all duration-300 ease-spring flex flex-col shadow-sm",
+        "fixed left-0 top-0 z-40 h-screen bg-navy-light border-r border-border transition-all duration-300 ease-spring flex flex-col",
         collapsed ? "w-[68px]" : "w-64"
       )}
     >
       {/* Logo */}
       <div className="flex items-center gap-3 px-4 py-5 border-b border-border">
-        <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-gold to-amber-500 flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-gold">
+        <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-purple-grad-from to-purple-grad-to flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-purple">
           AS
         </div>
         {!collapsed && (
@@ -45,7 +46,7 @@ export function Sidebar() {
             <h1 className="font-display text-lg font-bold text-text-primary tracking-tight">
               ArthaSutra
             </h1>
-            <p className="text-[10px] text-gold font-mono">अर्थसूत्र</p>
+            <p className="text-[10px] text-accent-light font-mono">अर्थसूत्र</p>
           </div>
         )}
       </div>
@@ -61,19 +62,19 @@ export function Sidebar() {
               className={cn(
                 "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 group relative",
                 isActive
-                  ? "bg-gradient-to-r from-gold/10 to-amber-50 text-gold border border-gold/15 shadow-sm"
+                  ? "bg-gradient-to-r from-accent/15 to-purple-grad-to/10 text-accent-light border border-accent/20 shadow-sm"
                   : "text-text-secondary hover:text-text-primary hover:bg-surface-tertiary"
               )}
             >
               <item.icon className={cn(
                 "h-[18px] w-[18px] shrink-0 transition-transform duration-200 group-hover:scale-110",
-                isActive && "text-gold"
+                isActive && "text-accent-light"
               )} />
               {!collapsed && (
                 <span className="transition-all duration-200">{item.name}</span>
               )}
               {isActive && (
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-gold rounded-r-full" />
+                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-accent rounded-r-full" />
               )}
             </Link>
           );

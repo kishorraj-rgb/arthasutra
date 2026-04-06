@@ -5,6 +5,7 @@ export const config = {
     "/dashboard/:path*",
     "/income/:path*",
     "/expenses/:path*",
+    "/import/:path*",
     "/tax/:path*",
     "/investments/:path*",
     "/insurance/:path*",

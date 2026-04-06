@@ -103,9 +103,9 @@ const PIE_COLORS = [
 function CustomPieTooltip({ active, payload }: { active?: boolean; payload?: Array<{ name: string; value: number; payload: { color: string } }> }) {
   if (active && payload && payload.length) {
     return (
-      <div className="rounded-lg border border-border bg-white shadow-lg-soft backdrop-blur-xl px-4 py-3 shadow-xl">
+      <div className="rounded-lg border border-border bg-navy-card shadow-lg-soft backdrop-blur-xl px-4 py-3 shadow-xl">
         <p className="text-sm font-medium text-text-primary">{payload[0].name}</p>
-        <p className="font-mono text-sm text-gold">{formatCurrency(payload[0].value)}</p>
+        <p className="font-mono text-sm text-accent-light">{formatCurrency(payload[0].value)}</p>
       </div>
     );
   }
@@ -321,8 +321,8 @@ export default function InvestmentsPage() {
           /* ---- Empty State ---- */
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gold/10 mb-4">
-                <TrendingUp className="h-8 w-8 text-gold" />
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-accent/10 mb-4">
+                <TrendingUp className="h-8 w-8 text-accent-light" />
               </div>
               <h3 className="text-lg font-semibold text-text-primary mb-2">
                 No investments tracked yet
@@ -360,7 +360,7 @@ export default function InvestmentsPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="font-mono text-2xl font-bold text-gold">
+                  <p className="font-mono text-2xl font-bold text-accent-light">
                     {formatCurrency(portfolio.totalCurrent)}
                   </p>
                 </CardContent>
@@ -409,7 +409,7 @@ export default function InvestmentsPage() {
                     <p className="font-mono text-2xl font-bold text-text-primary">
                       {portfolio.investments.length}
                     </p>
-                    <TrendingUp className="h-5 w-5 text-gold" />
+                    <TrendingUp className="h-5 w-5 text-accent-light" />
                   </div>
                 </CardContent>
               </Card>
@@ -480,7 +480,7 @@ export default function InvestmentsPage() {
               <Card className="flex flex-col">
                 <CardHeader>
                   <div className="flex items-center gap-2">
-                    <PieChartIcon className="h-5 w-5 text-gold" />
+                    <PieChartIcon className="h-5 w-5 text-accent-light" />
                     <CardTitle>Portfolio Allocation</CardTitle>
                   </div>
                 </CardHeader>
@@ -520,7 +520,7 @@ export default function InvestmentsPage() {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="flex items-center gap-2">
-                    <Target className="h-5 w-5 text-gold" />
+                    <Target className="h-5 w-5 text-accent-light" />
                     Section 80C Tax Saving
                   </CardTitle>
                   <Badge
@@ -543,7 +543,7 @@ export default function InvestmentsPage() {
                         100
                       : 0
                   }
-                  indicatorClassName="bg-gradient-to-r from-gold to-amber-500"
+                  indicatorClassName="bg-gradient-to-r from-purple-grad-from to-purple-grad-to"
                   className="h-3"
                 />
                 <p className="text-xs text-text-tertiary text-right">
@@ -659,8 +659,8 @@ export default function InvestmentsPage() {
                 <Card key={goal.id}>
                   <CardHeader className="pb-3">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gold/10">
-                        <GoalIcon className="h-5 w-5 text-gold" />
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent/10">
+                        <GoalIcon className="h-5 w-5 text-accent-light" />
                       </div>
                       <div>
                         <CardTitle className="text-base">{goal.name}</CardTitle>
@@ -674,7 +674,7 @@ export default function InvestmentsPage() {
                   <CardContent className="space-y-3">
                     <Progress
                       value={goal.progress}
-                      indicatorClassName="bg-gradient-to-r from-gold to-amber-500"
+                      indicatorClassName="bg-gradient-to-r from-purple-grad-from to-purple-grad-to"
                       className="h-2"
                     />
                     <div className="flex items-center justify-between">

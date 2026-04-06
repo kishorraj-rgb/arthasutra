@@ -19,7 +19,7 @@ import { formatCurrency } from "@/lib/utils";
 import { Shield, Plus, Heart, Car, Home, Plane, Clock, AlertTriangle, CheckCircle, Loader2 } from "lucide-react";
 
 const typeIcons: Record<string, typeof Shield> = { term: Shield, health: Heart, vehicle: Car, home: Home, travel: Plane };
-const typeColors: Record<string, string> = { term: "text-blue-400", health: "text-rose", vehicle: "text-purple-400", home: "text-emerald", travel: "text-gold" };
+const typeColors: Record<string, string> = { term: "text-blue-400", health: "text-rose", vehicle: "text-purple-400", home: "text-emerald", travel: "text-accent-light" };
 
 function getDaysUntil(dateStr: string): number {
   const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -74,9 +74,9 @@ export default function InsurancePage() {
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card><CardContent className="p-5"><p className="text-text-secondary text-xs uppercase tracking-wider">Total Policies</p><p className="stat-number text-2xl text-text-primary mt-1">{policies?.length ?? 0}</p></CardContent></Card>
-          <Card><CardContent className="p-5"><p className="text-text-secondary text-xs uppercase tracking-wider">Annual Premium</p><p className="stat-number text-2xl text-gold mt-1">{formatCurrency(totalPremium)}</p></CardContent></Card>
+          <Card><CardContent className="p-5"><p className="text-text-secondary text-xs uppercase tracking-wider">Annual Premium</p><p className="stat-number text-2xl text-accent-light mt-1">{formatCurrency(totalPremium)}</p></CardContent></Card>
           <Card><CardContent className="p-5"><p className="text-text-secondary text-xs uppercase tracking-wider">Total Cover</p><p className="stat-number text-2xl text-emerald mt-1">{formatCurrency(totalCover)}</p></CardContent></Card>
-          <Card><CardContent className="p-5"><p className="text-text-secondary text-xs uppercase tracking-wider">Cover Adequacy</p><p className="stat-number text-2xl text-text-primary mt-1">{coverAdequacy.toFixed(0)}%</p><Progress value={coverAdequacy} className="mt-2" indicatorClassName={coverAdequacy >= 80 ? "bg-emerald" : "bg-amber-500"} /><p className="text-text-tertiary text-xs mt-1">Recommended: 10x income</p></CardContent></Card>
+          <Card><CardContent className="p-5"><p className="text-text-secondary text-xs uppercase tracking-wider">Cover Adequacy</p><p className="stat-number text-2xl text-text-primary mt-1">{coverAdequacy.toFixed(0)}%</p><Progress value={coverAdequacy} className="mt-2" indicatorClassName={coverAdequacy >= 80 ? "bg-emerald" : "bg-accent/100"} /><p className="text-text-tertiary text-xs mt-1">Recommended: 10x income</p></CardContent></Card>
         </div>
 
         {policies === undefined ? (
@@ -107,7 +107,7 @@ export default function InsurancePage() {
                   <CardContent className="space-y-3">
                     <div className="grid grid-cols-2 gap-3">
                       <div><p className="text-text-tertiary text-xs">Sum Assured</p><p className="stat-number text-sm text-text-primary">{formatCurrency(policy.sum_assured)}</p></div>
-                      <div><p className="text-text-tertiary text-xs">Annual Premium</p><p className="stat-number text-sm text-gold">{formatCurrency(policy.annual_premium)}</p></div>
+                      <div><p className="text-text-tertiary text-xs">Annual Premium</p><p className="stat-number text-sm text-accent-light">{formatCurrency(policy.annual_premium)}</p></div>
                     </div>
                     <div className="flex items-center justify-between pt-2 border-t border-border-light">
                       <div className="flex items-center gap-2"><Clock className="h-3.5 w-3.5 text-text-tertiary" /><span className="text-xs text-text-secondary">Next: {policy.next_due_date}</span></div>

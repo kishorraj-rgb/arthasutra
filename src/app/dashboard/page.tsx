@@ -125,8 +125,8 @@ function DashboardEmptyState() {
       </div>
 
       <div className="flex flex-col items-center justify-center py-24">
-        <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-gold/10 mb-6">
-          <Wallet className="h-10 w-10 text-gold" />
+        <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-accent/10 mb-6">
+          <Wallet className="h-10 w-10 text-accent-light" />
         </div>
         <h2 className="font-display text-2xl font-bold text-text-primary mb-2">
           Welcome to ArthaSutra!
@@ -162,7 +162,7 @@ function CustomTooltip({
 }) {
   if (!active || !payload || payload.length === 0) return null;
   return (
-    <div className="bg-white border border-border shadow-lg-soft rounded-lg p-3 text-sm">
+    <div className="bg-navy-card border border-border shadow-lg-soft rounded-lg p-3 text-sm">
       <p className="text-text-secondary font-medium mb-1">{label}</p>
       {payload.map((entry: TooltipPayloadEntry, idx: number) => (
         <p key={idx} className="flex items-center gap-2" style={{ color: entry.color }}>
@@ -193,9 +193,9 @@ function PieTooltip({
   if (!active || !payload || payload.length === 0) return null;
   const entry = payload[0];
   return (
-    <div className="bg-white border border-border shadow-lg-soft rounded-lg p-3 text-sm">
+    <div className="bg-navy-card border border-border shadow-lg-soft rounded-lg p-3 text-sm">
       <p className="text-text-primary font-medium">{entry.name}</p>
-      <p className="stat-number text-gold">{formatCurrency(entry.value)}</p>
+      <p className="stat-number text-accent-light">{formatCurrency(entry.value)}</p>
     </div>
   );
 }
@@ -313,7 +313,7 @@ export default function DashboardPage() {
       value: metrics.netWorth,
       icon: Wallet,
       color: "#F0A500",
-      bgGlow: "from-gold/20 to-gold/5",
+      bgGlow: "from-purple-grad-from/20 to-accent/5",
     },
     {
       title: "Monthly Income",
@@ -334,7 +334,7 @@ export default function DashboardPage() {
       value: metrics.portfolioGainLoss,
       icon: PieChartIcon,
       color: "#F0A500",
-      bgGlow: "from-gold/20 to-gold/5",
+      bgGlow: "from-purple-grad-from/20 to-accent/5",
     },
     {
       title: "Tax Saved YTD",
@@ -429,7 +429,7 @@ export default function DashboardPage() {
           >
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-gold" />
+                <TrendingUp className="h-5 w-5 text-accent-light" />
                 Cash Flow Trend
               </CardTitle>
               <p className="text-xs text-text-tertiary">Last 12 months (FY 2025-26)</p>
@@ -494,7 +494,7 @@ export default function DashboardPage() {
           <Card className="animate-enter" style={{ animationDelay: "600ms" }}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <PieChartIcon className="h-5 w-5 text-gold" />
+                <PieChartIcon className="h-5 w-5 text-accent-light" />
                 Monthly Breakdown
               </CardTitle>
               <p className="text-xs text-text-tertiary">Expense categories</p>
@@ -559,7 +559,7 @@ export default function DashboardPage() {
           <Card className="animate-enter" style={{ animationDelay: "700ms" }}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Bell className="h-5 w-5 text-gold" />
+                <Bell className="h-5 w-5 text-accent-light" />
                 Upcoming Reminders
               </CardTitle>
             </CardHeader>
@@ -614,7 +614,7 @@ export default function DashboardPage() {
           <Card className="animate-enter" style={{ animationDelay: "800ms" }}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Calculator className="h-5 w-5 text-gold" />
+                <Calculator className="h-5 w-5 text-accent-light" />
                 Tax Regime Comparison
               </CardTitle>
               <p className="text-xs text-text-tertiary">
@@ -627,7 +627,7 @@ export default function DashboardPage() {
                 <div
                   className={`rounded-lg border p-4 transition-colors ${
                     betterRegime === "Old Regime"
-                      ? "border-gold/30 bg-gold/5"
+                      ? "border-accent/30 bg-accent/5"
                       : "border-border-light bg-surface-tertiary/50"
                   }`}
                 >
@@ -671,7 +671,7 @@ export default function DashboardPage() {
                 <div
                   className={`rounded-lg border p-4 transition-colors ${
                     betterRegime === "New Regime"
-                      ? "border-gold/30 bg-gold/5"
+                      ? "border-accent/30 bg-accent/5"
                       : "border-border-light bg-surface-tertiary/50"
                   }`}
                 >
@@ -713,14 +713,14 @@ export default function DashboardPage() {
               </div>
 
               {/* Savings callout */}
-              <div className="mt-4 rounded-lg border border-gold/25 bg-gold/5 px-4 py-3 flex items-center justify-between">
+              <div className="mt-4 rounded-lg border border-accent/25 bg-accent/5 px-4 py-3 flex items-center justify-between">
                 <div>
                   <p className="text-xs text-text-secondary">You save with {betterRegime}</p>
-                  <p className="stat-number text-lg font-bold text-gold">
+                  <p className="stat-number text-lg font-bold text-accent-light">
                     {formatCurrency(savingsAmount)}
                   </p>
                 </div>
-                <ArrowUpRight className="h-5 w-5 text-gold" />
+                <ArrowUpRight className="h-5 w-5 text-accent-light" />
               </div>
             </CardContent>
           </Card>

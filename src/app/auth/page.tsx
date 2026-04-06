@@ -18,9 +18,9 @@ export default function AuthPage() {
 
   if (status === "loading") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-surface-secondary">
+      <div className="min-h-screen flex items-center justify-center bg-navy">
         <div className="flex flex-col items-center gap-4 animate-pulse">
-          <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-gold to-amber-500 flex items-center justify-center text-white font-bold shadow-gold">
+          <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-purple-grad-from to-purple-grad-to flex items-center justify-center text-white font-bold shadow-purple">
             AS
           </div>
           <p className="text-text-tertiary text-sm">Loading...</p>
@@ -30,25 +30,25 @@ export default function AuthPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-surface-secondary p-4">
+    <div className="min-h-screen flex items-center justify-center bg-navy p-4">
       {/* Decorative background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-gold/5 rounded-full blur-3xl" />
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-emerald/5 rounded-full blur-3xl" />
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-accent/5 rounded-full blur-3xl" />
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-grad-to/5 rounded-full blur-3xl" />
       </div>
 
       <div className="relative w-full max-w-sm animate-slide-up">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex h-16 w-16 rounded-2xl bg-gradient-to-br from-gold to-amber-500 items-center justify-center text-white font-bold text-2xl mb-4 shadow-gold">
+          <div className="inline-flex h-16 w-16 rounded-2xl bg-gradient-to-br from-purple-grad-from to-purple-grad-to items-center justify-center text-white font-bold text-2xl mb-4 shadow-purple">
             AS
           </div>
           <h1 className="font-display text-3xl font-bold text-text-primary">ArthaSutra</h1>
-          <p className="text-gold font-mono text-sm mt-1">अर्थसूत्र — Your Financial OS</p>
+          <p className="text-accent-light font-mono text-sm mt-1">अर्थसूत्र — Your Financial OS</p>
         </div>
 
         {/* Sign in card */}
-        <div className="bg-white rounded-2xl border border-border shadow-card p-8">
+        <div className="bg-navy-card rounded-2xl border border-border shadow-card p-8">
           <p className="text-center text-text-secondary text-sm mb-6">
             Sign in to access your financial dashboard
           </p>
@@ -59,7 +59,7 @@ export default function AuthPage() {
               signIn("google", { callbackUrl: "/dashboard" });
             }}
             disabled={loading}
-            className="w-full flex items-center justify-center gap-3 rounded-xl border border-border bg-white px-4 py-3 text-sm font-medium text-text-primary shadow-sm transition-all duration-200 hover:bg-surface-tertiary hover:shadow-md hover:border-gray-300 active:scale-[0.98] disabled:opacity-50"
+            className="w-full flex items-center justify-center gap-3 rounded-xl border border-border bg-navy-light px-4 py-3 text-sm font-medium text-text-primary shadow-sm transition-all duration-200 hover:bg-surface-tertiary hover:shadow-md hover:border-accent/30 active:scale-[0.98] disabled:opacity-50"
           >
             {loading ? (
               <Loader2 className="h-5 w-5 animate-spin text-text-tertiary" />

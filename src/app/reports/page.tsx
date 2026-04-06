@@ -15,7 +15,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number; name: string; color: string }>; label?: string }) => {
   if (!active || !payload) return null;
   return (
-    <div className="bg-white border border-border shadow-lg-soft rounded-lg p-3 text-sm">
+    <div className="bg-navy-card border border-border shadow-lg-soft rounded-lg p-3 text-sm">
       <p className="text-text-secondary mb-1">{label}</p>
       {payload.map((p, i) => (
         <p key={i} style={{ color: p.color }} className="stat-number text-xs">{p.name}: {formatCurrency(p.value)}</p>
@@ -86,7 +86,7 @@ export default function ReportsPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card><CardContent className="p-5"><div className="flex items-center gap-2 mb-2"><TrendingUp className="h-4 w-4 text-emerald" /><p className="text-text-secondary text-xs uppercase">Total Income</p></div><p className="stat-number text-2xl text-emerald">{formatCurrency(totalIncome)}</p><p className="text-text-tertiary text-xs mt-1">Avg {formatCurrency(avgMonthlyIncome)}/mo</p></CardContent></Card>
           <Card><CardContent className="p-5"><div className="flex items-center gap-2 mb-2"><TrendingDown className="h-4 w-4 text-rose" /><p className="text-text-secondary text-xs uppercase">Total Expenses</p></div><p className="stat-number text-2xl text-rose">{formatCurrency(totalExpense)}</p><p className="text-text-tertiary text-xs mt-1">Avg {formatCurrency(avgMonthlyExpense)}/mo</p></CardContent></Card>
-          <Card><CardContent className="p-5"><div className="flex items-center gap-2 mb-2"><Wallet className="h-4 w-4 text-gold" /><p className="text-text-secondary text-xs uppercase">Net Savings</p></div><p className="stat-number text-2xl text-gold">{formatCurrency(totalNet)}</p><p className="text-text-tertiary text-xs mt-1">Savings rate: {savingsRate}%</p></CardContent></Card>
+          <Card><CardContent className="p-5"><div className="flex items-center gap-2 mb-2"><Wallet className="h-4 w-4 text-accent-light" /><p className="text-text-secondary text-xs uppercase">Net Savings</p></div><p className="stat-number text-2xl text-accent-light">{formatCurrency(totalNet)}</p><p className="text-text-tertiary text-xs mt-1">Savings rate: {savingsRate}%</p></CardContent></Card>
           <Card><CardContent className="p-5"><div className="flex items-center gap-2 mb-2"><PieChartIcon className="h-4 w-4 text-blue-400" /><p className="text-text-secondary text-xs uppercase">Net Worth</p></div><p className="stat-number text-2xl text-text-primary">{formatCurrency(metrics.netWorth)}</p></CardContent></Card>
         </div>
 
@@ -143,16 +143,16 @@ export default function ReportsPage() {
                           <td className="py-3 text-text-primary">{m.month}</td>
                           <td className="py-3 text-right stat-number text-emerald">{formatCurrency(m.income)}</td>
                           <td className="py-3 text-right stat-number text-rose">{formatCurrency(m.expense)}</td>
-                          <td className="py-3 text-right stat-number text-gold">{formatCurrency(m.net)}</td>
+                          <td className="py-3 text-right stat-number text-accent-light">{formatCurrency(m.net)}</td>
                           <td className="py-3 text-right stat-number text-text-secondary">{m.income > 0 ? ((m.net / m.income) * 100).toFixed(1) : "0"}%</td>
                         </tr>
                       ))}
                       {monthlyPnL.filter((m) => m.income > 0 || m.expense > 0).length > 1 && (
-                        <tr className="border-t-2 border-gold/25 font-bold">
-                          <td className="py-3 text-gold">Total</td>
+                        <tr className="border-t-2 border-accent/25 font-bold">
+                          <td className="py-3 text-accent-light">Total</td>
                           <td className="py-3 text-right stat-number text-emerald">{formatCurrency(totalIncome)}</td>
                           <td className="py-3 text-right stat-number text-rose">{formatCurrency(totalExpense)}</td>
-                          <td className="py-3 text-right stat-number text-gold">{formatCurrency(totalNet)}</td>
+                          <td className="py-3 text-right stat-number text-accent-light">{formatCurrency(totalNet)}</td>
                           <td className="py-3 text-right stat-number text-text-primary">{savingsRate}%</td>
                         </tr>
                       )}
@@ -170,7 +170,7 @@ export default function ReportsPage() {
                   <div className="flex justify-between py-2 border-b border-border-light"><span className="text-text-secondary">TDS Deducted</span><span className="stat-number text-text-primary">{formatCurrency(metrics.totalTDS)}</span></div>
                   <div className="flex justify-between py-2 border-b border-border-light"><span className="text-text-secondary">GST Collected</span><span className="stat-number text-text-primary">{formatCurrency(metrics.totalGSTCollected)}</span></div>
                   <div className="flex justify-between py-2 border-b border-border-light"><span className="text-text-secondary">GST Paid</span><span className="stat-number text-text-primary">{formatCurrency(metrics.totalGSTPaid)}</span></div>
-                  <div className="flex justify-between py-2 border-b border-gold/25 col-span-2"><span className="text-gold font-medium">Net GST Liability</span><span className="stat-number text-gold font-bold">{formatCurrency(metrics.gstLiability)}</span></div>
+                  <div className="flex justify-between py-2 border-b border-accent/25 col-span-2"><span className="text-accent-light font-medium">Net GST Liability</span><span className="stat-number text-accent-light font-bold">{formatCurrency(metrics.gstLiability)}</span></div>
                   <div className="flex justify-between py-2"><span className="text-text-secondary">80C Investments</span><span className="stat-number text-text-primary">{formatCurrency(metrics.taxSaving80C)} / {formatCurrency(metrics.taxSavingLimit)}</span></div>
                 </div>
               </CardContent>

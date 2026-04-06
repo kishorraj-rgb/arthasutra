@@ -17,7 +17,7 @@ export default function Home() {
   return (
     <div className="flex h-screen items-center justify-center bg-surface-secondary">
       <div className="flex flex-col items-center gap-4">
-        <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-gold to-amber-600 flex items-center justify-center text-navy font-bold animate-pulse">
+        <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-purple-grad-from to-amber-600 flex items-center justify-center text-navy font-bold animate-pulse">
           AS
         </div>
         <p className="text-text-secondary text-sm">Loading ArthaSutra...</p>

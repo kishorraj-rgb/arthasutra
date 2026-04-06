@@ -5,7 +5,7 @@
 @tailwind utilities;
 
 /* ═══════════════════════════════════════════════════════════════
-   LIGHT THEME — Clean, premium, professional
+   DARK NAVY THEME — Inspired by HDFC Bank
    ═══════════════════════════════════════════════════════════════ */
 
 :root {
@@ -15,41 +15,46 @@
   --emerald-light: #D1FAE5;
   --rose: #E11D48;
   --rose-light: #FFE4E6;
+  --accent: #6366F1;
+  --accent-light: #818CF8;
+  --navy: #0B1225;
+  --navy-light: #111B36;
+  --navy-card: #141E3A;
 }
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(212,146,10,0.25) transparent;
+  scrollbar-color: rgba(99,102,241,0.25) transparent;
 }
 
 *::-webkit-scrollbar { width: 6px; }
 *::-webkit-scrollbar-track { background: transparent; }
-*::-webkit-scrollbar-thumb { background: rgba(212,146,10,0.2); border-radius: 3px; }
-*::-webkit-scrollbar-thumb:hover { background: rgba(212,146,10,0.4); }
+*::-webkit-scrollbar-thumb { background: rgba(99,102,241,0.2); border-radius: 3px; }
+*::-webkit-scrollbar-thumb:hover { background: rgba(99,102,241,0.4); }
 
 body {
-  background-color: #F8F9FC;
-  color: #111827;
+  background-color: #0B1225;
+  color: #F1F5F9;
   font-family: 'Inter', system-ui, sans-serif;
 }
 
 /* ═══ Cards ═══ */
 .glass-card {
-  background: #FFFFFF;
-  border: 1px solid #E5E7EB;
+  background: #141E3A;
+  border: 1px solid #1E2D50;
   border-radius: 16px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2), 0 1px 2px rgba(0,0,0,0.15);
   transition: all 0.3s cubic-bezier(0.16,1,0.3,1);
 }
 .glass-card:hover {
-  border-color: rgba(212,146,10,0.3);
-  box-shadow: 0 4px 16px rgba(212,146,10,0.08), 0 2px 4px rgba(0,0,0,0.04);
+  border-color: rgba(99,102,241,0.3);
+  box-shadow: 0 4px 16px rgba(99,102,241,0.1), 0 2px 4px rgba(0,0,0,0.2);
   transform: translateY(-1px);
 }
 
 /* ═══ Typography ═══ */
 .text-gradient-gold {
-  background: linear-gradient(135deg, #D4920A 0%, #F0A500 50%, #D4920A 100%);
+  background: linear-gradient(135deg, #6366F1 0%, #818CF8 50%, #A78BFA 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -97,7 +102,7 @@ body {
 }
 .hover-lift:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
 }
 
 /* ═══ Recharts ═══ */
@@ -114,12 +119,12 @@ input[type="number"] { -moz-appearance: textfield; }
 /* ═══ Smooth focus rings ═══ */
 *:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px rgba(212,146,10,0.3);
+  box-shadow: 0 0 0 2px rgba(99,102,241,0.4);
   border-radius: 8px;
 }
 
 /* ═══ Selection color ═══ */
 ::selection {
-  background: rgba(212,146,10,0.15);
-  color: #111827;
+  background: rgba(99,102,241,0.25);
+  color: #F1F5F9;
 }

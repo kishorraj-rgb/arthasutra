@@ -123,7 +123,7 @@ function CustomPieTooltip({
   if (!active || !payload?.length) return null;
   const data = payload[0];
   return (
-    <div className="rounded-lg border border-border bg-white backdrop-blur-xl px-3 py-2 shadow-xl">
+    <div className="rounded-lg border border-border bg-navy-card backdrop-blur-xl px-3 py-2 shadow-xl">
       <p className="text-xs text-text-secondary">{data.name}</p>
       <p className="font-display text-sm font-semibold text-text-primary">
         {formatCurrency(data.value)}
@@ -366,7 +366,7 @@ export default function ExpensesPage() {
               <p className="text-xs font-medium uppercase tracking-wider text-text-secondary">
                 GST Input Credit
               </p>
-              <p className="mt-2 font-display text-2xl font-bold text-gold stat-number">
+              <p className="mt-2 font-display text-2xl font-bold text-accent-light stat-number">
                 {formatCurrency(totalGst)}
               </p>
               <p className="mt-1 text-xs text-text-tertiary">
@@ -404,7 +404,7 @@ export default function ExpensesPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
-              <Receipt className="h-5 w-5 text-gold" />
+              <Receipt className="h-5 w-5 text-accent-light" />
               Expense Entries
             </CardTitle>
           </CardHeader>

@@ -17,7 +17,7 @@ import { formatCurrency } from "@/lib/utils";
 import { Bell, Plus, Calendar, CheckCircle, AlertTriangle, Clock, Calculator, Receipt, Shield, Landmark, PieChart, Check, Loader2 } from "lucide-react";
 
 const typeIcons: Record<string, typeof Bell> = { advance_tax: Calculator, gst_filing: Receipt, insurance_premium: Shield, loan_emi: Landmark, investment_review: PieChart, custom: Bell };
-const typeColors: Record<string, string> = { advance_tax: "text-gold", gst_filing: "text-purple-400", insurance_premium: "text-blue-400", loan_emi: "text-rose", investment_review: "text-emerald", custom: "text-text-secondary" };
+const typeColors: Record<string, string> = { advance_tax: "text-accent-light", gst_filing: "text-purple-400", insurance_premium: "text-blue-400", loan_emi: "text-rose", investment_review: "text-emerald", custom: "text-text-secondary" };
 
 function getDaysUntil(dateStr: string): number {
   const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -84,14 +84,14 @@ export default function RemindersPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card><CardContent className="p-5 flex items-center gap-3"><div className="p-2 rounded-lg bg-rose/10"><AlertTriangle className="h-5 w-5 text-rose" /></div><div><p className="text-text-secondary text-xs">Overdue</p><p className="stat-number text-xl text-rose">{overdueCount}</p></div></CardContent></Card>
-          <Card><CardContent className="p-5 flex items-center gap-3"><div className="p-2 rounded-lg bg-amber-500/10"><Clock className="h-5 w-5 text-amber-400" /></div><div><p className="text-text-secondary text-xs">Due in 7 days</p><p className="stat-number text-xl text-amber-400">{dueSoonCount}</p></div></CardContent></Card>
+          <Card><CardContent className="p-5 flex items-center gap-3"><div className="p-2 rounded-lg bg-accent/100/10"><Clock className="h-5 w-5 text-amber-400" /></div><div><p className="text-text-secondary text-xs">Due in 7 days</p><p className="stat-number text-xl text-amber-400">{dueSoonCount}</p></div></CardContent></Card>
           <Card><CardContent className="p-5 flex items-center gap-3"><div className="p-2 rounded-lg bg-emerald/10"><Calendar className="h-5 w-5 text-emerald" /></div><div><p className="text-text-secondary text-xs">Upcoming</p><p className="stat-number text-xl text-emerald">{upcomingCount}</p></div></CardContent></Card>
           <Card><CardContent className="p-5 flex items-center gap-3"><div className="p-2 rounded-lg bg-surface-tertiary"><CheckCircle className="h-5 w-5 text-text-tertiary" /></div><div><p className="text-text-secondary text-xs">Completed</p><p className="stat-number text-xl text-text-tertiary">{completedCount}</p></div></CardContent></Card>
         </div>
 
         <div className="flex gap-2 flex-wrap">
           {[{ value: "all", label: "All" }, { value: "pending", label: "Pending" }, { value: "completed", label: "Completed" }, { value: "advance_tax", label: "Tax" }, { value: "gst_filing", label: "GST" }, { value: "insurance_premium", label: "Insurance" }, { value: "loan_emi", label: "Loan EMI" }].map((f) => (
-            <button key={f.value} onClick={() => setFilter(f.value)} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${filter === f.value ? "bg-gold/20 text-gold border border-gold/30" : "text-text-tertiary hover:text-text-secondary border border-border-light hover:border-border"}`}>{f.label}</button>
+            <button key={f.value} onClick={() => setFilter(f.value)} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${filter === f.value ? "bg-accent/20 text-accent-light border border-accent/30" : "text-text-tertiary hover:text-text-secondary border border-border-light hover:border-border"}`}>{f.label}</button>
           ))}
         </div>
 
@@ -108,7 +108,7 @@ export default function RemindersPage() {
               return (
                 <Card key={reminder._id} className={`transition-all ${reminder.is_completed ? "opacity-50" : ""}`}>
                   <CardContent className="p-4 flex items-center gap-4">
-                    <button onClick={() => reminder.is_completed ? deleteReminder({ id: reminder._id }) : completeReminder({ id: reminder._id })} className={`shrink-0 h-6 w-6 rounded-full border-2 flex items-center justify-center transition-all ${reminder.is_completed ? "bg-emerald border-emerald" : "border-white/20 hover:border-gold"}`}>
+                    <button onClick={() => reminder.is_completed ? deleteReminder({ id: reminder._id }) : completeReminder({ id: reminder._id })} className={`shrink-0 h-6 w-6 rounded-full border-2 flex items-center justify-center transition-all ${reminder.is_completed ? "bg-emerald border-emerald" : "border-white/20 hover:border-accent"}`}>
                       {reminder.is_completed && <Check className="h-3 w-3 text-white" />}
                     </button>
                     <div className={`p-1.5 rounded-lg bg-surface-tertiary ${color}`}><Icon className="h-4 w-4" /></div>
@@ -116,7 +116,7 @@ export default function RemindersPage() {
                       <p className={`text-sm font-medium ${reminder.is_completed ? "line-through text-text-tertiary" : "text-text-primary"}`}>{reminder.title}</p>
                       {reminder.notes && <p className="text-xs text-text-tertiary truncate">{reminder.notes}</p>}
                     </div>
-                    {reminder.amount && <p className="stat-number text-sm text-gold shrink-0">{formatCurrency(reminder.amount)}</p>}
+                    {reminder.amount && <p className="stat-number text-sm text-accent-light shrink-0">{formatCurrency(reminder.amount)}</p>}
                     <div className="shrink-0 text-right">
                       <p className="text-xs text-text-tertiary font-mono">{reminder.due_date}</p>
                       {!reminder.is_completed && <Badge variant={days < 0 ? "destructive" : days <= 7 ? "warning" : "success"} className="mt-1">{days < 0 ? `${Math.abs(days)}d overdue` : days === 0 ? "Today" : `${days}d`}</Badge>}

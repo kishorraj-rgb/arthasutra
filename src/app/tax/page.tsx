@@ -299,14 +299,14 @@ function IncomeTaxCalculator() {
   return (
     <div className="space-y-6">
       {/* Recommendation Box */}
-      <Card className="border-gold/30 bg-gradient-to-r from-gold/10 to-amber-900/10">
+      <Card className="border-accent/30 bg-gradient-to-r from-purple-grad-from/10 to-amber-900/10">
         <CardContent className="p-6">
           <div className="flex items-center gap-4">
-            <div className="h-12 w-12 rounded-xl bg-gold/20 flex items-center justify-center shrink-0">
-              <Calculator className="h-6 w-6 text-gold" />
+            <div className="h-12 w-12 rounded-xl bg-accent/20 flex items-center justify-center shrink-0">
+              <Calculator className="h-6 w-6 text-accent-light" />
             </div>
             <div className="flex-1">
-              <h3 className="font-display text-lg font-semibold text-gold">
+              <h3 className="font-display text-lg font-semibold text-accent-light">
                 {savings > 0
                   ? "Old Regime Saves You More!"
                   : savings < 0
@@ -317,11 +317,11 @@ function IncomeTaxCalculator() {
                 {savings !== 0 ? (
                   <>
                     You save{" "}
-                    <span className="text-gold font-semibold">
+                    <span className="text-accent-light font-semibold">
                       {formatCurrency(Math.abs(savings))}
                     </span>{" "}
                     by choosing the{" "}
-                    <span className="text-gold font-semibold">
+                    <span className="text-accent-light font-semibold">
                       {savings > 0 ? "Old" : "New"} Regime
                     </span>
                     . Effective tax rate:{" "}
@@ -345,7 +345,7 @@ function IncomeTaxCalculator() {
         <Card className="lg:col-span-1">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <IndianRupee className="h-5 w-5 text-gold" />
+              <IndianRupee className="h-5 w-5 text-accent-light" />
               Income & Deductions
             </CardTitle>
           </CardHeader>
@@ -361,7 +361,7 @@ function IncomeTaxCalculator() {
             </div>
 
             <div className="border-t border-border pt-4">
-              <p className="text-xs text-gold/70 uppercase tracking-wider font-semibold mb-3">
+              <p className="text-xs text-accent-light/70 uppercase tracking-wider font-semibold mb-3">
                 Old Regime Deductions
               </p>
             </div>
@@ -856,7 +856,7 @@ function AdvanceTaxPlanner() {
       </div>
 
       {/* Interest Warning */}
-      <Card className="border-amber-500/20 bg-amber-500/5">
+      <Card className="border-accent/100/20 bg-accent/100/5">
         <CardContent className="p-6">
           <div className="flex items-start gap-3">
             <AlertTriangle className="h-5 w-5 text-amber-400 shrink-0 mt-0.5" />
@@ -957,7 +957,7 @@ function GSTTracker() {
     <div className="space-y-6">
       {/* Threshold Warning */}
       {totalRevenue > 2000000 && (
-        <Card className="border-amber-500/20 bg-amber-500/5">
+        <Card className="border-accent/100/20 bg-accent/100/5">
           <CardContent className="p-4 flex items-center gap-3">
             <AlertTriangle className="h-5 w-5 text-amber-400 shrink-0" />
             <div>
@@ -995,7 +995,7 @@ function GSTTracker() {
         <Card>
           <CardContent className="p-6">
             <p className="text-sm text-text-secondary">Net GST Liability</p>
-            <p className="text-2xl font-bold font-mono text-gold mt-1">
+            <p className="text-2xl font-bold font-mono text-accent-light mt-1">
               {formatCurrency(totalNet)}
             </p>
           </CardContent>
@@ -1017,7 +1017,7 @@ function GSTTracker() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Receipt className="h-5 w-5 text-gold" />
+            <Receipt className="h-5 w-5 text-accent-light" />
             Filing Calendar
           </CardTitle>
         </CardHeader>
@@ -1081,7 +1081,7 @@ function GSTTracker() {
                     <td className="p-3 text-right text-emerald-400 font-mono">
                       {formatCurrency(row.inputGST)}
                     </td>
-                    <td className="p-3 text-right text-gold font-mono">
+                    <td className="p-3 text-right text-accent-light font-mono">
                       {formatCurrency(row.netLiability)}
                     </td>
                     <td className="p-3 text-center">
@@ -1113,7 +1113,7 @@ function GSTTracker() {
                   <td className="p-3 text-right text-emerald-400 font-mono">
                     {formatCurrency(totalInput)}
                   </td>
-                  <td className="p-3 text-right text-gold font-mono">
+                  <td className="p-3 text-right text-accent-light font-mono">
                     {formatCurrency(totalNet)}
                   </td>
                   <td className="p-3" />
@@ -1182,7 +1182,7 @@ function HRACalculator() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Home className="h-5 w-5 text-gold" />
+              <Home className="h-5 w-5 text-accent-light" />
               HRA Details (Monthly)
             </CardTitle>
           </CardHeader>
@@ -1258,7 +1258,7 @@ function HRACalculator() {
                   key={c.condNum}
                   className={`rounded-lg p-4 border ${
                     hraCalc.minCondition === c.condNum
-                      ? "border-gold/30 bg-gold/10"
+                      ? "border-accent/30 bg-accent/10"
                       : "border-border-light bg-surface-tertiary"
                   }`}
                 >
@@ -1325,8 +1325,8 @@ function HRACalculator() {
               </div>
             </div>
 
-            <div className="rounded-lg bg-gold/5 border border-gold/15 p-3 mt-2">
-              <p className="text-xs text-gold/80">
+            <div className="rounded-lg bg-accent/5 border border-accent/15 p-3 mt-2">
+              <p className="text-xs text-accent-light/80">
                 <strong>Tip:</strong> You can claim{" "}
                 {formatCurrency(hraCalc.exempt)} as HRA exemption in the Income
                 Tax Calculator under Old Regime deductions.
@@ -1430,7 +1430,7 @@ function TDSReconciliation() {
             </p>
           </CardContent>
         </Card>
-        <Card className={mismatchAmount > 0 ? "border-amber-500/20" : ""}>
+        <Card className={mismatchAmount > 0 ? "border-accent/100/20" : ""}>
           <CardContent className="p-6">
             <p className="text-sm text-text-secondary">Difference Amount</p>
             <p className="text-2xl font-bold font-mono text-amber-400 mt-1">
@@ -1444,7 +1444,7 @@ function TDSReconciliation() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5 text-gold" />
+            <FileText className="h-5 w-5 text-accent-light" />
             TDS Entries
           </CardTitle>
         </CardHeader>
@@ -1470,7 +1470,7 @@ function TDSReconciliation() {
                   <tr
                     key={i}
                     className={`border-t border-border-light ${
-                      !entry.match ? "bg-amber-500/5" : ""
+                      !entry.match ? "bg-accent/100/5" : ""
                     }`}
                   >
                     <td className="p-3 text-text-primary">{entry.source}</td>
@@ -1511,7 +1511,7 @@ function TDSReconciliation() {
 
       {/* Action Note */}
       {mismatchCount > 0 && (
-        <Card className="border-amber-500/20 bg-amber-500/5">
+        <Card className="border-accent/100/20 bg-accent/100/5">
           <CardContent className="p-6">
             <div className="flex items-start gap-3">
               <AlertTriangle className="h-5 w-5 text-amber-400 shrink-0 mt-0.5" />

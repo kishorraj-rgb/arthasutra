@@ -88,7 +88,7 @@ export default function SettingsPage() {
         <Card>
           <CardHeader>
             <div className="flex items-center gap-3">
-              <User className="h-5 w-5 text-gold" />
+              <User className="h-5 w-5 text-accent-light" />
               <CardTitle>Profile</CardTitle>
             </div>
           </CardHeader>
@@ -145,7 +145,7 @@ export default function SettingsPage() {
         <Card>
           <CardHeader>
             <div className="flex items-center gap-3">
-              <Calculator className="h-5 w-5 text-gold" />
+              <Calculator className="h-5 w-5 text-accent-light" />
               <CardTitle>Tax Preferences</CardTitle>
             </div>
           </CardHeader>
@@ -181,7 +181,7 @@ export default function SettingsPage() {
         <Card>
           <CardHeader>
             <div className="flex items-center gap-3">
-              <Receipt className="h-5 w-5 text-gold" />
+              <Receipt className="h-5 w-5 text-accent-light" />
               <CardTitle>GST Settings</CardTitle>
               <Badge variant={gstRegistered ? "success" : "secondary"}>
                 {gstRegistered ? "Registered" : "Not Registered"}
@@ -223,7 +223,7 @@ export default function SettingsPage() {
         <Card>
           <CardHeader>
             <div className="flex items-center gap-3">
-              <Bell className="h-5 w-5 text-gold" />
+              <Bell className="h-5 w-5 text-accent-light" />
               <CardTitle>Notifications</CardTitle>
             </div>
           </CardHeader>
@@ -251,7 +251,7 @@ export default function SettingsPage() {
         <Card>
           <CardHeader>
             <div className="flex items-center gap-3">
-              <Download className="h-5 w-5 text-gold" />
+              <Download className="h-5 w-5 text-accent-light" />
               <CardTitle>Data & Export</CardTitle>
             </div>
           </CardHeader>
