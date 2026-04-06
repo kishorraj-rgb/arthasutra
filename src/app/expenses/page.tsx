@@ -123,7 +123,7 @@ function CustomPieTooltip({
   if (!active || !payload?.length) return null;
   const data = payload[0];
   return (
-    <div className="rounded-lg border border-border bg-navy-card backdrop-blur-xl px-3 py-2 shadow-xl">
+    <div className="rounded-lg border border-border bg-white backdrop-blur-xl px-3 py-2 shadow-xl">
       <p className="text-xs text-text-secondary">{data.name}</p>
       <p className="font-display text-sm font-semibold text-text-primary">
         {formatCurrency(data.value)}

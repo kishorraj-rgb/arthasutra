@@ -7,10 +7,10 @@ const badgeVariants = cva(
   {
     variants: {
       variant: {
-        default: "border-accent/20 bg-accent/10 text-accent-light",
-        success: "border-emerald/20 bg-emerald/10 text-emerald",
-        destructive: "border-rose/20 bg-rose/10 text-rose",
-        warning: "border-amber-500/20 bg-amber-500/10 text-amber-400",
+        default: "border-accent/20 bg-indigo-50 text-accent",
+        success: "border-emerald/20 bg-emerald-50 text-emerald",
+        destructive: "border-rose/20 bg-rose-50 text-rose",
+        warning: "border-amber-500/20 bg-amber-50 text-amber-600",
         secondary: "border-border bg-surface-tertiary text-text-secondary",
         outline: "border-border text-text-secondary",
       },

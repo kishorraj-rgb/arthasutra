@@ -15,7 +15,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number; name: string; color: string }>; label?: string }) => {
   if (!active || !payload) return null;
   return (
-    <div className="bg-navy-card border border-border shadow-lg-soft rounded-lg p-3 text-sm">
+    <div className="bg-white border border-border shadow-lg-soft rounded-lg p-3 text-sm">
       <p className="text-text-secondary mb-1">{label}</p>
       {payload.map((p, i) => (
         <p key={i} style={{ color: p.color }} className="stat-number text-xs">{p.name}: {formatCurrency(p.value)}</p>

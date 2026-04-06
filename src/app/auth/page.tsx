@@ -18,38 +18,35 @@ export default function AuthPage() {
 
   if (status === "loading") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-navy">
+      <div className="min-h-screen flex items-center justify-center bg-[#0B1225]">
         <div className="flex flex-col items-center gap-4 animate-pulse">
           <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-purple-grad-from to-purple-grad-to flex items-center justify-center text-white font-bold shadow-purple">
             AS
           </div>
-          <p className="text-text-tertiary text-sm">Loading...</p>
+          <p className="text-slate-400 text-sm">Loading...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-navy p-4">
-      {/* Decorative background */}
+    <div className="min-h-screen flex items-center justify-center bg-[#0B1225] p-4">
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-accent/5 rounded-full blur-3xl" />
         <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-grad-to/5 rounded-full blur-3xl" />
       </div>
 
       <div className="relative w-full max-w-sm animate-slide-up">
-        {/* Logo */}
         <div className="text-center mb-8">
           <div className="inline-flex h-16 w-16 rounded-2xl bg-gradient-to-br from-purple-grad-from to-purple-grad-to items-center justify-center text-white font-bold text-2xl mb-4 shadow-purple">
             AS
           </div>
-          <h1 className="font-display text-3xl font-bold text-text-primary">ArthaSutra</h1>
+          <h1 className="font-display text-3xl font-bold text-white">ArthaSutra</h1>
           <p className="text-accent-light font-mono text-sm mt-1">अर्थसूत्र — Your Financial OS</p>
         </div>
 
-        {/* Sign in card */}
-        <div className="bg-navy-card rounded-2xl border border-border shadow-card p-8">
-          <p className="text-center text-text-secondary text-sm mb-6">
+        <div className="bg-[#141E3A] rounded-2xl border border-[#1E2D50] shadow-lg p-8">
+          <p className="text-center text-slate-400 text-sm mb-6">
             Sign in to access your financial dashboard
           </p>
 
@@ -59,10 +56,10 @@ export default function AuthPage() {
               signIn("google", { callbackUrl: "/dashboard" });
             }}
             disabled={loading}
-            className="w-full flex items-center justify-center gap-3 rounded-xl border border-border bg-navy-light px-4 py-3 text-sm font-medium text-text-primary shadow-sm transition-all duration-200 hover:bg-surface-tertiary hover:shadow-md hover:border-accent/30 active:scale-[0.98] disabled:opacity-50"
+            className="w-full flex items-center justify-center gap-3 rounded-xl border border-[#1E2D50] bg-[#111B36] px-4 py-3 text-sm font-medium text-white shadow-sm transition-all duration-200 hover:bg-[#1A2747] hover:shadow-md hover:border-accent/30 active:scale-[0.98] disabled:opacity-50"
           >
             {loading ? (
-              <Loader2 className="h-5 w-5 animate-spin text-text-tertiary" />
+              <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
             ) : (
               <svg className="h-5 w-5" viewBox="0 0 24 24">
                 <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
@@ -74,7 +71,7 @@ export default function AuthPage() {
             {loading ? "Redirecting..." : "Continue with Google"}
           </button>
 
-          <p className="text-center text-text-tertiary text-xs mt-6">
+          <p className="text-center text-slate-500 text-xs mt-6">
             Only authorized accounts can access this app
           </p>
         </div>

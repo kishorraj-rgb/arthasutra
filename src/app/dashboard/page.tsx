@@ -162,7 +162,7 @@ function CustomTooltip({
 }) {
   if (!active || !payload || payload.length === 0) return null;
   return (
-    <div className="bg-navy-card border border-border shadow-lg-soft rounded-lg p-3 text-sm">
+    <div className="bg-white border border-border shadow-lg-soft rounded-lg p-3 text-sm">
       <p className="text-text-secondary font-medium mb-1">{label}</p>
       {payload.map((entry: TooltipPayloadEntry, idx: number) => (
         <p key={idx} className="flex items-center gap-2" style={{ color: entry.color }}>
@@ -193,7 +193,7 @@ function PieTooltip({
   if (!active || !payload || payload.length === 0) return null;
   const entry = payload[0];
   return (
-    <div className="bg-navy-card border border-border shadow-lg-soft rounded-lg p-3 text-sm">
+    <div className="bg-white border border-border shadow-lg-soft rounded-lg p-3 text-sm">
       <p className="text-text-primary font-medium">{entry.name}</p>
       <p className="stat-number text-accent-light">{formatCurrency(entry.value)}</p>
     </div>

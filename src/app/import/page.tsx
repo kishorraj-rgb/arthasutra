@@ -410,7 +410,7 @@ export default function ImportPage() {
                               <select
                                 value={tx.incomeType}
                                 onChange={(e) => updateCategory(tx.id, "incomeType", e.target.value)}
-                                className="text-xs rounded-lg border border-border px-2 py-1 bg-navy-light focus:border-accent/50 focus:outline-none"
+                                className="text-xs rounded-lg border border-border px-2 py-1 bg-white focus:border-accent/50 focus:outline-none"
                               >
                                 {INCOME_TYPES.map((t) => (
                                   <option key={t.value} value={t.value}>
@@ -422,7 +422,7 @@ export default function ImportPage() {
                               <select
                                 value={tx.expenseCategory}
                                 onChange={(e) => updateCategory(tx.id, "expenseCategory", e.target.value)}
-                                className="text-xs rounded-lg border border-border px-2 py-1 bg-navy-light focus:border-accent/50 focus:outline-none"
+                                className="text-xs rounded-lg border border-border px-2 py-1 bg-white focus:border-accent/50 focus:outline-none"
                               >
                                 {EXPENSE_CATEGORIES.map((c) => (
                                   <option key={c.value} value={c.value}>

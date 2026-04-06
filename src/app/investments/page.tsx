@@ -103,7 +103,7 @@ const PIE_COLORS = [
 function CustomPieTooltip({ active, payload }: { active?: boolean; payload?: Array<{ name: string; value: number; payload: { color: string } }> }) {
   if (active && payload && payload.length) {
     return (
-      <div className="rounded-lg border border-border bg-navy-card shadow-lg-soft backdrop-blur-xl px-4 py-3 shadow-xl">
+      <div className="rounded-lg border border-border bg-white shadow-lg-soft backdrop-blur-xl px-4 py-3 shadow-xl">
         <p className="text-sm font-medium text-text-primary">{payload[0].name}</p>
         <p className="font-mono text-sm text-accent-light">{formatCurrency(payload[0].value)}</p>
       </div>

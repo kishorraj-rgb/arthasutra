@@ -20,7 +20,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex min-h-screen bg-navy">
+    <div className="flex min-h-screen bg-[#F8F9FC]">
       <Sidebar />
       <main className="flex-1 ml-64 p-6 overflow-auto">
         <div className="max-w-7xl mx-auto">{children}</div>

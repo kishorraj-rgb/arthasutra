@@ -33,22 +33,22 @@
 *::-webkit-scrollbar-thumb:hover { background: rgba(99,102,241,0.4); }
 
 body {
-  background-color: #0B1225;
-  color: #F1F5F9;
+  background-color: #F8F9FC;
+  color: #111827;
   font-family: 'Inter', system-ui, sans-serif;
 }
 
 /* ═══ Cards ═══ */
 .glass-card {
-  background: #141E3A;
-  border: 1px solid #1E2D50;
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
   border-radius: 16px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.2), 0 1px 2px rgba(0,0,0,0.15);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06);
   transition: all 0.3s cubic-bezier(0.16,1,0.3,1);
 }
 .glass-card:hover {
   border-color: rgba(99,102,241,0.3);
-  box-shadow: 0 4px 16px rgba(99,102,241,0.1), 0 2px 4px rgba(0,0,0,0.2);
+  box-shadow: 0 4px 16px rgba(99,102,241,0.08), 0 2px 4px rgba(0,0,0,0.04);
   transform: translateY(-1px);
 }
 
@@ -125,6 +125,6 @@ input[type="number"] { -moz-appearance: textfield; }
 
 /* ═══ Selection color ═══ */
 ::selection {
-  background: rgba(99,102,241,0.25);
-  color: #F1F5F9;
+  background: rgba(99,102,241,0.15);
+  color: #111827;
 }
