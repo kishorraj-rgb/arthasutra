@@ -138,25 +138,39 @@ export default function SettingsPage() {
     await updateBankAccount({ id, is_active: isActive });
   };
 
-  // Category helpers
-  useEffect(() => {
-    if (expenseCatPrefs !== undefined) {
-      const merged = getMergedCategories(EXPENSE_CATEGORIES, expenseCatPrefs.map((p) => ({ ...p, subcategories: p.subcategories || [] })));
-      setExpenseCats(merged.map((c) => {
-        const pref = expenseCatPrefs.find((p) => p.slug === c.value);
-        return { slug: c.value, label: c.label, icon: c.icon, color: c.color || CATEGORY_COLORS[c.value] || "#6B7280", hidden: c.hidden, sort_order: c.sort_order, subcategories: pref?.subcategories || [] };
-      }));
+  // Category helpers — merge defaults with prefs, including custom categories
+  function buildCatList(
+    defaults: ReadonlyArray<{ value: string; label: string; icon?: string }>,
+    prefs: Array<{ slug: string; label: string; icon?: string; color?: string; hidden: boolean; sort_order: number; subcategories?: string[] }> | undefined
+  ): CatItem[] {
+    if (!prefs) return [];
+    const merged = getMergedCategories(defaults, prefs.map((p) => ({ ...p, subcategories: p.subcategories || [] })));
+    const result: CatItem[] = merged.map((c) => {
+      const pref = prefs.find((p) => p.slug === c.value);
+      return { slug: c.value, label: c.label, icon: c.icon, color: c.color || CATEGORY_COLORS[c.value] || "#6B7280", hidden: c.hidden, sort_order: c.sort_order, subcategories: pref?.subcategories || [] };
+    });
+
+    // Append custom categories that aren't in defaults (e.g. "Bank Charges")
+    const defaultSlugs = new Set(defaults.map((d) => d.value));
+    for (const pref of prefs) {
+      if (!defaultSlugs.has(pref.slug)) {
+        result.push({
+          slug: pref.slug, label: pref.label, icon: pref.icon || "MoreHorizontal",
+          color: pref.color || "#6B7280", hidden: pref.hidden, sort_order: pref.sort_order,
+          subcategories: pref.subcategories || [],
+        });
+      }
     }
+
+    return result.sort((a, b) => a.sort_order - b.sort_order);
+  }
+
+  useEffect(() => {
+    if (expenseCatPrefs !== undefined) setExpenseCats(buildCatList(EXPENSE_CATEGORIES, expenseCatPrefs));
   }, [expenseCatPrefs]);
 
   useEffect(() => {
-    if (incomeCatPrefs !== undefined) {
-      const merged = getMergedCategories(INCOME_TYPES as unknown as Array<{ value: string; label: string; icon?: string }>, incomeCatPrefs.map((p) => ({ ...p, subcategories: p.subcategories || [] })));
-      setIncomeCats(merged.map((c) => {
-        const pref = incomeCatPrefs.find((p) => p.slug === c.value);
-        return { slug: c.value, label: c.label, icon: c.icon, color: c.color || CATEGORY_COLORS[c.value] || "#6B7280", hidden: c.hidden, sort_order: c.sort_order, subcategories: pref?.subcategories || [] };
-      }));
-    }
+    if (incomeCatPrefs !== undefined) setIncomeCats(buildCatList(INCOME_TYPES as unknown as Array<{ value: string; label: string; icon?: string }>, incomeCatPrefs));
   }, [incomeCatPrefs]);
 
   const moveCategory = (list: CatItem[], setList: (v: CatItem[]) => void, index: number, direction: "up" | "down") => {
