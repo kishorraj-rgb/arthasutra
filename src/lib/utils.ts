@@ -170,3 +170,53 @@ export const CATEGORY_COLORS: Record<string, string> = {
   reimbursement: "#10B981",
   transfer: "#9CA3AF",
 };
+
+// Merge default categories with user preferences
+export interface CategoryPref {
+  slug: string;
+  label: string;
+  icon?: string;
+  color?: string;
+  sort_order: number;
+  hidden: boolean;
+}
+
+export function getMergedCategories(
+  defaults: ReadonlyArray<{ value: string; label: string; icon?: string }>,
+  preferences: CategoryPref[]
+): Array<{ value: string; label: string; icon: string; color?: string; hidden: boolean; sort_order: number }> {
+  if (preferences.length === 0) {
+    return defaults.map((d, i) => ({
+      value: d.value,
+      label: d.label,
+      icon: d.icon || "MoreHorizontal",
+      color: CATEGORY_COLORS[d.value],
+      hidden: false,
+      sort_order: i,
+    }));
+  }
+
+  const prefMap = new Map(preferences.map((p) => [p.slug, p]));
+
+  const result = defaults.map((d, i) => {
+    const pref = prefMap.get(d.value);
+    return {
+      value: d.value,
+      label: pref?.label ?? d.label,
+      icon: pref?.icon ?? d.icon ?? "MoreHorizontal",
+      color: pref?.color ?? CATEGORY_COLORS[d.value],
+      hidden: pref?.hidden ?? false,
+      sort_order: pref?.sort_order ?? i,
+    };
+  });
+
+  return result.sort((a, b) => a.sort_order - b.sort_order);
+}
+
+export function getVisibleCategories(
+  defaults: ReadonlyArray<{ value: string; label: string; icon?: string }>,
+  preferences: CategoryPref[]
+): Array<{ value: string; label: string }> {
+  const merged = getMergedCategories(defaults, preferences);
+  return merged.filter((c) => !c.hidden).map((c) => ({ value: c.value, label: c.label }));
+}

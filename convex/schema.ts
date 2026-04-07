@@ -290,4 +290,16 @@ export default defineSchema({
   })
     .index("by_user", ["userId"])
     .index("by_user_category", ["userId", "category"]),
+
+  category_preferences: defineTable({
+    userId: v.id("users"),
+    scope: v.union(v.literal("expense"), v.literal("income")),
+    slug: v.string(),
+    label: v.string(),
+    icon: v.optional(v.string()),
+    color: v.optional(v.string()),
+    sort_order: v.number(),
+    hidden: v.boolean(),
+    subcategories: v.optional(v.array(v.string())),
+  }).index("by_user_scope", ["userId", "scope"]),
 });
