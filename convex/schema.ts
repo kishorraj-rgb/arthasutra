@@ -261,11 +261,20 @@ export default defineSchema({
     userId: v.id("users"),
     name: v.string(),
     category: v.union(
-      v.literal("identity"),
-      v.literal("tax"),
-      v.literal("investment"),
-      v.literal("insurance"),
+      v.literal("pan_card"),
+      v.literal("aadhaar"),
+      v.literal("passport"),
+      v.literal("voter_id"),
+      v.literal("driving_license"),
       v.literal("bank_statement"),
+      v.literal("salary_slip"),
+      v.literal("form_16"),
+      v.literal("itr"),
+      v.literal("gst_return"),
+      v.literal("investment_proof"),
+      v.literal("insurance_policy"),
+      v.literal("property_doc"),
+      v.literal("invoice"),
       v.literal("receipt"),
       v.literal("other")
     ),
@@ -276,6 +285,8 @@ export default defineSchema({
     financial_year: v.optional(v.string()),
     uploaded_at: v.number(),
     notes: v.optional(v.string()),
+    extracted_text: v.optional(v.string()),
+    extracted_data: v.optional(v.any()),
   })
     .index("by_user", ["userId"])
     .index("by_user_category", ["userId", "category"]),
