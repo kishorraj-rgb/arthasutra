@@ -40,6 +40,7 @@ export default defineSchema({
       v.literal("other")
     ),
     description: v.string(),
+    subcategory: v.optional(v.string()),
     tds_deducted: v.number(),
     gst_collected: v.number(),
     invoice_number: v.optional(v.string()),
@@ -81,6 +82,7 @@ export default defineSchema({
       v.literal("other")
     ),
     description: v.string(),
+    subcategory: v.optional(v.string()),
     gst_paid: v.number(),
     is_business_expense: v.boolean(),
     receipt_url: v.optional(v.string()),

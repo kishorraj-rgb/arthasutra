@@ -160,6 +160,25 @@ export default function ExpensesPage() {
   const updateExpense = useMutation(api.expenses.updateExpenseEntry);
   const deleteExpense = useMutation(api.expenses.deleteExpenseEntry);
 
+  // Category preferences (for subcategories)
+  const catPrefs = useQuery(
+    api.categories.getCategoryPreferences,
+    user ? { userId: user.userId, scope: "expense" as const } : "skip"
+  );
+
+  // Build subcategory lookup: { "food": ["Swiggy", "Zomato", ...], ... }
+  const subcategoryMap = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    if (catPrefs) {
+      for (const pref of catPrefs) {
+        if (pref.subcategories && pref.subcategories.length > 0) {
+          map[pref.slug] = pref.subcategories;
+        }
+      }
+    }
+    return map;
+  }, [catPrefs]);
+
   // Filter state
   const [showBusinessOnly, setShowBusinessOnly] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState("");
@@ -231,6 +250,7 @@ export default function ExpensesPage() {
   const [formDate, setFormDate] = useState("");
   const [formAmount, setFormAmount] = useState("");
   const [formCategory, setFormCategory] = useState("");
+  const [formSubcategory, setFormSubcategory] = useState("");
   const [formDescription, setFormDescription] = useState("");
   const [formGst, setFormGst] = useState("");
   const [formIsBusiness, setFormIsBusiness] = useState(false);
@@ -408,6 +428,7 @@ export default function ExpensesPage() {
     setFormDate("");
     setFormAmount("");
     setFormCategory("");
+    setFormSubcategory("");
     setFormDescription("");
     setFormGst("");
     setFormIsBusiness(false);
@@ -426,6 +447,7 @@ export default function ExpensesPage() {
         amount: parseFloat(formAmount),
         category: formCategory as ExpenseCategory,
         description: formDescription,
+        subcategory: formSubcategory || undefined,
         gst_paid: formGst ? parseFloat(formGst) : 0,
         is_business_expense: formIsBusiness,
         ...(formReceiptUrl ? { receipt_url: formReceiptUrl } : {}),
@@ -771,16 +793,32 @@ export default function ExpensesPage() {
                               })}
                             </td>
                             <td className="px-5 py-3.5">
-                              <select
-                                value={expense.category}
-                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                onChange={(e) => updateExpense({ id: expense._id, category: e.target.value as any })}
-                                className="text-xs rounded-lg border border-gray-200 px-2 py-1 bg-white focus:border-accent focus:outline-none cursor-pointer"
-                              >
-                                {EXPENSE_CATEGORIES.map((c) => (
-                                  <option key={c.value} value={c.value}>{c.label}</option>
-                                ))}
-                              </select>
+                              <div className="flex flex-col gap-1">
+                                <select
+                                  value={expense.category}
+                                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                  onChange={(e) => {
+                                    updateExpense({ id: expense._id, category: e.target.value as any, subcategory: "" });
+                                  }}
+                                  className="text-xs rounded-lg border border-gray-200 px-2 py-1 bg-white focus:border-accent focus:outline-none cursor-pointer"
+                                >
+                                  {EXPENSE_CATEGORIES.map((c) => (
+                                    <option key={c.value} value={c.value}>{c.label}</option>
+                                  ))}
+                                </select>
+                                {subcategoryMap[expense.category] && subcategoryMap[expense.category].length > 0 && (
+                                  <select
+                                    value={(expense as Record<string, unknown>).subcategory as string || ""}
+                                    onChange={(e) => updateExpense({ id: expense._id, subcategory: e.target.value })}
+                                    className="text-[11px] rounded-md border border-dashed border-gray-200 px-1.5 py-0.5 bg-gray-50 focus:border-accent focus:outline-none cursor-pointer text-text-secondary"
+                                  >
+                                    <option value="">— subcategory —</option>
+                                    {subcategoryMap[expense.category].map((sub) => (
+                                      <option key={sub} value={sub}>{sub}</option>
+                                    ))}
+                                  </select>
+                                )}
+                              </div>
                             </td>
                             <td className="px-5 py-3.5" title={parsed.rawDescription}>
                               <div className="flex flex-col">
@@ -1039,9 +1077,23 @@ export default function ExpensesPage() {
                   options={formCategoryOptions}
                   placeholder="Select category"
                   value={formCategory}
-                  onChange={(e) => setFormCategory(e.target.value)}
+                  onChange={(e) => { setFormCategory(e.target.value); setFormSubcategory(""); }}
                 />
               </div>
+
+              {/* Subcategory (dependent) */}
+              {formCategory && subcategoryMap[formCategory] && subcategoryMap[formCategory].length > 0 && (
+                <div className="space-y-2">
+                  <Label htmlFor="expense-subcategory">Subcategory</Label>
+                  <Select
+                    id="expense-subcategory"
+                    options={subcategoryMap[formCategory].map((s) => ({ value: s, label: s }))}
+                    placeholder="Select subcategory (optional)"
+                    value={formSubcategory}
+                    onChange={(e) => setFormSubcategory(e.target.value)}
+                  />
+                </div>
+              )}
 
               {/* Description */}
               <div className="space-y-2">

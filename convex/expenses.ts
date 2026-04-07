@@ -36,6 +36,7 @@ export const addExpenseEntry = mutation({
       v.literal("other")
     ),
     description: v.string(),
+    subcategory: v.optional(v.string()),
     gst_paid: v.number(),
     is_business_expense: v.boolean(),
     receipt_url: v.optional(v.string()),
@@ -82,6 +83,7 @@ export const updateExpenseEntry = mutation({
       )
     ),
     description: v.optional(v.string()),
+    subcategory: v.optional(v.string()),
     gst_paid: v.optional(v.number()),
     is_business_expense: v.optional(v.boolean()),
   },
