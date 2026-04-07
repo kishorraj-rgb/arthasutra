@@ -164,7 +164,12 @@ export default function ExpensesPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFY, setSelectedFY] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("");
+  const [bankFilter, setBankFilter] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 50;
 
   // Bulk selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -252,6 +257,16 @@ export default function ExpensesPage() {
     }
   }, [availableFYs, selectedFY]);
 
+  // Available banks from data
+  const availableBanks = useMemo(() => {
+    const bankSet = new Set<string>();
+    for (const e of allExpenses) {
+      const parsed = parseDescription(e.description);
+      if (parsed.bank) bankSet.add(parsed.bank);
+    }
+    return Array.from(bankSet).sort();
+  }, [allExpenses]);
+
   const filtered = useMemo(() => {
     const fyDates = selectedFY ? getFinancialYearDates(selectedFY) : null;
     const query = searchQuery.toLowerCase().trim();
@@ -264,13 +279,17 @@ export default function ExpensesPage() {
       }
       if (showBusinessOnly && !e.is_business_expense) return false;
       if (categoryFilter && e.category !== categoryFilter) return false;
+      if (bankFilter) {
+        const parsed = parseDescription(e.description);
+        if (parsed.bank !== bankFilter) return false;
+      }
       if (query) {
         const haystack = `${e.description} ${e.category} ${e.date}`.toLowerCase();
         if (!haystack.includes(query)) return false;
       }
       return true;
     });
-  }, [allExpenses, showBusinessOnly, categoryFilter, selectedFY, selectedMonth, searchQuery]);
+  }, [allExpenses, showBusinessOnly, categoryFilter, selectedFY, selectedMonth, searchQuery, bankFilter]);
 
   // Sorted entries
   const sorted = useMemo(() => {
@@ -285,6 +304,16 @@ export default function ExpensesPage() {
     });
     return arr;
   }, [filtered, sortField, sortDir]);
+
+  // Pagination
+  const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
+  const paginated = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return sorted.slice(start, start + PAGE_SIZE);
+  }, [sorted, currentPage]);
+
+  // Reset page when filters change
+  useEffect(() => { setCurrentPage(1); }, [categoryFilter, searchQuery, selectedFY, selectedMonth, bankFilter, showBusinessOnly]);
 
   const totalExpenses = useMemo(
     () => allExpenses.reduce((s, e) => s + e.amount, 0),
@@ -531,16 +560,25 @@ export default function ExpensesPage() {
                 onChange={(e) => setCategoryFilter(e.target.value)}
                 className="w-44"
               />
+              {/* Bank filter */}
+              {availableBanks.length > 0 && (
+                <Select
+                  options={[{ value: "", label: "All Banks" }, ...availableBanks.map((b) => ({ value: b, label: b }))]}
+                  value={bankFilter}
+                  onChange={(e) => setBankFilter(e.target.value)}
+                  className="w-36"
+                />
+              )}
               {/* Business toggle */}
               <div className="flex items-center gap-2">
                 <Switch checked={showBusinessOnly} onCheckedChange={setShowBusinessOnly} />
                 <span className="text-xs text-text-secondary">Business Only</span>
               </div>
-              {(categoryFilter || searchQuery || selectedMonth) && (
+              {(categoryFilter || searchQuery || selectedMonth || bankFilter) && (
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => { setCategoryFilter(""); setSearchQuery(""); setSelectedMonth(""); }}
+                  onClick={() => { setCategoryFilter(""); setSearchQuery(""); setSelectedMonth(""); setBankFilter(""); }}
                   className="text-text-secondary hover:text-text-primary text-xs"
                 >
                   Clear
@@ -638,7 +676,7 @@ export default function ExpensesPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {sorted.map((expense) => {
+                  {paginated.map((expense) => {
                     const parsed = parseDescription(expense.description);
                     return (
                       <tr
@@ -742,6 +780,50 @@ export default function ExpensesPage() {
                 </tbody>
               </table>
             </div>
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100">
+                <span className="text-xs text-text-tertiary">
+                  Showing {((currentPage - 1) * PAGE_SIZE) + 1}–{Math.min(currentPage * PAGE_SIZE, sorted.length)} of {sorted.length}
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="px-3 py-1 text-xs rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Previous
+                  </button>
+                  {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+                    let page: number;
+                    if (totalPages <= 7) page = i + 1;
+                    else if (currentPage <= 4) page = i + 1;
+                    else if (currentPage >= totalPages - 3) page = totalPages - 6 + i;
+                    else page = currentPage - 3 + i;
+                    return (
+                      <button
+                        key={page}
+                        onClick={() => setCurrentPage(page)}
+                        className={`w-8 h-8 text-xs rounded-lg transition-colors ${
+                          currentPage === page
+                            ? "bg-accent text-white"
+                            : "hover:bg-gray-50 text-text-secondary"
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    );
+                  })}
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="px-3 py-1 text-xs rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 

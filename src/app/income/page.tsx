@@ -98,6 +98,11 @@ export default function IncomePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFY, setSelectedFY] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("");
+  const [bankFilter, setBankFilter] = useState("");
+
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 50;
 
   // Bulk selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -181,26 +186,23 @@ export default function IncomePage() {
     const query = searchQuery.toLowerCase().trim();
 
     return safeEntries.filter((e) => {
-      // FY filter
       if (fyDates && (e.date < fyDates.start || e.date > fyDates.end)) return false;
-      // Month filter
       if (selectedMonth && selectedFY) {
         const monthObj = FY_MONTHS.find((m) => m.label === selectedMonth);
-        if (monthObj) {
-          const d = new Date(e.date);
-          if (d.getMonth() !== monthObj.month) return false;
-        }
+        if (monthObj && new Date(e.date).getMonth() !== monthObj.month) return false;
       }
-      // Type filter
       if (typeFilter && e.type !== typeFilter) return false;
-      // Search
+      if (bankFilter) {
+        const parsed = parseDescription(e.description);
+        if (parsed.bank !== bankFilter) return false;
+      }
       if (query) {
         const haystack = `${e.description} ${e.type} ${e.date}`.toLowerCase();
         if (!haystack.includes(query)) return false;
       }
       return true;
     });
-  }, [safeEntries, typeFilter, selectedFY, selectedMonth, searchQuery]);
+  }, [safeEntries, typeFilter, selectedFY, selectedMonth, searchQuery, bankFilter]);
 
   // Sort state
   const [sortField, setSortField] = useState<"date" | "amount" | "type" | "payee">("date");
@@ -222,6 +224,25 @@ export default function IncomePage() {
     });
     return arr;
   }, [filtered, sortField, sortDir]);
+
+  // Available banks
+  const availableBanks = useMemo(() => {
+    const bankSet = new Set<string>();
+    for (const e of safeEntries) {
+      const parsed = parseDescription(e.description);
+      if (parsed.bank) bankSet.add(parsed.bank);
+    }
+    return Array.from(bankSet).sort();
+  }, [safeEntries]);
+
+  // Pagination
+  const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
+  const paginated = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return sorted.slice(start, start + PAGE_SIZE);
+  }, [sorted, currentPage]);
+
+  useEffect(() => { setCurrentPage(1); }, [typeFilter, searchQuery, selectedFY, selectedMonth, bankFilter]);
 
   // Monthly chart data grouped by month (FY order: Apr-Mar)
   const monthlyChartData = useMemo(() => {
@@ -474,11 +495,20 @@ export default function IncomePage() {
                 onChange={(e) => setTypeFilter(e.target.value)}
                 className="w-44"
               />
-              {(typeFilter || searchQuery || selectedMonth) && (
+              {/* Bank filter */}
+              {availableBanks.length > 0 && (
+                <Select
+                  options={[{ value: "", label: "All Banks" }, ...availableBanks.map((b) => ({ value: b, label: b }))]}
+                  value={bankFilter}
+                  onChange={(e) => setBankFilter(e.target.value)}
+                  className="w-36"
+                />
+              )}
+              {(typeFilter || searchQuery || selectedMonth || bankFilter) && (
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => { setTypeFilter(""); setSearchQuery(""); setSelectedMonth(""); }}
+                  onClick={() => { setTypeFilter(""); setSearchQuery(""); setSelectedMonth(""); setBankFilter(""); }}
                   className="text-text-secondary hover:text-text-primary text-xs"
                 >
                   Clear
@@ -578,7 +608,7 @@ export default function IncomePage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {sorted.map((entry) => {
+                    {paginated.map((entry) => {
                       const parsed = parseDescription(entry.description);
                       return (
                         <tr
@@ -652,6 +682,48 @@ export default function IncomePage() {
                     )}
                   </tbody>
                 </table>
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
+                  <span className="text-xs text-text-tertiary">
+                    Showing {((currentPage - 1) * PAGE_SIZE) + 1}–{Math.min(currentPage * PAGE_SIZE, sorted.length)} of {sorted.length}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      className="px-3 py-1 text-xs rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      Previous
+                    </button>
+                    {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+                      let page: number;
+                      if (totalPages <= 7) page = i + 1;
+                      else if (currentPage <= 4) page = i + 1;
+                      else if (currentPage >= totalPages - 3) page = totalPages - 6 + i;
+                      else page = currentPage - 3 + i;
+                      return (
+                        <button
+                          key={page}
+                          onClick={() => setCurrentPage(page)}
+                          className={`w-8 h-8 text-xs rounded-lg transition-colors ${
+                            currentPage === page ? "bg-accent text-white" : "hover:bg-gray-50 text-text-secondary"
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      );
+                    })}
+                    <button
+                      onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                      className="px-3 py-1 text-xs rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
               </div>
             )}
           </CardContent>
