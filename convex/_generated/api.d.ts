@@ -18,8 +18,11 @@ import type * as insurance from "../insurance.js";
 import type * as investments from "../investments.js";
 import type * as loans from "../loans.js";
 import type * as reminders from "../reminders.js";
+import type * as reports from "../reports.js";
+import type * as subscriptions from "../subscriptions.js";
 import type * as tax from "../tax.js";
 import type * as users from "../users.js";
+import type * as vault from "../vault.js";
 
 import type {
   ApiFromModules,
@@ -38,8 +41,11 @@ declare const fullApi: ApiFromModules<{
   investments: typeof investments;
   loans: typeof loans;
   reminders: typeof reminders;
+  reports: typeof reports;
+  subscriptions: typeof subscriptions;
   tax: typeof tax;
   users: typeof users;
+  vault: typeof vault;
 }>;
 
 /**

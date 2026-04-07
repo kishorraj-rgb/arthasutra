@@ -12,6 +12,8 @@ export const config = {
     "/loans/:path*",
     "/reminders/:path*",
     "/reports/:path*",
+    "/subscriptions/:path*",
+    "/vault/:path*",
     "/settings/:path*",
   ],
 };

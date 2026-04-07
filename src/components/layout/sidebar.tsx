@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, TrendingUp, TrendingDown, Calculator, PieChart,
   Shield, Landmark, Bell, FileText, Settings, LogOut, ChevronLeft, ChevronRight, Upload,
+  RefreshCw, FolderLock,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useState } from "react";
@@ -15,10 +16,12 @@ const navigation = [
   { name: "Income", href: "/income", icon: TrendingUp },
   { name: "Expenses", href: "/expenses", icon: TrendingDown },
   { name: "Import", href: "/import", icon: Upload },
+  { name: "Subscriptions", href: "/subscriptions", icon: RefreshCw },
   { name: "Tax", href: "/tax", icon: Calculator },
   { name: "Investments", href: "/investments", icon: PieChart },
   { name: "Insurance", href: "/insurance", icon: Shield },
   { name: "Loans", href: "/loans", icon: Landmark },
+  { name: "Vault", href: "/vault", icon: FolderLock },
   { name: "Reminders", href: "/reminders", icon: Bell },
   { name: "Reports", href: "/reports", icon: FileText },
   { name: "Settings", href: "/settings", icon: Settings },

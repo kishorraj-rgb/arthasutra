@@ -214,4 +214,65 @@ export default defineSchema({
     emi_date: v.number(),
     tenure_remaining: v.number(),
   }).index("by_user", ["userId"]),
+
+  subscriptions: defineTable({
+    userId: v.id("users"),
+    name: v.string(),
+    amount: v.number(),
+    frequency: v.union(
+      v.literal("monthly"),
+      v.literal("quarterly"),
+      v.literal("half_yearly"),
+      v.literal("yearly")
+    ),
+    category: v.union(
+      v.literal("entertainment"),
+      v.literal("productivity"),
+      v.literal("cloud_storage"),
+      v.literal("insurance"),
+      v.literal("utility"),
+      v.literal("fitness"),
+      v.literal("education"),
+      v.literal("other")
+    ),
+    next_renewal_date: v.string(),
+    auto_renew: v.boolean(),
+    payment_method: v.union(
+      v.literal("credit_card"),
+      v.literal("debit_card"),
+      v.literal("upi"),
+      v.literal("bank_transfer")
+    ),
+    card_last4: v.optional(v.string()),
+    status: v.union(
+      v.literal("active"),
+      v.literal("paused"),
+      v.literal("cancelled")
+    ),
+    notes: v.optional(v.string()),
+    detected_from: v.optional(v.string()),
+  }).index("by_user", ["userId"]),
+
+  documents: defineTable({
+    userId: v.id("users"),
+    name: v.string(),
+    category: v.union(
+      v.literal("identity"),
+      v.literal("tax"),
+      v.literal("investment"),
+      v.literal("insurance"),
+      v.literal("bank_statement"),
+      v.literal("receipt"),
+      v.literal("other")
+    ),
+    storageId: v.id("_storage"),
+    file_size: v.number(),
+    file_type: v.string(),
+    tags: v.optional(v.array(v.string())),
+    financial_year: v.optional(v.string()),
+    uploaded_at: v.number(),
+    notes: v.optional(v.string()),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_category", ["userId", "category"]),
 });
