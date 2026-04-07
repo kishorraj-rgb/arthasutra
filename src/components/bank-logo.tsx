@@ -113,13 +113,13 @@ export function BankLogo({ bankId, size = "md", className, showName, customColor
     <div className={cn("inline-flex items-center gap-2", className)}>
       <div
         className={cn(
-          "flex items-center justify-center rounded-xl font-bold shrink-0 ring-1 ring-inset select-none",
+          "flex items-center justify-center rounded-xl font-bold shrink-0 select-none",
           SIZE_MAP[size]
         )}
         style={{
           backgroundColor: bg,
           color: color,
-          ringColor: `${color}30`,
+          boxShadow: `inset 0 0 0 1px ${color}30`,
         }}
       >
         {preset.initials}
