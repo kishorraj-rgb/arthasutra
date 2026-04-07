@@ -390,37 +390,42 @@ export default function SettingsPage() {
                         </div>
                       </div>
                       {/* Row 2: Subcategories */}
-                      <div className="mt-2 ml-11 flex flex-wrap items-center gap-1.5">
-                        {(cat.subcategories || []).map((sub, si) => (
-                          <span key={si} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-accent/8 text-accent text-xs font-medium border border-accent/15">
-                            {sub}
-                            <button onClick={() => removeSubcategory(expenseCats, setExpenseCats, index, si)} className="hover:text-rose ml-0.5"><X className="h-3 w-3" /></button>
-                          </span>
-                        ))}
-                        <div className="inline-flex items-center gap-1">
+                      <div className="mt-2 ml-11 space-y-2">
+                        {(cat.subcategories || []).length > 0 && (
+                          <div className="flex flex-wrap gap-1.5">
+                            {cat.subcategories.map((sub, si) => (
+                              <span key={si} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-accent/8 text-accent text-xs font-medium border border-accent/15">
+                                {sub}
+                                <button onClick={() => removeSubcategory(expenseCats, setExpenseCats, index, si)} className="hover:text-rose ml-0.5"><X className="h-3 w-3" /></button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2">
                           <input
                             value={newSubcategory[cat.slug] || ""}
                             onChange={(e) => setNewSubcategory({ ...newSubcategory, [cat.slug]: e.target.value })}
                             onKeyDown={(e) => {
                               if (e.key === "Enter" && (newSubcategory[cat.slug] || "").trim()) {
+                                e.preventDefault();
                                 addSubcategory(expenseCats, setExpenseCats, index, newSubcategory[cat.slug] || "");
                                 setNewSubcategory({ ...newSubcategory, [cat.slug]: "" });
                               }
                             }}
-                            placeholder="Type & press Enter"
-                            className="w-36 px-2.5 py-1 text-xs rounded-lg border border-dashed border-gray-300 bg-gray-50 placeholder:text-gray-400 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/20 focus:bg-white"
+                            placeholder="Enter subcategory name..."
+                            className="flex-1 max-w-[220px] h-7 px-2.5 text-xs rounded-lg border border-gray-200 bg-gray-50 placeholder:text-gray-400 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/20 focus:bg-white"
                           />
-                          {(newSubcategory[cat.slug] || "").trim() && (
-                            <button
-                              onClick={() => {
+                          <button
+                            onClick={() => {
+                              if ((newSubcategory[cat.slug] || "").trim()) {
                                 addSubcategory(expenseCats, setExpenseCats, index, newSubcategory[cat.slug] || "");
                                 setNewSubcategory({ ...newSubcategory, [cat.slug]: "" });
-                              }}
-                              className="p-1 rounded-md bg-accent/10 text-accent hover:bg-accent/20 transition-colors"
-                            >
-                              <Plus className="h-3.5 w-3.5" />
-                            </button>
-                          )}
+                              }
+                            }}
+                            className="h-7 px-2.5 rounded-lg bg-accent/10 text-accent hover:bg-accent/20 text-xs font-medium transition-colors flex items-center gap-1"
+                          >
+                            <Plus className="h-3 w-3" /> Add
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -465,37 +470,42 @@ export default function SettingsPage() {
                           <button onClick={() => deleteCategory(incomeCats, setIncomeCats, index)} className="p-1.5 rounded-md hover:bg-rose-50 text-gray-400 hover:text-rose transition-colors"><Trash2 className="h-4 w-4" /></button>
                         </div>
                       </div>
-                      <div className="mt-2 ml-11 flex flex-wrap items-center gap-1.5">
-                        {(cat.subcategories || []).map((sub, si) => (
-                          <span key={si} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald/8 text-emerald text-xs font-medium border border-emerald/15">
-                            {sub}
-                            <button onClick={() => removeSubcategory(incomeCats, setIncomeCats, index, si)} className="hover:text-rose ml-0.5"><X className="h-3 w-3" /></button>
-                          </span>
-                        ))}
-                        <div className="inline-flex items-center gap-1">
+                      <div className="mt-2 ml-11 space-y-2">
+                        {(cat.subcategories || []).length > 0 && (
+                          <div className="flex flex-wrap gap-1.5">
+                            {cat.subcategories.map((sub, si) => (
+                              <span key={si} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald/8 text-emerald text-xs font-medium border border-emerald/15">
+                                {sub}
+                                <button onClick={() => removeSubcategory(incomeCats, setIncomeCats, index, si)} className="hover:text-rose ml-0.5"><X className="h-3 w-3" /></button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2">
                           <input
                             value={newSubcategory[cat.slug] || ""}
                             onChange={(e) => setNewSubcategory({ ...newSubcategory, [cat.slug]: e.target.value })}
                             onKeyDown={(e) => {
                               if (e.key === "Enter" && (newSubcategory[cat.slug] || "").trim()) {
+                                e.preventDefault();
                                 addSubcategory(incomeCats, setIncomeCats, index, newSubcategory[cat.slug] || "");
                                 setNewSubcategory({ ...newSubcategory, [cat.slug]: "" });
                               }
                             }}
-                            placeholder="Type & press Enter"
-                            className="w-36 px-2.5 py-1 text-xs rounded-lg border border-dashed border-gray-300 bg-gray-50 placeholder:text-gray-400 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/20 focus:bg-white"
+                            placeholder="Enter subcategory name..."
+                            className="flex-1 max-w-[220px] h-7 px-2.5 text-xs rounded-lg border border-gray-200 bg-gray-50 placeholder:text-gray-400 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/20 focus:bg-white"
                           />
-                          {(newSubcategory[cat.slug] || "").trim() && (
-                            <button
-                              onClick={() => {
+                          <button
+                            onClick={() => {
+                              if ((newSubcategory[cat.slug] || "").trim()) {
                                 addSubcategory(incomeCats, setIncomeCats, index, newSubcategory[cat.slug] || "");
                                 setNewSubcategory({ ...newSubcategory, [cat.slug]: "" });
-                              }}
-                              className="p-1 rounded-md bg-emerald/10 text-emerald hover:bg-emerald/20 transition-colors"
-                            >
-                              <Plus className="h-3.5 w-3.5" />
-                            </button>
-                          )}
+                              }
+                            }}
+                            className="h-7 px-2.5 rounded-lg bg-emerald/10 text-emerald hover:bg-emerald/20 text-xs font-medium transition-colors flex items-center gap-1"
+                          >
+                            <Plus className="h-3 w-3" /> Add
+                          </button>
                         </div>
                       </div>
                     </div>
