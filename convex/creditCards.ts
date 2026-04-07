@@ -335,6 +335,21 @@ export const autoMatchTransactions = mutation({
   },
 });
 
+export const updateCCTransaction = mutation({
+  args: {
+    id: v.id("cc_transactions"),
+    category: v.optional(v.string()),
+    subcategory: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { id, ...updates } = args;
+    const filtered = Object.fromEntries(
+      Object.entries(updates).filter(([, v]) => v !== undefined)
+    );
+    await ctx.db.patch(id, filtered);
+  },
+});
+
 export const matchCCTransaction = mutation({
   args: {
     ccTransactionId: v.id("cc_transactions"),

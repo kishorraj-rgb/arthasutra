@@ -46,6 +46,7 @@ export const updateIncomeEntry = mutation({
       )
     ),
     description: v.optional(v.string()),
+    subcategory: v.optional(v.string()),
     tds_deducted: v.optional(v.number()),
     gst_collected: v.optional(v.number()),
     invoice_number: v.optional(v.string()),

@@ -43,6 +43,7 @@ import {
   Unlink,
   ArrowRight,
   AlertCircle,
+  Wand2,
 } from "lucide-react";
 
 // ─── Constants ──────────────────────────────────────────────────────────
@@ -134,6 +135,12 @@ export default function CreditCardsPage() {
   const matchCCTransaction = useMutation(api.creditCards.matchCCTransaction);
   const unmatchCCTransaction = useMutation(api.creditCards.unmatchCCTransaction);
   const ignoreCCTransaction = useMutation(api.creditCards.ignoreCCTransaction);
+  const updateCCTx = useMutation(api.creditCards.updateCCTransaction);
+
+  // AI Categorize state
+  const [aiCategorizing, setAiCategorizing] = useState(false);
+  const [aiProgress, setAiProgress] = useState({ done: 0, total: 0 });
+  const [aiSummary, setAiSummary] = useState<{ changed: number; errors: string[] } | null>(null);
 
   // State
   const [cardDialogOpen, setCardDialogOpen] = useState(false);
@@ -350,6 +357,68 @@ export default function CreditCardsPage() {
     setParsedTransactions((prev) =>
       prev.map((t) => (t.id === id ? { ...t, selected: !t.selected } : t))
     );
+  }
+
+  async function handleAiCategorizeCCTxns() {
+    if (!ccTransactions || ccTransactions.length === 0) return;
+
+    const unmatched = ccTransactions.filter(
+      (t) => t.type === "debit" && t.match_status === "unmatched"
+    );
+
+    if (unmatched.length === 0) {
+      alert("No unmatched debit transactions to categorize.");
+      return;
+    }
+
+    if (!confirm(`AI Categorize ${unmatched.length} unmatched transaction(s)? This uses API quota.`)) return;
+
+    setAiCategorizing(true);
+    setAiProgress({ done: 0, total: unmatched.length });
+    setAiSummary(null);
+
+    const transactions = unmatched.map((t) => ({
+      id: t._id,
+      description: t.description,
+      amount: t.amount,
+      currentCategory: t.category,
+    }));
+
+    try {
+      const resp = await fetch("/api/categorize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transactions, mode: "expense" }),
+      });
+
+      const data = await resp.json();
+
+      if (!resp.ok) {
+        setAiSummary({ changed: 0, errors: [data.error || "API call failed"] });
+        setAiCategorizing(false);
+        return;
+      }
+
+      const results: Array<{ id: string; category: string; subcategory: string }> = data.results || [];
+      let changed = 0;
+
+      for (let i = 0; i < results.length; i++) {
+        const r = results[i];
+        const original = unmatched.find((t) => t._id === r.id);
+        if (original && (original.category !== r.category || (original as Record<string, unknown>).subcategory !== r.subcategory)) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await updateCCTx({ id: r.id as any, category: r.category, subcategory: r.subcategory });
+          changed++;
+        }
+        setAiProgress({ done: i + 1, total: unmatched.length });
+      }
+
+      setAiSummary({ changed, errors: data.errors || [] });
+    } catch (err) {
+      setAiSummary({ changed: 0, errors: [err instanceof Error ? err.message : "Unknown error"] });
+    } finally {
+      setAiCategorizing(false);
+    }
   }
 
   // ─── Render ───────────────────────────────────────────────────────────
@@ -726,6 +795,21 @@ export default function CreditCardsPage() {
               </Card>
             )}
 
+            {/* AI Categorize summary banner */}
+            {aiSummary && (
+              <div className="rounded-lg border border-accent/20 bg-accent/5 px-4 py-3 flex items-center justify-between animate-page-enter">
+                <p className="text-sm text-text-primary">
+                  AI Categorization complete: <strong>{aiSummary.changed}</strong> transactions updated.
+                  {aiSummary.errors.length > 0 && (
+                    <span className="text-rose ml-2">{aiSummary.errors.length} batch error(s).</span>
+                  )}
+                </p>
+                <button onClick={() => setAiSummary(null)} className="p-1 rounded hover:bg-gray-200">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            )}
+
             {/* ─── Transactions View ────────────────────────────────────── */}
             {viewCardId && (
               <Card>
@@ -735,13 +819,29 @@ export default function CreditCardsPage() {
                       <Hash className="h-5 w-5 text-accent-light" />
                       Transactions
                     </CardTitle>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setViewCardId(null)}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1"
+                        onClick={handleAiCategorizeCCTxns}
+                        disabled={aiCategorizing || !ccTransactions || ccTransactions.length === 0}
+                      >
+                        {aiCategorizing ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Wand2 className="h-3.5 w-3.5" />
+                        )}
+                        {aiCategorizing ? `${aiProgress.done}/${aiProgress.total}` : "AI Categorize"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setViewCardId(null)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent>

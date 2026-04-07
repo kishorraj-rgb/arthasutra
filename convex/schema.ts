@@ -317,6 +317,7 @@ export default defineSchema({
     description: v.string(),
     merchant_name: v.optional(v.string()),
     category: v.string(),
+    subcategory: v.optional(v.string()),
     matched_expense_id: v.optional(v.id("expense_entries")),
     match_status: v.union(
       v.literal("matched"),

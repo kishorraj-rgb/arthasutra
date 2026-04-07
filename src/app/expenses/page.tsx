@@ -44,6 +44,7 @@ import {
   Download,
   SlidersHorizontal,
   X,
+  Wand2,
 } from "lucide-react";
 import { exportExpensesToExcel } from "@/lib/export-excel";
 import { BankChip, BankLogo, resolveBankPresetId, BANK_PRESETS } from "@/components/bank-logo";
@@ -281,6 +282,72 @@ export default function ExpensesPage() {
       await deleteExpense({ id: id as any });
     }
     setSelectedIds(new Set());
+  };
+
+  // AI Categorize state
+  const [aiCategorizing, setAiCategorizing] = useState(false);
+  const [aiProgress, setAiProgress] = useState({ done: 0, total: 0 });
+  const [aiSummary, setAiSummary] = useState<{ changed: number; errors: string[] } | null>(null);
+
+  const handleAiCategorize = async () => {
+    const entriesToProcess =
+      selectedIds.size > 0
+        ? filtered.filter((e) => selectedIds.has(e._id))
+        : filtered;
+
+    if (entriesToProcess.length === 0) return;
+
+    if (selectedIds.size === 0) {
+      if (!confirm(`AI Categorize all ${entriesToProcess.length} entries in the current view? This uses API quota.`)) return;
+    }
+
+    setAiCategorizing(true);
+    setAiProgress({ done: 0, total: entriesToProcess.length });
+    setAiSummary(null);
+
+    const transactions = entriesToProcess.map((e) => ({
+      id: e._id,
+      description: e.description,
+      amount: e.amount,
+      currentCategory: e.category,
+    }));
+
+    try {
+      const resp = await fetch("/api/categorize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transactions, mode: "expense" }),
+      });
+
+      const data = await resp.json();
+
+      if (!resp.ok) {
+        setAiSummary({ changed: 0, errors: [data.error || "API call failed"] });
+        setAiCategorizing(false);
+        return;
+      }
+
+      const results: Array<{ id: string; category: string; subcategory: string }> = data.results || [];
+      let changed = 0;
+
+      for (let i = 0; i < results.length; i++) {
+        const r = results[i];
+        const original = entriesToProcess.find((e) => e._id === r.id);
+        if (original && (original.category !== r.category || (original as Record<string, unknown>).subcategory !== r.subcategory)) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await updateExpense({ id: r.id as any, category: r.category as any, subcategory: r.subcategory });
+          changed++;
+        }
+        setAiProgress({ done: i + 1, total: entriesToProcess.length });
+      }
+
+      setAiSummary({ changed, errors: data.errors || [] });
+    } catch (err) {
+      setAiSummary({ changed: 0, errors: [err instanceof Error ? err.message : "Unknown error"] });
+    } finally {
+      setAiCategorizing(false);
+      setSelectedIds(new Set());
+    }
   };
 
   // Sort state
@@ -756,6 +823,25 @@ export default function ExpensesPage() {
               )}
             </Button>
             <Button
+              onClick={handleAiCategorize}
+              variant="outline"
+              className="gap-2"
+              disabled={aiCategorizing || filtered.length === 0}
+            >
+              {aiCategorizing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Wand2 className="h-4 w-4" />
+              )}
+              <span className="hidden sm:inline">
+                {aiCategorizing
+                  ? `${aiProgress.done}/${aiProgress.total}`
+                  : selectedIds.size > 0
+                    ? `AI Categorize (${selectedIds.size})`
+                    : "AI Categorize"}
+              </span>
+            </Button>
+            <Button
               onClick={() => exportExpensesToExcel(filtered, selectedFY || "2025-26")}
               variant="outline"
               className="gap-2"
@@ -773,6 +859,21 @@ export default function ExpensesPage() {
             </Button>
           </div>
         </div>
+
+        {/* AI Categorize summary banner */}
+        {aiSummary && (
+          <div className="rounded-lg border border-accent/20 bg-accent/5 px-4 py-3 flex items-center justify-between animate-page-enter">
+            <p className="text-sm text-text-primary">
+              AI Categorization complete: <strong>{aiSummary.changed}</strong> entries updated.
+              {aiSummary.errors.length > 0 && (
+                <span className="text-rose ml-2">{aiSummary.errors.length} batch error(s).</span>
+              )}
+            </p>
+            <button onClick={() => setAiSummary(null)} className="p-1 rounded hover:bg-gray-200">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
 
         {/* ---- Main Layout: Sidebar + Content ---- */}
         <div className="flex gap-6">
