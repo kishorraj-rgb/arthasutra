@@ -143,9 +143,10 @@ export function parseDescription(raw: string): ParsedDescription {
 
   // Auto Debit: ATD/Auto Debit CCxxxxxx
   if (desc.startsWith("ATD/")) {
-    const cardMatch = desc.match(/CC\w+/);
-    const card = cardMatch ? `Card ***${cardMatch[0].slice(-4)}` : "Credit Card";
-    return { payee: `Auto Debit - ${card}`, method: "Auto Debit", rawDescription: desc };
+    const cardMatch = desc.match(/CC(\w+)/);
+    const lastFour = cardMatch ? cardMatch[1].replace(/x/g, "").slice(-4) : "";
+    const card = lastFour ? `Credit Card ***${lastFour}` : "Credit Card";
+    return { payee: `CC Bill Payment - ${card}`, method: "Auto Debit", rawDescription: desc };
   }
 
   // ACH: ACH/BranchName/AccountRef/Reference
@@ -185,9 +186,10 @@ export function parseDescription(raw: string): ParsedDescription {
     return { payee, method: "Bill Pay", rawDescription: desc };
   }
 
-  // GST Payment: GIB/Ref/GST/GSTIN
-  if (desc.startsWith("GIB/")) {
-    return { payee: "GST Payment", method: "GST", rawDescription: desc };
+  // GST Payment: GIB/Ref/GST/GSTIN or DCardfee...+GST
+  if (desc.startsWith("GIB/") || desc.includes("+GST") || /GST\s*$/.test(desc)) {
+    const gstRef = desc.match(/\d{15}/)?.[0]; // GSTIN is 15 chars
+    return { payee: gstRef ? `GST Payment (${gstRef.slice(-4)})` : "GST Payment", method: "GST", rawDescription: desc };
   }
 
   // Fallback: try to extract something meaningful

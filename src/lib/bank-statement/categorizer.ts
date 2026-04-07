@@ -122,12 +122,28 @@ const EXPENSE_RULES: { category: ExpenseCategory; keywords: RegExp[] }[] = [
     keywords: [/TRAVEL/i, /HOTEL/i, /OYO/i, /TREEBO/i, /GOIBIBO/i, /BOOKING\.COM/i, /AIRBNB/i, /MAKE\s*MY\s*TRIP/i, /YATRA/i, /IXIGO/i, /CLEARTRIP/i, /FLIGHT/i, /AIRLINE/i],
   },
   {
+    category: "tax_payment",
+    keywords: [/GST\s*PAY/i, /GIB\//i, /GST\s*$/i, /INCOME\s*TAX/i, /ADVANCE\s*TAX/i, /TDS\s*PAY/i, /CHALLAN/i, /OLTAS/i, /\+GST$/i, /GST\s*PAYMENT/i],
+  },
+  {
+    category: "credit_card_bill",
+    keywords: [/ATD\/Auto\s*Debit\s*CC/i, /AUTO\s*DEBIT.*CC/i, /CREDIT\s*CARD\s*BILL/i, /CC\s*PAYMENT/i, /CARD\s*PAYMENT/i, /CREDIT\s*CARD.*PAY/i],
+  },
+  {
+    category: "recharge",
+    keywords: [/PREPAID/i, /RECHARGE/i, /JIO.*PREPAID/i, /AIRTEL.*PREPAID/i, /VI\s*PREPAID/i, /BSNL.*RECHARGE/i, /MOBILE\s*RECHARGE/i, /DTH\s*RECHARGE/i],
+  },
+  {
+    category: "household",
+    keywords: [/MAID/i, /COOK/i, /DOMESTIC\s*HELP/i, /SERVANT/i, /GARDENER/i, /WATCHMAN/i, /SWEEPER/i, /HOUSEKEEP/i],
+  },
+  {
     category: "cash_withdrawal",
     keywords: [/CASH\s*WDL/i, /ATM\s*WDL/i, /NFS.*CASH/i, /CASH\s*WITHDRAWAL/i],
   },
   {
     category: "driver_salary",
-    keywords: [/DRIVER/i, /CHAUFFEUR/i, /MAID/i, /COOK/i, /DOMESTIC\s*HELP/i, /SERVANT/i, /GARDENER/i],
+    keywords: [/DRIVER/i, /CHAUFFEUR/i],
   },
 ];
 

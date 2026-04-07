@@ -7,7 +7,7 @@ export interface ParsedTransaction {
   balance?: number;
   reference?: string;
   incomeType: "salary" | "freelance" | "rental" | "interest" | "dividend" | "refund" | "reimbursement" | "transfer" | "other";
-  expenseCategory: "housing" | "food" | "transport" | "medical" | "education" | "insurance" | "investment" | "driver_salary" | "school_fees" | "utilities" | "entertainment" | "clothing" | "grocery" | "shopping" | "personal_care" | "subscription" | "donation" | "emi" | "rent" | "travel" | "cash_withdrawal" | "transfer" | "other";
+  expenseCategory: "housing" | "food" | "transport" | "medical" | "education" | "insurance" | "investment" | "driver_salary" | "school_fees" | "utilities" | "entertainment" | "clothing" | "grocery" | "shopping" | "personal_care" | "subscription" | "donation" | "emi" | "rent" | "travel" | "tax_payment" | "credit_card_bill" | "recharge" | "household" | "cash_withdrawal" | "transfer" | "other";
   isDuplicate: boolean;
   selected: boolean;
 }

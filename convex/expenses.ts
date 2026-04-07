@@ -27,6 +27,10 @@ export const addExpenseEntry = mutation({
       v.literal("emi"),
       v.literal("rent"),
       v.literal("travel"),
+      v.literal("tax_payment"),
+      v.literal("credit_card_bill"),
+      v.literal("recharge"),
+      v.literal("household"),
       v.literal("cash_withdrawal"),
       v.literal("transfer"),
       v.literal("other")
