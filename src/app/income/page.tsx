@@ -102,7 +102,7 @@ export default function IncomePage() {
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
-  const PAGE_SIZE = 50;
+  const PAGE_SIZE = 25;
 
   // Bulk selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -116,8 +116,10 @@ export default function IncomePage() {
     });
   };
   const toggleSelectAll = () => {
-    if (selectedIds.size === filtered.length) setSelectedIds(new Set());
-    else setSelectedIds(new Set(filtered.map((e) => e._id)));
+    const pageIds = paginated.map((e) => e._id);
+    const allPageSelected = pageIds.every((id) => selectedIds.has(id));
+    if (allPageSelected) setSelectedIds(new Set());
+    else setSelectedIds(new Set(pageIds));
   };
   const handleBulkTypeChange = async (type: string) => {
     for (const id of Array.from(selectedIds)) {
@@ -584,7 +586,7 @@ export default function IncomePage() {
                       <th className="pb-3 pr-2 font-medium w-10">
                         <input
                           type="checkbox"
-                          checked={selectedIds.size === filtered.length && filtered.length > 0}
+                          checked={paginated.length > 0 && paginated.every((e) => selectedIds.has(e._id))}
                           onChange={toggleSelectAll}
                           className="rounded border-gray-300 text-accent focus:ring-accent/20"
                         />
