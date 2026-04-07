@@ -1,10 +1,18 @@
+"use client";
+
 import * as React from "react";
+import { motion, type HTMLMotionProps } from "framer-motion";
 import { cn } from "@/lib/utils";
 
-const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
+const Card = React.forwardRef<HTMLDivElement, HTMLMotionProps<"div"> & { className?: string }>(
   ({ className, ...props }, ref) => (
-    <div
+    <motion.div
       ref={ref}
+      initial={{ opacity: 0, y: 12 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true }}
+      transition={{ duration: 0.3 }}
+      whileHover={{ y: -2, transition: { type: "spring", stiffness: 300, damping: 20 } }}
       className={cn(
         "rounded-xl border border-gray-200 bg-white shadow-sm transition-colors hover:border-gray-300",
         className

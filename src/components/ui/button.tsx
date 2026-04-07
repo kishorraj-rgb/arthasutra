@@ -1,10 +1,13 @@
+"use client";
+
 import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
+import { playClick } from "@/lib/sounds";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 disabled:pointer-events-none disabled:opacity-50",
+  "relative overflow-hidden inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 disabled:pointer-events-none disabled:opacity-50",
   {
     variants: {
       variant: {
@@ -36,10 +39,48 @@ export interface ButtonProps
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, asChild = false, ...props }, ref) => {
-    const Comp = asChild ? Slot : "button";
+  ({ className, variant, size, asChild = false, onMouseDown, ...props }, ref) => {
+    const handleMouseDown = (e: React.MouseEvent<HTMLButtonElement>) => {
+      // Play click sound
+      playClick();
+
+      // Create ripple effect
+      const button = e.currentTarget;
+      const rect = button.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const dim = Math.max(rect.width, rect.height);
+
+      const ripple = document.createElement("span");
+      ripple.className = "ripple-effect";
+      ripple.style.width = `${dim}px`;
+      ripple.style.height = `${dim}px`;
+      ripple.style.left = `${x - dim / 2}px`;
+      ripple.style.top = `${y - dim / 2}px`;
+      button.appendChild(ripple);
+
+      setTimeout(() => ripple.remove(), 600);
+
+      onMouseDown?.(e);
+    };
+
+    if (asChild) {
+      return (
+        <Slot
+          className={cn(buttonVariants({ variant, size, className }))}
+          ref={ref as React.Ref<HTMLElement>}
+          {...props}
+        />
+      );
+    }
+
     return (
-      <Comp className={cn(buttonVariants({ variant, size, className }))} ref={ref} {...props} />
+      <button
+        className={cn(buttonVariants({ variant, size, className }))}
+        ref={ref}
+        onMouseDown={handleMouseDown}
+        {...props}
+      />
     );
   }
 );

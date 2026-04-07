@@ -12,6 +12,7 @@ import type * as auth from "../auth.js";
 import type * as bankAccounts from "../bankAccounts.js";
 import type * as categories from "../categories.js";
 import type * as constants from "../constants.js";
+import type * as creditCards from "../creditCards.js";
 import type * as dashboard from "../dashboard.js";
 import type * as expenses from "../expenses.js";
 import type * as importData from "../importData.js";
@@ -37,6 +38,7 @@ declare const fullApi: ApiFromModules<{
   bankAccounts: typeof bankAccounts;
   categories: typeof categories;
   constants: typeof constants;
+  creditCards: typeof creditCards;
   dashboard: typeof dashboard;
   expenses: typeof expenses;
   importData: typeof importData;

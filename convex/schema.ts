@@ -293,4 +293,57 @@ export default defineSchema({
   })
     .index("by_user", ["userId"])
     .index("by_user_type", ["userId", "account_type"]),
+
+  credit_cards: defineTable({
+    userId: v.id("users"),
+    card_name: v.string(),
+    card_last4: v.string(),
+    card_network: v.union(v.literal("visa"), v.literal("mastercard"), v.literal("rupay"), v.literal("amex")),
+    issuer: v.string(),
+    credit_limit: v.optional(v.number()),
+    billing_cycle_date: v.optional(v.number()),
+    payment_due_date: v.optional(v.number()),
+    status: v.union(v.literal("active"), v.literal("closed")),
+    color: v.optional(v.string()),
+    logo_id: v.optional(v.string()),
+  }).index("by_user", ["userId"]),
+
+  cc_transactions: defineTable({
+    userId: v.id("users"),
+    credit_card_id: v.id("credit_cards"),
+    date: v.string(),
+    amount: v.number(),
+    type: v.union(v.literal("debit"), v.literal("credit")),
+    description: v.string(),
+    merchant_name: v.optional(v.string()),
+    category: v.string(),
+    matched_expense_id: v.optional(v.id("expense_entries")),
+    match_status: v.union(
+      v.literal("matched"),
+      v.literal("unmatched"),
+      v.literal("manual_match"),
+      v.literal("ignored")
+    ),
+    match_confidence: v.optional(v.union(v.literal("high"), v.literal("medium"), v.literal("low"))),
+    statement_month: v.string(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_card", ["credit_card_id"])
+    .index("by_card_month", ["credit_card_id", "statement_month"]),
+
+  cc_statements: defineTable({
+    userId: v.id("users"),
+    credit_card_id: v.id("credit_cards"),
+    statement_month: v.string(),
+    statement_date: v.optional(v.string()),
+    opening_balance: v.optional(v.number()),
+    closing_balance: v.optional(v.number()),
+    minimum_due: v.optional(v.number()),
+    total_due: v.optional(v.number()),
+    payment_due_date: v.optional(v.string()),
+    payment_status: v.union(v.literal("paid"), v.literal("partial"), v.literal("unpaid")),
+    transaction_count: v.optional(v.number()),
+  })
+    .index("by_user", ["userId"])
+    .index("by_card_month", ["credit_card_id", "statement_month"]),
 });

@@ -2,6 +2,7 @@
 
 import { useAuth } from "@/lib/auth-context";
 import { Sidebar } from "./sidebar";
+import { PageTransition } from "@/components/ui/page-transition";
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
@@ -23,7 +24,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-screen bg-[#F5F6FA]">
       <Sidebar />
       <main className="flex-1 ml-64 p-6 overflow-auto">
-        <div className="max-w-7xl mx-auto">{children}</div>
+        <div className="max-w-7xl mx-auto">
+          <PageTransition>{children}</PageTransition>
+        </div>
       </main>
     </div>
   );

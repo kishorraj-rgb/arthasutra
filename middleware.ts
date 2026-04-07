@@ -13,6 +13,7 @@ export const config = {
     "/reminders/:path*",
     "/reports/:path*",
     "/subscriptions/:path*",
+    "/credit-cards/:path*",
     "/vault/:path*",
     "/settings/:path*",
   ],

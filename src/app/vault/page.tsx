@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { useAuth } from "@/lib/auth-context";
@@ -591,12 +592,15 @@ export default function VaultPage() {
                 </CardContent>
               </Card>
             ) : viewMode === "grid" ? (
-              <div
+              <motion.div
                 className={`grid gap-4 ${
                   previewDoc
                     ? "grid-cols-1 md:grid-cols-2"
                     : "grid-cols-1 md:grid-cols-2 xl:grid-cols-3"
                 }`}
+                initial="hidden"
+                animate="show"
+                variants={{ hidden: {}, show: { transition: { staggerChildren: 0.05 } } }}
               >
                 {filteredDocs.map((doc) => {
                   const FileIcon = getFileIcon(doc.file_type);
@@ -727,7 +731,7 @@ export default function VaultPage() {
                     </Card>
                   );
                 })}
-              </div>
+              </motion.div>
             ) : (
               /* List View */
               <div className="space-y-2">
