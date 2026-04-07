@@ -85,6 +85,16 @@ export default function SettingsPage() {
   const addBankAccount = useMutation(api.bankAccounts.addBankAccount);
   const updateBankAccount = useMutation(api.bankAccounts.updateBankAccount);
   const deleteBankAccount = useMutation(api.bankAccounts.deleteBankAccount);
+  const seedDefaultBanks = useMutation(api.bankAccounts.seedDefaultBanks);
+
+  // Auto-seed default banks (ICICI, HDFC, Axis, SBI) on first visit
+  const [bankSeeded, setBankSeeded] = useState(false);
+  useEffect(() => {
+    if (user && bankAccounts !== undefined && bankAccounts.length === 0 && !bankSeeded) {
+      setBankSeeded(true);
+      seedDefaultBanks({ userId: user.userId });
+    }
+  }, [user, bankAccounts, bankSeeded, seedDefaultBanks]);
 
   type BankItem = {
     _id?: Id<"bank_accounts">;
