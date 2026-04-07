@@ -101,6 +101,99 @@ const CC_FORMATS: CCFormat[] = [
   },
 ];
 
+// ICICI CC special format: merged cells with 4 empty cols between fields
+// Pattern: Date,,,,Details,,,,Amount (INR),,,,Reference Number
+function isICICIMergedFormat(allRows: string[][]): boolean {
+  for (let i = 0; i < Math.min(allRows.length, 20); i++) {
+    const row = allRows[i];
+    if (!row) continue;
+    const joined = row.join(",").toLowerCase();
+    if (joined.includes("transaction date") && joined.includes("details") && joined.includes("amount")) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function parseICICIMergedCC(allRows: string[][]): CCTransaction[] {
+  // Find the header row containing "Transaction Date"
+  let dataStartIdx = -1;
+  for (let i = 0; i < Math.min(allRows.length, 25); i++) {
+    const joined = allRows[i]?.join(",").toLowerCase() || "";
+    if (joined.includes("transaction date") && joined.includes("details")) {
+      dataStartIdx = i + 1; // Skip header, next row may be empty
+      break;
+    }
+  }
+  if (dataStartIdx === -1) return [];
+
+  const transactions: CCTransaction[] = [];
+
+  for (let i = dataStartIdx; i < allRows.length; i++) {
+    const row = allRows[i];
+    if (!row || row.length < 5) continue;
+
+    // Fields are at positions 0, 4, 8, 12 (every 4th column)
+    const nonEmpty = row.map((c) => c?.trim()).filter(Boolean);
+    if (nonEmpty.length < 3) continue;
+
+    // Find date in first non-empty column
+    const rawDate = row[0]?.trim();
+    if (!rawDate || !/^\d{2}-\d{2}-\d{4}$/.test(rawDate)) continue;
+
+    const date = parseDate(rawDate);
+    if (!date) continue;
+
+    // Details: find the next significant non-empty field after date
+    let details = "";
+    for (let j = 1; j < Math.min(row.length, 8); j++) {
+      if (row[j]?.trim()) { details = row[j].trim(); break; }
+    }
+    if (!details) continue;
+
+    // Amount: find field containing "Dr." or "Cr."
+    let rawAmount = "";
+    for (let j = 5; j < Math.min(row.length, 12); j++) {
+      const val = row[j]?.trim();
+      if (val && (val.includes("Dr.") || val.includes("Cr.") || /[\d,]+\.\d+/.test(val))) {
+        rawAmount = val;
+        break;
+      }
+    }
+    if (!rawAmount) continue;
+
+    const isDr = rawAmount.includes("Dr.");
+    const isCr = rawAmount.includes("Cr.");
+    const cleanedAmt = rawAmount.replace(/[Dr.Cr.\s]/g, "").replace(/,/g, "").trim();
+    const amount = parseFloat(cleanedAmt);
+    if (isNaN(amount) || amount === 0) continue;
+
+    const type: "debit" | "credit" = isCr ? "credit" : "debit";
+
+    // Reference number
+    let reference = "";
+    for (let j = 9; j < row.length; j++) {
+      if (row[j]?.trim() && /^\d{5,}$/.test(row[j].trim())) { reference = row[j].trim(); break; }
+    }
+
+    const merchant_name = cleanMerchantName(details);
+    const fakeParsedTx: ParsedTransaction = {
+      id: generateId(), date, description: details, amount, type,
+      incomeType: "other", expenseCategory: "other", isDuplicate: false, selected: true,
+    };
+    const categorized = categorizeTransaction(fakeParsedTx);
+
+    transactions.push({
+      id: generateId(), date, amount, type, description: details,
+      merchant_name,
+      category: type === "debit" ? categorized.expenseCategory : "credit_card_bill",
+      selected: true,
+    });
+  }
+
+  return transactions;
+}
+
 function detectCCFormat(headers: string[]): CCFormat | null {
   for (const format of CC_FORMATS) {
     if (format.detect(headers)) return format;
@@ -128,7 +221,16 @@ export function parseCCStatement(
 
         const allRows = results.data as string[][];
 
-        // Find header row
+        // Check for ICICI merged format first (special case with 4 empty cols between fields)
+        if (isICICIMergedFormat(allRows)) {
+          const transactions = parseICICIMergedCC(allRows);
+          if (transactions.length > 0) {
+            resolve({ transactions });
+            return;
+          }
+        }
+
+        // Standard format detection
         let headerRowIdx = -1;
         let detectedFormat: CCFormat | null = null;
 
