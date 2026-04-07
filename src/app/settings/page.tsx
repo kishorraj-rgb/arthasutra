@@ -15,6 +15,8 @@ import { useAuth } from "@/lib/auth-context";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { User, Calculator, Receipt, Bell, Download, Loader2, Lightbulb, Calendar, CheckCircle2, Tags, ChevronUp, ChevronDown, Eye, EyeOff, RotateCcw, Plus, X, Save, Trash2, Home, UtensilsCrossed, Car, Heart, GraduationCap, Shield as ShieldIcon, TrendingUp, Zap, Film, ShoppingCart, ShoppingBag, Shirt, Sparkles, CreditCard, Landmark, Plane, Smartphone, Users as UsersIcon, Banknote, ArrowLeftRight, MoreHorizontal, Wallet, DollarSign, Building, Coins, ReceiptText } from "lucide-react";
 import { EXPENSE_CATEGORIES, INCOME_TYPES, CATEGORY_COLORS, getMergedCategories } from "@/lib/utils";
+import { BankLogo, BANK_PRESETS, BANK_PRESET_IDS } from "@/components/bank-logo";
+import type { Id } from "../../../convex/_generated/dataModel";
 
 // Icon mapping for categories
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -77,6 +79,68 @@ export default function SettingsPage() {
   const [catSaving, setCatSaving] = useState(false);
   const [catSaved, setCatSaved] = useState(false);
   const [newSubcategory, setNewSubcategory] = useState<Record<string, string>>({});
+
+  // Bank Accounts Manager state
+  const bankAccounts = useQuery(api.bankAccounts.getBankAccounts, user ? { userId: user.userId } : "skip");
+  const addBankAccount = useMutation(api.bankAccounts.addBankAccount);
+  const updateBankAccount = useMutation(api.bankAccounts.updateBankAccount);
+  const deleteBankAccount = useMutation(api.bankAccounts.deleteBankAccount);
+
+  type BankItem = {
+    _id?: Id<"bank_accounts">;
+    bank_name: string;
+    display_name: string;
+    account_last4: string;
+    ifsc_code: string;
+    logo_id: string;
+    logo_color: string;
+    account_type: "internal" | "external";
+    sort_order: number;
+    is_active: boolean;
+  };
+
+  const [showAddBank, setShowAddBank] = useState(false);
+  const [bankSaving, setBankSaving] = useState(false);
+  const [newBank, setNewBank] = useState<Omit<BankItem, "_id" | "sort_order" | "is_active">>({
+    bank_name: "",
+    display_name: "",
+    account_last4: "",
+    ifsc_code: "",
+    logo_id: "",
+    logo_color: "",
+    account_type: "internal",
+  });
+
+  const handleAddBank = async () => {
+    if (!user || !newBank.bank_name || !newBank.display_name || !newBank.logo_id) return;
+    setBankSaving(true);
+    try {
+      await addBankAccount({
+        userId: user.userId,
+        bank_name: newBank.bank_name,
+        display_name: newBank.display_name,
+        account_last4: newBank.account_last4 || undefined,
+        ifsc_code: newBank.ifsc_code || undefined,
+        logo_id: newBank.logo_id,
+        logo_color: newBank.logo_color || undefined,
+        account_type: newBank.account_type,
+        sort_order: (bankAccounts?.length ?? 0),
+      });
+      setNewBank({ bank_name: "", display_name: "", account_last4: "", ifsc_code: "", logo_id: "", logo_color: "", account_type: "internal" });
+      setShowAddBank(false);
+    } finally {
+      setBankSaving(false);
+    }
+  };
+
+  const handleDeleteBank = async (id: Id<"bank_accounts">) => {
+    if (!confirm("Remove this bank account?")) return;
+    await deleteBankAccount({ id });
+  };
+
+  const handleToggleBankActive = async (id: Id<"bank_accounts">, isActive: boolean) => {
+    await updateBankAccount({ id, is_active: isActive });
+  };
 
   // Initialize category state from defaults + prefs
   useEffect(() => {
@@ -526,6 +590,190 @@ export default function SettingsPage() {
                   </Button>
                 </div>
               </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
+
+        {/* Bank Accounts Manager */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Landmark className="h-5 w-5 text-accent-light" />
+                <CardTitle>Bank Accounts</CardTitle>
+              </div>
+              <Badge variant="secondary">Master Data</Badge>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <Tabs defaultValue="internal">
+              <TabsList className="mb-4">
+                <TabsTrigger value="internal">My Accounts ({bankAccounts?.filter(b => b.account_type === "internal").length ?? 0})</TabsTrigger>
+                <TabsTrigger value="external">Beneficiaries ({bankAccounts?.filter(b => b.account_type === "external").length ?? 0})</TabsTrigger>
+              </TabsList>
+
+              {["internal", "external"].map((accType) => (
+                <TabsContent key={accType} value={accType}>
+                  <div className="space-y-2">
+                    {(bankAccounts ?? [])
+                      .filter((b) => b.account_type === accType)
+                      .sort((a, b) => a.sort_order - b.sort_order)
+                      .map((bank) => (
+                        <div
+                          key={bank._id}
+                          className={`rounded-xl border p-4 transition-all ${
+                            bank.is_active ? "border-gray-200 bg-white" : "border-gray-100 bg-gray-50/50 opacity-50"
+                          }`}
+                        >
+                          <div className="flex items-center gap-4">
+                            <BankLogo bankId={bank.logo_id} size="lg" customColor={bank.logo_color || undefined} />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="font-semibold text-sm text-text-primary">{bank.bank_name}</span>
+                                <Badge variant="secondary" className="text-[10px]">{bank.display_name}</Badge>
+                              </div>
+                              <div className="flex items-center gap-3 mt-1">
+                                {bank.account_last4 && (
+                                  <span className="text-xs text-text-tertiary">**** {bank.account_last4}</span>
+                                )}
+                                {bank.ifsc_code && (
+                                  <span className="text-xs text-text-tertiary">{bank.ifsc_code}</span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Switch
+                                checked={bank.is_active}
+                                onCheckedChange={(v) => handleToggleBankActive(bank._id, v)}
+                              />
+                              <button
+                                onClick={() => handleDeleteBank(bank._id)}
+                                className="p-1.5 rounded-md hover:bg-rose-50 text-gray-400 hover:text-rose transition-colors"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+
+                    {(bankAccounts ?? []).filter((b) => b.account_type === accType).length === 0 && (
+                      <div className="text-center py-8 text-sm text-text-tertiary">
+                        No {accType === "internal" ? "bank accounts" : "beneficiaries"} added yet
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Add Bank Form */}
+                  {showAddBank ? (
+                    <div className="mt-4 rounded-xl border border-accent/20 bg-accent/[0.03] p-4 space-y-4 animate-page-enter">
+                      <h4 className="text-sm font-semibold text-text-primary">
+                        Add {accType === "internal" ? "Bank Account" : "Beneficiary"}
+                      </h4>
+
+                      {/* Logo Picker */}
+                      <div className="space-y-2">
+                        <Label className="text-xs">Select Bank</Label>
+                        <div className="flex flex-wrap gap-2">
+                          {BANK_PRESET_IDS.map((id) => (
+                            <button
+                              key={id}
+                              onClick={() => {
+                                setNewBank({ ...newBank, logo_id: id, bank_name: BANK_PRESETS[id].name });
+                              }}
+                              className={`flex items-center gap-2 rounded-xl px-3 py-2 border text-xs transition-all ${
+                                newBank.logo_id === id
+                                  ? "border-accent bg-accent/5 text-accent shadow-sm"
+                                  : "border-gray-200 bg-white text-text-secondary hover:border-gray-300"
+                              }`}
+                            >
+                              <BankLogo bankId={id} size="xs" />
+                              <span>{BANK_PRESETS[id].name}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">Bank Name</Label>
+                          <Input
+                            value={newBank.bank_name}
+                            onChange={(e) => setNewBank({ ...newBank, bank_name: e.target.value })}
+                            placeholder="e.g. ICICI Bank"
+                            className="h-9 text-sm"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">Display Name</Label>
+                          <Input
+                            value={newBank.display_name}
+                            onChange={(e) => setNewBank({ ...newBank, display_name: e.target.value })}
+                            placeholder="e.g. Primary Savings"
+                            className="h-9 text-sm"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">Account No (last 4)</Label>
+                          <Input
+                            value={newBank.account_last4}
+                            onChange={(e) => setNewBank({ ...newBank, account_last4: e.target.value })}
+                            placeholder="1234"
+                            maxLength={4}
+                            className="h-9 text-sm"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">IFSC Code</Label>
+                          <Input
+                            value={newBank.ifsc_code}
+                            onChange={(e) => setNewBank({ ...newBank, ifsc_code: e.target.value.toUpperCase() })}
+                            placeholder="ICIC0001234"
+                            className="h-9 text-sm"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Account Type</Label>
+                        <Select
+                          value={newBank.account_type}
+                          onChange={(e) => setNewBank({ ...newBank, account_type: e.target.value as "internal" | "external" })}
+                          options={[
+                            { value: "internal", label: "My Account (Internal)" },
+                            { value: "external", label: "Beneficiary (External)" },
+                          ]}
+                          className="h-9"
+                        />
+                      </div>
+
+                      <div className="flex items-center gap-2 pt-1">
+                        <Button
+                          size="sm"
+                          onClick={handleAddBank}
+                          disabled={bankSaving || !newBank.bank_name || !newBank.display_name || !newBank.logo_id}
+                        >
+                          {bankSaving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
+                          Save
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => setShowAddBank(false)}>
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-4 pt-4 border-t border-gray-100">
+                      <Button size="sm" variant="outline" onClick={() => {
+                        setNewBank({ ...newBank, account_type: accType as "internal" | "external" });
+                        setShowAddBank(true);
+                      }}>
+                        <Plus className="h-4 w-4 mr-1" />
+                        Add {accType === "internal" ? "Bank Account" : "Beneficiary"}
+                      </Button>
+                    </div>
+                  )}
+                </TabsContent>
+              ))}
             </Tabs>
           </CardContent>
         </Card>

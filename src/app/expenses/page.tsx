@@ -21,7 +21,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { formatCurrency, amountInWords, EXPENSE_CATEGORIES, CATEGORY_COLORS, getCurrentFinancialYear, getFinancialYearDates } from "@/lib/utils";
-import { parseDescription, getMethodColor } from "@/lib/bank-statement/description-parser";
+import { parseDescription, getMethodColor, type PaymentMethod } from "@/lib/bank-statement/description-parser";
 import {
   Plus,
   Home,
@@ -46,6 +46,7 @@ import {
   X,
 } from "lucide-react";
 import { exportExpensesToExcel } from "@/lib/export-excel";
+import { BankChip, BankLogo, resolveBankPresetId, BANK_PRESETS } from "@/components/bank-logo";
 import {
   PieChart,
   Pie,
@@ -186,6 +187,7 @@ export default function ExpensesPage() {
   const [selectedFY, setSelectedFY] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("");
   const [bankFilter, setBankFilter] = useState("");
+  const [methodFilter, setMethodFilter] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
 
   // Mobile filter panel toggle
@@ -198,6 +200,7 @@ export default function ExpensesPage() {
   // Bulk selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkCategory, setBulkCategory] = useState("");
+  const [bulkSubcategory, setBulkSubcategory] = useState("");
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
@@ -214,13 +217,22 @@ export default function ExpensesPage() {
       setSelectedIds(new Set(filtered.map((e) => e._id)));
     }
   };
-  const handleBulkCategoryChange = async (cat: string) => {
+  const handleBulkCategoryChange = async (cat: string, sub?: string) => {
     for (const id of Array.from(selectedIds)) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await updateExpense({ id: id as any, category: cat as any });
+      await updateExpense({ id: id as any, category: cat as any, subcategory: sub || "" });
     }
     setSelectedIds(new Set());
     setBulkCategory("");
+    setBulkSubcategory("");
+  };
+  const handleBulkSubcategoryChange = async (sub: string) => {
+    for (const id of Array.from(selectedIds)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await updateExpense({ id: id as any, subcategory: sub });
+    }
+    setSelectedIds(new Set());
+    setBulkSubcategory("");
   };
   const handleBulkToggleBusiness = async (isBusiness: boolean) => {
     for (const id of Array.from(selectedIds)) {
@@ -282,14 +294,37 @@ export default function ExpensesPage() {
     }
   }, [availableFYs, selectedFY]);
 
-  // Available banks from data
+  // Available banks from data with counts and preset IDs
   const availableBanks = useMemo(() => {
-    const bankSet = new Set<string>();
+    const bankMap = new Map<string, { name: string; presetId: string; count: number }>();
     for (const e of allExpenses) {
       const parsed = parseDescription(e.description);
-      if (parsed.bank) bankSet.add(parsed.bank);
+      if (parsed.bank) {
+        const existing = bankMap.get(parsed.bank);
+        if (existing) {
+          existing.count++;
+        } else {
+          bankMap.set(parsed.bank, {
+            name: parsed.bank,
+            presetId: resolveBankPresetId(parsed.bank),
+            count: 1,
+          });
+        }
+      }
     }
-    return Array.from(bankSet).sort();
+    return Array.from(bankMap.values()).sort((a, b) => b.count - a.count);
+  }, [allExpenses]);
+
+  // Available payment methods from data with counts
+  const availableMethods = useMemo(() => {
+    const methodMap = new Map<string, number>();
+    for (const e of allExpenses) {
+      const parsed = parseDescription(e.description);
+      methodMap.set(parsed.method, (methodMap.get(parsed.method) || 0) + 1);
+    }
+    return Array.from(methodMap.entries())
+      .map(([method, count]) => ({ method: method as PaymentMethod, count }))
+      .sort((a, b) => b.count - a.count);
   }, [allExpenses]);
 
   const filtered = useMemo(() => {
@@ -304,9 +339,10 @@ export default function ExpensesPage() {
       }
       if (showBusinessOnly && !e.is_business_expense) return false;
       if (categoryFilter && e.category !== categoryFilter) return false;
-      if (bankFilter) {
+      if (bankFilter || methodFilter) {
         const parsed = parseDescription(e.description);
-        if (parsed.bank !== bankFilter) return false;
+        if (bankFilter && parsed.bank !== bankFilter) return false;
+        if (methodFilter && parsed.method !== methodFilter) return false;
       }
       if (query) {
         const haystack = `${e.description} ${e.category} ${e.date}`.toLowerCase();
@@ -314,7 +350,7 @@ export default function ExpensesPage() {
       }
       return true;
     });
-  }, [allExpenses, showBusinessOnly, categoryFilter, selectedFY, selectedMonth, searchQuery, bankFilter]);
+  }, [allExpenses, showBusinessOnly, categoryFilter, selectedFY, selectedMonth, searchQuery, bankFilter, methodFilter]);
 
   // Sorted entries
   const sorted = useMemo(() => {
@@ -338,7 +374,7 @@ export default function ExpensesPage() {
   }, [sorted, currentPage]);
 
   // Reset page when filters change
-  useEffect(() => { setCurrentPage(1); }, [categoryFilter, searchQuery, selectedFY, selectedMonth, bankFilter, showBusinessOnly]);
+  useEffect(() => { setCurrentPage(1); }, [categoryFilter, searchQuery, selectedFY, selectedMonth, bankFilter, methodFilter, showBusinessOnly]);
 
   const totalExpenses = useMemo(
     () => allExpenses.reduce((s, e) => s + e.amount, 0),
@@ -414,13 +450,14 @@ export default function ExpensesPage() {
     label: c.label,
   }));
 
-  const hasActiveFilters = !!(categoryFilter || searchQuery || selectedMonth || bankFilter || showBusinessOnly);
+  const hasActiveFilters = !!(categoryFilter || searchQuery || selectedMonth || bankFilter || methodFilter || showBusinessOnly);
 
   function clearAllFilters() {
     setCategoryFilter("");
     setSearchQuery("");
     setSelectedMonth("");
     setBankFilter("");
+    setMethodFilter("");
     setShowBusinessOnly(false);
   }
 
@@ -523,16 +560,66 @@ export default function ExpensesPage() {
         />
       </div>
 
-      {/* Bank filter */}
+      {/* Bank filter chips */}
       {availableBanks.length > 0 && (
         <div className="space-y-1.5">
           <label className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">Bank</label>
-          <Select
-            options={[{ value: "", label: "All Banks" }, ...availableBanks.map((b) => ({ value: b, label: b }))]}
-            value={bankFilter}
-            onChange={(e) => setBankFilter(e.target.value)}
-            className="w-full"
-          />
+          <div className="flex flex-col gap-1.5">
+            <button
+              onClick={() => setBankFilter("")}
+              className={`flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium transition-all border ${
+                !bankFilter
+                  ? "bg-accent/10 border-accent/30 text-accent shadow-sm"
+                  : "border-gray-200 bg-white text-text-secondary hover:border-gray-300 hover:bg-gray-50"
+              }`}
+            >
+              All Banks
+            </button>
+            {availableBanks.map((bank) => (
+              <BankChip
+                key={bank.name}
+                bankId={bank.presetId}
+                active={bankFilter === bank.name}
+                count={bank.count}
+                onClick={() => setBankFilter(bankFilter === bank.name ? "" : bank.name)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Method filter chips */}
+      {availableMethods.length > 1 && (
+        <div className="space-y-1.5">
+          <label className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">Method</label>
+          <div className="flex flex-wrap gap-1.5">
+            <button
+              onClick={() => setMethodFilter("")}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all border ${
+                !methodFilter
+                  ? "bg-accent/10 border-accent/30 text-accent shadow-sm"
+                  : "border-gray-200 bg-white text-text-secondary hover:border-gray-300 hover:bg-gray-50"
+              }`}
+            >
+              All
+            </button>
+            {availableMethods.map(({ method, count }) => (
+              <button
+                key={method}
+                onClick={() => setMethodFilter(methodFilter === method ? "" : method)}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all border ${
+                  methodFilter === method
+                    ? getMethodColor(method) + " border-current/20 shadow-sm"
+                    : "border-gray-200 bg-white text-text-secondary hover:border-gray-300 hover:bg-gray-50"
+                }`}
+              >
+                <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${getMethodColor(method)}`}>
+                  {method}
+                </span>
+                <span className="tabular-nums text-[10px] opacity-60">{count}</span>
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
@@ -715,18 +802,73 @@ export default function ExpensesPage() {
                   Expense Entries
                 </CardTitle>
                 {selectedIds.size > 0 && (
-                  <div className="flex items-center gap-2 text-sm animate-page-enter">
+                  <div className="flex items-center gap-2 text-sm animate-page-enter flex-wrap">
                     <span className="text-text-secondary font-medium">{selectedIds.size} selected</span>
-                    <select
-                      value={bulkCategory}
-                      onChange={(e) => { if (e.target.value) handleBulkCategoryChange(e.target.value); }}
-                      className="text-xs rounded-lg border border-gray-200 px-2 py-1.5 bg-white focus:border-accent focus:outline-none cursor-pointer"
-                    >
-                      <option value="">Change Category...</option>
-                      {EXPENSE_CATEGORIES.map((c) => (
-                        <option key={c.value} value={c.value}>{c.label}</option>
-                      ))}
-                    </select>
+                    <div className="flex items-center gap-1">
+                      <select
+                        value={bulkCategory}
+                        onChange={(e) => {
+                          setBulkCategory(e.target.value);
+                          setBulkSubcategory("");
+                          // If no subcategories for this category, apply immediately
+                          if (e.target.value && (!subcategoryMap[e.target.value] || subcategoryMap[e.target.value].length === 0)) {
+                            handleBulkCategoryChange(e.target.value);
+                          }
+                        }}
+                        className="text-xs rounded-lg border border-gray-200 px-2 py-1.5 bg-white focus:border-accent focus:outline-none cursor-pointer"
+                      >
+                        <option value="">Category...</option>
+                        {EXPENSE_CATEGORIES.map((c) => (
+                          <option key={c.value} value={c.value}>{c.label}</option>
+                        ))}
+                      </select>
+                      {/* Dependent subcategory dropdown */}
+                      {bulkCategory && subcategoryMap[bulkCategory] && subcategoryMap[bulkCategory].length > 0 && (
+                        <>
+                          <select
+                            value={bulkSubcategory}
+                            onChange={(e) => setBulkSubcategory(e.target.value)}
+                            className="text-xs rounded-lg border border-dashed border-gray-200 px-2 py-1.5 bg-gray-50 focus:border-accent focus:outline-none cursor-pointer"
+                          >
+                            <option value="">Subcategory...</option>
+                            {subcategoryMap[bulkCategory].map((sub) => (
+                              <option key={sub} value={sub}>{sub}</option>
+                            ))}
+                          </select>
+                          <Button
+                            size="sm"
+                            className="text-xs h-7"
+                            onClick={() => handleBulkCategoryChange(bulkCategory, bulkSubcategory)}
+                          >
+                            Apply
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                    {/* Bulk subcategory-only change (when entries share same category) */}
+                    {!bulkCategory && (() => {
+                      const selectedEntries = filtered.filter((e) => selectedIds.has(e._id));
+                      const cats = new Set(selectedEntries.map((e) => e.category));
+                      if (cats.size === 1) {
+                        const sharedCat = Array.from(cats)[0];
+                        const subs = subcategoryMap[sharedCat];
+                        if (subs && subs.length > 0) {
+                          return (
+                            <select
+                              value={bulkSubcategory}
+                              onChange={(e) => { if (e.target.value) handleBulkSubcategoryChange(e.target.value); }}
+                              className="text-xs rounded-lg border border-dashed border-accent/30 px-2 py-1.5 bg-accent/5 focus:border-accent focus:outline-none cursor-pointer text-accent"
+                            >
+                              <option value="">Subcategory...</option>
+                              {subs.map((sub) => (
+                                <option key={sub} value={sub}>{sub}</option>
+                              ))}
+                            </select>
+                          );
+                        }
+                      }
+                      return null;
+                    })()}
                     <Button size="sm" variant="outline" onClick={() => handleBulkToggleBusiness(true)} className="text-xs h-7">
                       Mark Business
                     </Button>
@@ -821,10 +963,13 @@ export default function ExpensesPage() {
                               </div>
                             </td>
                             <td className="px-5 py-3.5" title={parsed.rawDescription}>
-                              <div className="flex flex-col">
+                              <div className="flex flex-col gap-0.5">
                                 <span className="text-text-primary font-medium">{parsed.payee}</span>
                                 {parsed.bank && (
-                                  <span className="text-xs text-text-tertiary">{parsed.bank}</span>
+                                  <div className="flex items-center gap-1.5">
+                                    <BankLogo bankId={resolveBankPresetId(parsed.bank)} size="xs" />
+                                    <span className="text-[11px] text-text-tertiary">{parsed.bank}</span>
+                                  </div>
                                 )}
                               </div>
                             </td>

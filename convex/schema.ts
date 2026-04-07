@@ -304,4 +304,19 @@ export default defineSchema({
     hidden: v.boolean(),
     subcategories: v.optional(v.array(v.string())),
   }).index("by_user_scope", ["userId", "scope"]),
+
+  bank_accounts: defineTable({
+    userId: v.id("users"),
+    bank_name: v.string(), // e.g. "ICICI", "HDFC", "Axis", "SBI"
+    display_name: v.string(), // e.g. "Primary Savings"
+    account_last4: v.optional(v.string()), // Last 4 digits
+    ifsc_code: v.optional(v.string()),
+    logo_id: v.string(), // Identifier for bank logo (e.g. "icici", "hdfc", "axis", "sbi", "custom")
+    logo_color: v.optional(v.string()), // Custom color for logo
+    account_type: v.union(v.literal("internal"), v.literal("external")), // internal = user's own, external = beneficiary
+    sort_order: v.number(),
+    is_active: v.boolean(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_type", ["userId", "account_type"]),
 });

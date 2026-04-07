@@ -12,8 +12,17 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import {
   Upload, FileSpreadsheet, AlertCircle, CheckCircle2, ArrowLeft,
-  ArrowRight, RotateCcw, FileText, X,
+  ArrowRight, RotateCcw, FileText, X, Landmark,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { cn, formatCurrency, EXPENSE_CATEGORIES, INCOME_TYPES } from "@/lib/utils";
 import { parseDescription, getMethodColor } from "@/lib/bank-statement/description-parser";
 import {
@@ -21,6 +30,7 @@ import {
   ALL_BANK_FORMATS,
 } from "@/lib/bank-statement";
 import type { ParsedTransaction } from "@/lib/bank-statement";
+import { BankLogo, BankChip, resolveBankPresetId, BANK_PRESETS, BANK_PRESET_IDS } from "@/components/bank-logo";
 
 type Step = "upload" | "review" | "importing" | "done";
 
@@ -39,6 +49,23 @@ export default function ImportPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const batchImport = useMutation(api.importData.batchImportTransactions);
+
+  // Bank master data for validation
+  const bankAccounts = useQuery(api.bankAccounts.getBankAccounts, user ? { userId: user.userId } : "skip");
+  const addBankAccount = useMutation(api.bankAccounts.addBankAccount);
+
+  // Bank validation state
+  const [showBankMismatch, setShowBankMismatch] = useState(false);
+  const [unmatchedBankName, setUnmatchedBankName] = useState("");
+  const [bankMismatchAction, setBankMismatchAction] = useState<"map" | "add">("map");
+  const [mapToBankId, setMapToBankId] = useState("");
+  const [newBankDisplayName, setNewBankDisplayName] = useState("");
+  const [newBankLogoId, setNewBankLogoId] = useState("");
+  const [bankValidationSaving, setBankValidationSaving] = useState(false);
+
+  // Pending transactions held until bank validation passes
+  const [pendingTransactions, setPendingTransactions] = useState<ParsedTransaction[]>([]);
+  const [pendingDetectedBank, setPendingDetectedBank] = useState("");
 
   // Get date range for duplicate detection
   const dateRange = transactions.length > 0
@@ -114,10 +141,61 @@ export default function ImportPage() {
     }
 
     const txns = categorizeAll(result.transactions);
-    setDetectedBank(result.bankName);
-    setTransactions(txns);
     setParsing(false);
-    setStep("review");
+
+    // Validate detected bank against master data
+    const detectedName = result.bankName;
+    const masterBanks = bankAccounts ?? [];
+    const bankExists = masterBanks.some(
+      (b) => b.bank_name.toLowerCase() === detectedName.toLowerCase() ||
+             b.logo_id === resolveBankPresetId(detectedName)
+    );
+
+    if (masterBanks.length > 0 && !bankExists && detectedName) {
+      // Bank not in master data — prompt user
+      setPendingTransactions(txns);
+      setPendingDetectedBank(detectedName);
+      setUnmatchedBankName(detectedName);
+      setNewBankLogoId(resolveBankPresetId(detectedName));
+      setNewBankDisplayName("");
+      setBankMismatchAction("add");
+      setShowBankMismatch(true);
+    } else {
+      // Bank is valid or no master data yet — proceed
+      setDetectedBank(detectedName);
+      setTransactions(txns);
+      setStep("review");
+    }
+  };
+
+  // Handle bank mismatch resolution
+  const handleBankMismatchResolve = async () => {
+    setBankValidationSaving(true);
+    try {
+      if (bankMismatchAction === "add" && user) {
+        // Add this new bank to master data
+        await addBankAccount({
+          userId: user.userId,
+          bank_name: unmatchedBankName,
+          display_name: newBankDisplayName || unmatchedBankName,
+          logo_id: newBankLogoId || resolveBankPresetId(unmatchedBankName),
+          account_type: "internal" as const,
+          sort_order: (bankAccounts?.length ?? 0),
+        });
+      }
+      // Proceed with import
+      setDetectedBank(bankMismatchAction === "map" && mapToBankId
+        ? (bankAccounts?.find((b) => b._id === mapToBankId)?.bank_name ?? pendingDetectedBank)
+        : pendingDetectedBank
+      );
+      setTransactions(pendingTransactions);
+      setPendingTransactions([]);
+      setPendingDetectedBank("");
+      setShowBankMismatch(false);
+      setStep("review");
+    } finally {
+      setBankValidationSaving(false);
+    }
   };
 
   // Apply duplicate detection when existing data loads
@@ -272,17 +350,32 @@ export default function ImportPage() {
                 )}
               </div>
 
-              {/* Bank selector */}
-              <div className="max-w-xs">
+              {/* Bank selector with logos */}
+              <div>
                 <label className="text-sm font-medium text-text-primary block mb-2">
                   Bank (auto-detected if possible)
                 </label>
-                <Select
-                  value={bankId}
-                  onChange={(e) => setBankId(e.target.value)}
-                  placeholder="Auto-detect"
-                  options={ALL_BANK_FORMATS.map((f) => ({ value: f.id, label: f.name }))}
-                />
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => setBankId("")}
+                    className={cn(
+                      "rounded-xl px-4 py-2.5 text-xs font-medium border transition-all",
+                      !bankId
+                        ? "border-accent bg-accent/5 text-accent shadow-sm"
+                        : "border-gray-200 bg-white text-text-secondary hover:border-gray-300"
+                    )}
+                  >
+                    Auto-detect
+                  </button>
+                  {ALL_BANK_FORMATS.map((f) => (
+                    <BankChip
+                      key={f.id}
+                      bankId={f.id}
+                      active={bankId === f.id}
+                      onClick={() => setBankId(bankId === f.id ? "" : f.id)}
+                    />
+                  ))}
+                </div>
               </div>
 
               {error && (
@@ -318,7 +411,8 @@ export default function ImportPage() {
           <>
             {/* Summary bar */}
             <div className="flex flex-wrap items-center gap-3">
-              <Badge className="bg-surface-secondary text-text-primary">
+              <Badge className="bg-surface-secondary text-text-primary gap-1.5 pr-3">
+                <BankLogo bankId={resolveBankPresetId(detectedBank)} size="xs" />
                 {detectedBank}
               </Badge>
               <Badge className="bg-emerald/10 text-emerald">
@@ -550,6 +644,143 @@ export default function ImportPage() {
             </CardContent>
           </Card>
         )}
+        {/* ---- Bank Mismatch Dialog ---- */}
+        <Dialog open={showBankMismatch} onOpenChange={setShowBankMismatch}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Landmark className="h-5 w-5 text-amber-500" />
+                Unknown Bank Detected
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-4 py-2">
+              <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3">
+                <p className="text-sm text-amber-800">
+                  The bank <strong>&quot;{unmatchedBankName}&quot;</strong> was detected in this statement but is not in your Bank Accounts master data.
+                </p>
+              </div>
+
+              {/* Action selector */}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setBankMismatchAction("add")}
+                  className={cn(
+                    "flex-1 rounded-xl border px-4 py-3 text-sm font-medium transition-all text-left",
+                    bankMismatchAction === "add"
+                      ? "border-accent bg-accent/5 text-accent"
+                      : "border-gray-200 bg-white text-text-secondary hover:border-gray-300"
+                  )}
+                >
+                  <div className="font-semibold">Add New Bank</div>
+                  <div className="text-xs mt-0.5 opacity-70">Add this bank to your master data</div>
+                </button>
+                <button
+                  onClick={() => setBankMismatchAction("map")}
+                  className={cn(
+                    "flex-1 rounded-xl border px-4 py-3 text-sm font-medium transition-all text-left",
+                    bankMismatchAction === "map"
+                      ? "border-accent bg-accent/5 text-accent"
+                      : "border-gray-200 bg-white text-text-secondary hover:border-gray-300"
+                  )}
+                >
+                  <div className="font-semibold">Map to Existing</div>
+                  <div className="text-xs mt-0.5 opacity-70">Link to an existing bank account</div>
+                </button>
+              </div>
+
+              {bankMismatchAction === "add" && (
+                <div className="space-y-3 animate-page-enter">
+                  {/* Logo picker */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Bank Logo</Label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {BANK_PRESET_IDS.map((id) => (
+                        <button
+                          key={id}
+                          onClick={() => setNewBankLogoId(id)}
+                          className={cn(
+                            "rounded-lg p-1.5 border transition-all",
+                            newBankLogoId === id
+                              ? "border-accent bg-accent/5 shadow-sm"
+                              : "border-gray-200 hover:border-gray-300"
+                          )}
+                        >
+                          <BankLogo bankId={id} size="sm" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Display Name</Label>
+                    <Input
+                      value={newBankDisplayName}
+                      onChange={(e) => setNewBankDisplayName(e.target.value)}
+                      placeholder="e.g. Primary Savings"
+                      className="h-9 text-sm"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {bankMismatchAction === "map" && (
+                <div className="space-y-2 animate-page-enter">
+                  <Label className="text-xs">Select existing bank account</Label>
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                    {(bankAccounts ?? []).map((bank) => (
+                      <button
+                        key={bank._id}
+                        onClick={() => setMapToBankId(bank._id)}
+                        className={cn(
+                          "w-full flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-all",
+                          mapToBankId === bank._id
+                            ? "border-accent bg-accent/5"
+                            : "border-gray-200 bg-white hover:border-gray-300"
+                        )}
+                      >
+                        <BankLogo bankId={bank.logo_id} size="sm" customColor={bank.logo_color || undefined} />
+                        <div>
+                          <div className="text-sm font-medium text-text-primary">{bank.bank_name}</div>
+                          <div className="text-xs text-text-tertiary">{bank.display_name}</div>
+                        </div>
+                      </button>
+                    ))}
+                    {(bankAccounts ?? []).length === 0 && (
+                      <p className="text-sm text-text-tertiary text-center py-4">No bank accounts in master data. Choose &quot;Add New Bank&quot; instead.</p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => {
+                // Skip validation and proceed anyway
+                setDetectedBank(pendingDetectedBank);
+                setTransactions(pendingTransactions);
+                setPendingTransactions([]);
+                setShowBankMismatch(false);
+                setStep("review");
+              }}>
+                Skip
+              </Button>
+              <Button
+                onClick={handleBankMismatchResolve}
+                disabled={
+                  bankValidationSaving ||
+                  (bankMismatchAction === "map" && !mapToBankId) ||
+                  (bankMismatchAction === "add" && !newBankLogoId)
+                }
+                className="bg-accent text-white hover:bg-accent/90"
+              >
+                {bankValidationSaving ? (
+                  <RotateCcw className="h-4 w-4 mr-2 animate-spin" />
+                ) : null}
+                {bankMismatchAction === "add" ? "Add & Continue" : "Map & Continue"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </AppLayout>
   );
