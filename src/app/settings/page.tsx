@@ -397,19 +397,30 @@ export default function SettingsPage() {
                             <button onClick={() => removeSubcategory(expenseCats, setExpenseCats, index, si)} className="hover:text-rose ml-0.5"><X className="h-3 w-3" /></button>
                           </span>
                         ))}
-                        <div className="inline-flex items-center">
+                        <div className="inline-flex items-center gap-1">
                           <input
                             value={newSubcategory[cat.slug] || ""}
                             onChange={(e) => setNewSubcategory({ ...newSubcategory, [cat.slug]: e.target.value })}
                             onKeyDown={(e) => {
-                              if (e.key === "Enter") {
+                              if (e.key === "Enter" && (newSubcategory[cat.slug] || "").trim()) {
                                 addSubcategory(expenseCats, setExpenseCats, index, newSubcategory[cat.slug] || "");
                                 setNewSubcategory({ ...newSubcategory, [cat.slug]: "" });
                               }
                             }}
-                            placeholder="+ Add subcategory"
-                            className="w-32 px-2 py-1 text-xs rounded-full border border-dashed border-gray-300 bg-transparent placeholder:text-gray-400 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/20"
+                            placeholder="Type & press Enter"
+                            className="w-36 px-2.5 py-1 text-xs rounded-lg border border-dashed border-gray-300 bg-gray-50 placeholder:text-gray-400 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/20 focus:bg-white"
                           />
+                          {(newSubcategory[cat.slug] || "").trim() && (
+                            <button
+                              onClick={() => {
+                                addSubcategory(expenseCats, setExpenseCats, index, newSubcategory[cat.slug] || "");
+                                setNewSubcategory({ ...newSubcategory, [cat.slug]: "" });
+                              }}
+                              className="p-1 rounded-md bg-accent/10 text-accent hover:bg-accent/20 transition-colors"
+                            >
+                              <Plus className="h-3.5 w-3.5" />
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -461,18 +472,31 @@ export default function SettingsPage() {
                             <button onClick={() => removeSubcategory(incomeCats, setIncomeCats, index, si)} className="hover:text-rose ml-0.5"><X className="h-3 w-3" /></button>
                           </span>
                         ))}
-                        <input
-                          value={newSubcategory[cat.slug] || ""}
-                          onChange={(e) => setNewSubcategory({ ...newSubcategory, [cat.slug]: e.target.value })}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                              addSubcategory(incomeCats, setIncomeCats, index, newSubcategory[cat.slug] || "");
-                              setNewSubcategory({ ...newSubcategory, [cat.slug]: "" });
-                            }
-                          }}
-                          placeholder="+ Add subcategory"
-                          className="w-32 px-2 py-1 text-xs rounded-full border border-dashed border-gray-300 bg-transparent placeholder:text-gray-400 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/20"
-                        />
+                        <div className="inline-flex items-center gap-1">
+                          <input
+                            value={newSubcategory[cat.slug] || ""}
+                            onChange={(e) => setNewSubcategory({ ...newSubcategory, [cat.slug]: e.target.value })}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && (newSubcategory[cat.slug] || "").trim()) {
+                                addSubcategory(incomeCats, setIncomeCats, index, newSubcategory[cat.slug] || "");
+                                setNewSubcategory({ ...newSubcategory, [cat.slug]: "" });
+                              }
+                            }}
+                            placeholder="Type & press Enter"
+                            className="w-36 px-2.5 py-1 text-xs rounded-lg border border-dashed border-gray-300 bg-gray-50 placeholder:text-gray-400 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/20 focus:bg-white"
+                          />
+                          {(newSubcategory[cat.slug] || "").trim() && (
+                            <button
+                              onClick={() => {
+                                addSubcategory(incomeCats, setIncomeCats, index, newSubcategory[cat.slug] || "");
+                                setNewSubcategory({ ...newSubcategory, [cat.slug]: "" });
+                              }}
+                              className="p-1 rounded-md bg-emerald/10 text-emerald hover:bg-emerald/20 transition-colors"
+                            >
+                              <Plus className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))}
