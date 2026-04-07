@@ -164,7 +164,8 @@ function parseICICIMergedCC(allRows: string[][]): CCTransaction[] {
 
     const isDr = rawAmount.includes("Dr.");
     const isCr = rawAmount.includes("Cr.");
-    const cleanedAmt = rawAmount.replace(/[Dr.Cr.\s]/g, "").replace(/,/g, "").trim();
+    // Remove "Dr." and "Cr." as literal strings (not character class — that strips the decimal point!)
+    const cleanedAmt = rawAmount.replace(/\s*Dr\.\s*/g, "").replace(/\s*Cr\.\s*/g, "").replace(/,/g, "").trim();
     const amount = parseFloat(cleanedAmt);
     if (isNaN(amount) || amount === 0) continue;
 
