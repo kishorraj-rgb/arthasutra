@@ -114,9 +114,13 @@ const MONTHLY_BUDGETS: Record<string, number> = {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-function getCategoryLabel(value: string): string {
+function getCategoryLabel(value: string, customCats?: Array<{ value: string; label: string }>): string {
   const cat = EXPENSE_CATEGORIES.find((c) => c.value === value);
-  return cat ? cat.label : value;
+  if (cat) return cat.label;
+  const custom = customCats?.find((c) => c.value === value);
+  if (custom) return custom.label;
+  // Title-case the slug as fallback
+  return value.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -172,6 +176,25 @@ export default function ExpensesPage() {
     api.categories.getCategoryPreferences,
     user ? { userId: user.userId, scope: "expense" as const } : "skip"
   );
+
+  // Build full category list (defaults + custom from prefs)
+  const allCategories = useMemo(() => {
+    const base = EXPENSE_CATEGORIES.map((c) => ({ value: c.value, label: c.label }));
+    if (catPrefs) {
+      const defaultSlugs = new Set(base.map((c) => c.value));
+      for (const pref of catPrefs) {
+        // Override label from prefs
+        const existing = base.find((c) => c.value === pref.slug);
+        if (existing) {
+          existing.label = pref.label;
+        } else if (!defaultSlugs.has(pref.slug) && !pref.hidden) {
+          // Custom category — add it
+          base.push({ value: pref.slug, label: pref.label });
+        }
+      }
+    }
+    return base;
+  }, [catPrefs]);
 
   // Build subcategory lookup: { "food": ["Swiggy", "Zomato", ...], ... }
   const subcategoryMap = useMemo(() => {
@@ -419,11 +442,11 @@ export default function ExpensesPage() {
       map[e.category] = (map[e.category] || 0) + e.amount;
     }
     return Object.entries(map).map(([key, value]) => ({
-      name: getCategoryLabel(key),
+      name: getCategoryLabel(key, allCategories),
       value,
       color: CATEGORY_COLORS[key] || "#6B7280",
     }));
-  }, [allExpenses]);
+  }, [allExpenses, allCategories]);
 
   // Budget vs Actual - compute actuals from current month real data
   const budgetData = useMemo(() => {
@@ -442,21 +465,18 @@ export default function ExpensesPage() {
     }
 
     return Object.entries(MONTHLY_BUDGETS).map(([cat, budget]) => ({
-      category: getCategoryLabel(cat),
+      category: getCategoryLabel(cat, allCategories),
       budget,
       actual: actualsByCategory[cat] || 0,
     }));
-  }, [allExpenses]);
+  }, [allExpenses, allCategories]);
 
   const categoryOptions = [
     { value: "", label: "All Categories" },
-    ...EXPENSE_CATEGORIES.map((c) => ({ value: c.value, label: c.label })),
+    ...allCategories,
   ];
 
-  const formCategoryOptions = EXPENSE_CATEGORIES.map((c) => ({
-    value: c.value,
-    label: c.label,
-  }));
+  const formCategoryOptions = allCategories;
 
   const hasActiveFilters = !!(categoryFilter || searchQuery || selectedMonth || bankFilter || sourceFilter || methodFilter || showBusinessOnly);
 
@@ -854,7 +874,7 @@ export default function ExpensesPage() {
                         className="text-xs rounded-lg border border-gray-200 px-2 py-1.5 bg-white focus:border-accent focus:outline-none cursor-pointer"
                       >
                         <option value="">Category...</option>
-                        {EXPENSE_CATEGORIES.map((c) => (
+                        {allCategories.map((c) => (
                           <option key={c.value} value={c.value}>{c.label}</option>
                         ))}
                       </select>
@@ -980,7 +1000,7 @@ export default function ExpensesPage() {
                                   }}
                                   className="text-xs rounded-lg border border-gray-200 px-2 py-1 bg-white focus:border-accent focus:outline-none cursor-pointer"
                                 >
-                                  {EXPENSE_CATEGORIES.map((c) => (
+                                  {allCategories.map((c) => (
                                     <option key={c.value} value={c.value}>{c.label}</option>
                                   ))}
                                 </select>
