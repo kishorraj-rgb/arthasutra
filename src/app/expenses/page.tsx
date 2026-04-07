@@ -179,7 +179,7 @@ export default function ExpensesPage() {
 
   // Build full category list (defaults + custom from prefs)
   const allCategories = useMemo(() => {
-    const base = EXPENSE_CATEGORIES.map((c) => ({ value: c.value, label: c.label }));
+    const base: { value: string; label: string }[] = EXPENSE_CATEGORIES.map((c) => ({ value: c.value as string, label: c.label as string }));
     if (catPrefs) {
       const defaultSlugs = new Set(base.map((c) => c.value));
       for (const pref of catPrefs) {
