@@ -161,6 +161,12 @@ export default function ExpensesPage() {
   const updateExpense = useMutation(api.expenses.updateExpenseEntry);
   const deleteExpense = useMutation(api.expenses.deleteExpenseEntry);
 
+  // Master bank accounts (for "From Account" filter)
+  const bankAccounts = useQuery(
+    api.bankAccounts.getBankAccounts,
+    user ? { userId: user.userId } : "skip"
+  );
+
   // Category preferences (for subcategories)
   const catPrefs = useQuery(
     api.categories.getCategoryPreferences,
@@ -187,6 +193,7 @@ export default function ExpensesPage() {
   const [selectedFY, setSelectedFY] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("");
   const [bankFilter, setBankFilter] = useState("");
+  const [sourceFilter, setSourceFilter] = useState("");
   const [methodFilter, setMethodFilter] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -339,6 +346,7 @@ export default function ExpensesPage() {
       }
       if (showBusinessOnly && !e.is_business_expense) return false;
       if (categoryFilter && e.category !== categoryFilter) return false;
+      if (sourceFilter && (e as Record<string, unknown>).source_bank !== sourceFilter) return false;
       if (bankFilter || methodFilter) {
         const parsed = parseDescription(e.description);
         if (bankFilter && parsed.bank !== bankFilter) return false;
@@ -350,7 +358,7 @@ export default function ExpensesPage() {
       }
       return true;
     });
-  }, [allExpenses, showBusinessOnly, categoryFilter, selectedFY, selectedMonth, searchQuery, bankFilter, methodFilter]);
+  }, [allExpenses, showBusinessOnly, categoryFilter, selectedFY, selectedMonth, searchQuery, bankFilter, sourceFilter, methodFilter]);
 
   // Sorted entries
   const sorted = useMemo(() => {
@@ -374,7 +382,7 @@ export default function ExpensesPage() {
   }, [sorted, currentPage]);
 
   // Reset page when filters change
-  useEffect(() => { setCurrentPage(1); }, [categoryFilter, searchQuery, selectedFY, selectedMonth, bankFilter, methodFilter, showBusinessOnly]);
+  useEffect(() => { setCurrentPage(1); }, [categoryFilter, searchQuery, selectedFY, selectedMonth, bankFilter, sourceFilter, methodFilter, showBusinessOnly]);
 
   const totalExpenses = useMemo(
     () => allExpenses.reduce((s, e) => s + e.amount, 0),
@@ -450,13 +458,14 @@ export default function ExpensesPage() {
     label: c.label,
   }));
 
-  const hasActiveFilters = !!(categoryFilter || searchQuery || selectedMonth || bankFilter || methodFilter || showBusinessOnly);
+  const hasActiveFilters = !!(categoryFilter || searchQuery || selectedMonth || bankFilter || sourceFilter || methodFilter || showBusinessOnly);
 
   function clearAllFilters() {
     setCategoryFilter("");
     setSearchQuery("");
     setSelectedMonth("");
     setBankFilter("");
+    setSourceFilter("");
     setMethodFilter("");
     setShowBusinessOnly(false);
   }
@@ -560,10 +569,37 @@ export default function ExpensesPage() {
         />
       </div>
 
-      {/* Bank filter chips */}
+      {/* From Account filter (user's own bank accounts) */}
+      {(bankAccounts ?? []).length > 0 && (
+        <div className="space-y-1.5">
+          <label className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">From Account</label>
+          <div className="flex flex-col gap-1.5">
+            <button
+              onClick={() => setSourceFilter("")}
+              className={`flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium transition-all border ${
+                !sourceFilter
+                  ? "bg-accent/10 border-accent/30 text-accent shadow-sm"
+                  : "border-gray-200 bg-white text-text-secondary hover:border-gray-300 hover:bg-gray-50"
+              }`}
+            >
+              All Accounts
+            </button>
+            {(bankAccounts ?? []).filter(b => b.is_active).map((bank) => (
+              <BankChip
+                key={bank._id}
+                bankId={bank.logo_id}
+                active={sourceFilter === bank.bank_name}
+                onClick={() => setSourceFilter(sourceFilter === bank.bank_name ? "" : bank.bank_name)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* To Bank filter chips (beneficiary bank parsed from description) */}
       {availableBanks.length > 0 && (
         <div className="space-y-1.5">
-          <label className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">Bank</label>
+          <label className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">To Bank</label>
           <div className="flex flex-col gap-1.5">
             <button
               onClick={() => setBankFilter("")}

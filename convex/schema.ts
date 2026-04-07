@@ -41,6 +41,7 @@ export default defineSchema({
     ),
     description: v.string(),
     subcategory: v.optional(v.string()),
+    source_bank: v.optional(v.string()), // Which of user's bank accounts this came from
     tds_deducted: v.number(),
     gst_collected: v.number(),
     invoice_number: v.optional(v.string()),
@@ -83,6 +84,7 @@ export default defineSchema({
     ),
     description: v.string(),
     subcategory: v.optional(v.string()),
+    source_bank: v.optional(v.string()), // Which of user's bank accounts this came from
     gst_paid: v.number(),
     is_business_expense: v.boolean(),
     receipt_url: v.optional(v.string()),

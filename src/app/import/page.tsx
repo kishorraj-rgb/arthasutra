@@ -227,6 +227,7 @@ export default function ImportPage() {
       const batch = selected.slice(i, i + BATCH_SIZE);
       const result = await batchImport({
         userId: user.userId,
+        sourceBank: detectedBank || undefined,
         transactions: batch.map((t) => ({
           date: t.date,
           amount: t.amount,

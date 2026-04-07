@@ -4,6 +4,7 @@ import { v } from "convex/values";
 export const batchImportTransactions = mutation({
   args: {
     userId: v.id("users"),
+    sourceBank: v.optional(v.string()),
     transactions: v.array(
       v.object({
         date: v.string(),
@@ -65,6 +66,7 @@ export const batchImportTransactions = mutation({
           amount: tx.amount,
           type: tx.incomeType,
           description: tx.description,
+          source_bank: args.sourceBank,
           tds_deducted: 0,
           gst_collected: 0,
         });
@@ -76,6 +78,7 @@ export const batchImportTransactions = mutation({
           amount: tx.amount,
           category: tx.expenseCategory,
           description: tx.description,
+          source_bank: args.sourceBank,
           gst_paid: 0,
           is_business_expense: false,
         });
