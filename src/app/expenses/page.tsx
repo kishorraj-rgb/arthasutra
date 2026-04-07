@@ -619,31 +619,22 @@ export default function ExpensesPage() {
         </div>
       )}
 
-      {/* To Bank filter chips (beneficiary bank parsed from description) */}
+      {/* To Bank dropdown */}
       {availableBanks.length > 0 && (
         <div className="space-y-1.5">
           <label className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">To Bank</label>
-          <div className="flex flex-col gap-1.5">
-            <button
-              onClick={() => setBankFilter("")}
-              className={`flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium transition-all border ${
-                !bankFilter
-                  ? "bg-accent/10 border-accent/30 text-accent shadow-sm"
-                  : "border-gray-200 bg-white text-text-secondary hover:border-gray-300 hover:bg-gray-50"
-              }`}
-            >
-              All Banks
-            </button>
+          <select
+            value={bankFilter}
+            onChange={(e) => setBankFilter(e.target.value)}
+            className="w-full text-xs rounded-lg border border-gray-200 px-3 py-2 bg-white focus:border-accent focus:outline-none cursor-pointer"
+          >
+            <option value="">All Banks</option>
             {availableBanks.map((bank) => (
-              <BankChip
-                key={bank.name}
-                bankId={bank.presetId}
-                active={bankFilter === bank.name}
-                count={bank.count}
-                onClick={() => setBankFilter(bankFilter === bank.name ? "" : bank.name)}
-              />
+              <option key={bank.name} value={bank.name}>
+                {bank.name} ({bank.count})
+              </option>
             ))}
-          </div>
+          </select>
         </div>
       )}
 
