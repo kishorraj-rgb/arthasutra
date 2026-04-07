@@ -90,6 +90,52 @@ export const batchImportTransactions = mutation({
   },
 });
 
+// One-time migration: backfill source_bank on all existing entries
+// Can be called without userId — will use first user in system
+export const backfillSourceBank = mutation({
+  args: {
+    userId: v.optional(v.id("users")),
+    sourceBank: v.string(),
+  },
+  handler: async (ctx, args) => {
+    let userId = args.userId;
+    if (!userId) {
+      const firstUser = await ctx.db.query("users").first();
+      if (!firstUser) return { expenseCount: 0, incomeCount: 0, error: "No users found" };
+      userId = firstUser._id;
+    }
+
+    let expenseCount = 0;
+    let incomeCount = 0;
+
+    const expenses = await ctx.db
+      .query("expense_entries")
+      .withIndex("by_user", (q) => q.eq("userId", userId!))
+      .collect();
+
+    for (const e of expenses) {
+      if (!e.source_bank) {
+        await ctx.db.patch(e._id, { source_bank: args.sourceBank });
+        expenseCount++;
+      }
+    }
+
+    const income = await ctx.db
+      .query("income_entries")
+      .withIndex("by_user", (q) => q.eq("userId", userId!))
+      .collect();
+
+    for (const i of income) {
+      if (!i.source_bank) {
+        await ctx.db.patch(i._id, { source_bank: args.sourceBank });
+        incomeCount++;
+      }
+    }
+
+    return { expenseCount, incomeCount };
+  },
+});
+
 export const getExistingTransactionsInRange = query({
   args: {
     userId: v.id("users"),
