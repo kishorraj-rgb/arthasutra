@@ -77,7 +77,7 @@ export function parseDescription(raw: string): ParsedDescription {
     // parts[0] = "UPI", parts[1] = payee, parts[2] = upi id, parts[3] = purpose, parts[4] = bank, parts[5] = ref
     const payee = cleanPayee(parts[1] || "");
     const upiId = parts[2] && parts[2].includes("@") ? parts[2] : undefined;
-    const bank = parts.length > 4 ? cleanBankName(parts[4] || "") : undefined;
+    const bank = parts.length > 4 ? cleanBankName(parts[4] || "") || undefined : undefined;
     const reference = parts.length > 5 ? parts[5] : undefined;
     return { payee, method: "UPI", upiId, bank, reference, rawDescription: desc };
   }
@@ -194,11 +194,14 @@ export function parseDescription(raw: string): ParsedDescription {
   return { payee: cleanPayee(desc.substring(0, 50)), method: "Other", rawDescription: desc };
 }
 
-function cleanBankName(raw: string): string {
-  const name = raw.trim().replace(/\s+/g, " ");
+function cleanBankName(raw: string): string | undefined {
+  const name = raw.trim().replace(/\s+/g, " ").toUpperCase();
+
+  // Only return if it matches a known bank — don't return random strings
   const bankMap: Record<string, string> = {
     "HDFC BANK": "HDFC Bank",
     "ICICI BANK": "ICICI Bank",
+    "ICICI Bank": "ICICI Bank",
     "STATE BANK": "SBI",
     "AXIS BANK": "Axis Bank",
     "YES BANKL": "Yes Bank",
@@ -209,14 +212,42 @@ function cleanBankName(raw: string): string {
     "CANARA BAN": "Canara Bank",
     "CANARA BANK": "Canara Bank",
     "KARNATAKA": "Karnataka Bank",
+    "KARNATAKA BANK": "Karnataka Bank",
     "IDBI BANK": "IDBI Bank",
     "FEDERAL BA": "Federal Bank",
     "FEDERAL BANK": "Federal Bank",
     "UNITY SMAL": "Unity Small Finance",
     "AIRTEL PAY": "Airtel Payments",
     "SLICE SMAL": "Slice",
+    "KOTAK": "Kotak Bank",
+    "KOTAK BANK": "Kotak Bank",
+    "PNB": "PNB",
+    "PUNJAB NAT": "PNB",
+    "BOB": "Bank of Baroda",
+    "BANK OF BA": "Bank of Baroda",
+    "BOI": "Bank of India",
+    "INDUSIND": "IndusInd Bank",
+    "BANDHAN": "Bandhan Bank",
+    "RBL BANK": "RBL Bank",
+    "IDFC FIRST": "IDFC First Bank",
+    "SOUTH INDI": "South Indian Bank",
   };
-  return bankMap[name.toUpperCase()] || titleCase(name);
+
+  // Exact match
+  if (bankMap[name]) return bankMap[name];
+
+  // Partial match — check if any key is contained in the name
+  for (const [key, value] of Object.entries(bankMap)) {
+    if (name.includes(key)) return value;
+  }
+
+  // If it looks like a bank name (contains "BANK"), title-case it
+  if (name.includes("BANK")) {
+    return raw.trim().split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ");
+  }
+
+  // Not a recognized bank — return undefined instead of garbage
+  return undefined;
 }
 
 function ifscToBank(ifsc: string): string | undefined {
