@@ -13,7 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/lib/auth-context";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { User, Calculator, Receipt, Bell, Download, Loader2, CheckCircle2, Tags, ChevronUp, ChevronDown, Eye, EyeOff, RotateCcw, Plus, X, Save, Trash2, Home, UtensilsCrossed, Car, Heart, GraduationCap, Shield as ShieldIcon, TrendingUp, Zap, Film, ShoppingCart, ShoppingBag, Shirt, Sparkles, CreditCard, Landmark, Plane, Smartphone, Users as UsersIcon, Banknote, ArrowLeftRight, MoreHorizontal, Wallet, DollarSign, Building, Coins, ReceiptText } from "lucide-react";
+import { User, Calculator, Receipt, Bell, Download, Loader2, CheckCircle2, Tags, ChevronUp, ChevronDown, Eye, EyeOff, RotateCcw, Plus, X, Save, Trash2, Pencil, Check, Home, UtensilsCrossed, Car, Heart, GraduationCap, Shield as ShieldIcon, TrendingUp, Zap, Film, ShoppingCart, ShoppingBag, Shirt, Sparkles, CreditCard, Landmark, Plane, Smartphone, Users as UsersIcon, Banknote, ArrowLeftRight, MoreHorizontal, Wallet, DollarSign, Building, Coins, ReceiptText } from "lucide-react";
 import { EXPENSE_CATEGORIES, INCOME_TYPES, CATEGORY_COLORS, getMergedCategories } from "@/lib/utils";
 import { BankLogo, BANK_PRESETS, BANK_PRESET_IDS } from "@/components/bank-logo";
 import type { Id } from "../../../convex/_generated/dataModel";
@@ -110,6 +110,8 @@ export default function SettingsPage() {
 
   const [showAddBank, setShowAddBank] = useState(false);
   const [bankSaving, setBankSaving] = useState(false);
+  const [editingBankId, setEditingBankId] = useState<string | null>(null);
+  const [editBank, setEditBank] = useState({ display_name: "", account_last4: "", ifsc_code: "" });
   const [newBank, setNewBank] = useState({
     bank_name: "", display_name: "", account_last4: "", ifsc_code: "", logo_id: "", logo_color: "", account_type: "internal" as "internal" | "external",
   });
@@ -136,6 +138,25 @@ export default function SettingsPage() {
 
   const handleToggleBankActive = async (id: Id<"bank_accounts">, isActive: boolean) => {
     await updateBankAccount({ id, is_active: isActive });
+  };
+
+  const startEditBank = (bank: { _id: Id<"bank_accounts">; display_name: string; account_last4?: string; ifsc_code?: string }) => {
+    setEditingBankId(bank._id);
+    setEditBank({ display_name: bank.display_name, account_last4: bank.account_last4 || "", ifsc_code: bank.ifsc_code || "" });
+  };
+
+  const handleSaveEditBank = async () => {
+    if (!editingBankId) return;
+    setBankSaving(true);
+    try {
+      await updateBankAccount({
+        id: editingBankId as Id<"bank_accounts">,
+        display_name: editBank.display_name || undefined,
+        account_last4: editBank.account_last4 || undefined,
+        ifsc_code: editBank.ifsc_code || undefined,
+      });
+      setEditingBankId(null);
+    } finally { setBankSaving(false); }
   };
 
   // Category helpers — merge defaults with prefs, including custom categories
@@ -505,36 +526,83 @@ export default function SettingsPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {(bankAccounts ?? [])
                     .sort((a, b) => a.sort_order - b.sort_order)
-                    .map((bank) => (
-                      <div
-                        key={bank._id}
-                        className={`rounded-xl border p-4 transition-all ${
-                          bank.is_active ? "border-gray-200 bg-white hover:shadow-sm" : "border-gray-100 bg-gray-50/50 opacity-50"
-                        }`}
-                      >
-                        <div className="flex items-start gap-3">
-                          <BankLogo bankId={bank.logo_id} size="lg" customColor={bank.logo_color || undefined} />
-                          <div className="flex-1 min-w-0">
-                            <div className="font-semibold text-sm text-text-primary">{bank.bank_name}</div>
-                            <div className="text-xs text-text-tertiary mt-0.5">{bank.display_name}</div>
-                            <div className="flex items-center gap-2 mt-1.5">
-                              {bank.account_last4 && (
-                                <span className="text-[11px] text-text-tertiary bg-gray-100 px-2 py-0.5 rounded-md">**** {bank.account_last4}</span>
-                              )}
-                              <Badge variant="secondary" className="text-[10px]">
-                                {bank.account_type === "internal" ? "My Account" : "Beneficiary"}
-                              </Badge>
+                    .map((bank) => {
+                      const isEditing = editingBankId === bank._id;
+                      return (
+                        <div
+                          key={bank._id}
+                          className={`rounded-xl border transition-all ${
+                            isEditing ? "border-accent/30 bg-accent/[0.02] p-4" :
+                            bank.is_active ? "border-gray-200 bg-white hover:shadow-sm p-4" : "border-gray-100 bg-gray-50/50 opacity-50 p-4"
+                          }`}
+                        >
+                          {isEditing ? (
+                            /* Inline edit form */
+                            <div className="space-y-3 animate-page-enter">
+                              <div className="flex items-center gap-3">
+                                <BankLogo bankId={bank.logo_id} size="lg" customColor={bank.logo_color || undefined} />
+                                <div className="font-semibold text-sm text-text-primary">{bank.bank_name}</div>
+                              </div>
+                              <div className="space-y-2">
+                                <div className="space-y-1">
+                                  <Label className="text-xs">Display Name</Label>
+                                  <Input value={editBank.display_name} onChange={(e) => setEditBank({ ...editBank, display_name: e.target.value })} className="h-8 text-sm" placeholder="e.g. Primary Savings" />
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div className="space-y-1">
+                                    <Label className="text-xs">Account (last 4)</Label>
+                                    <Input value={editBank.account_last4} onChange={(e) => setEditBank({ ...editBank, account_last4: e.target.value })} className="h-8 text-sm" placeholder="1234" maxLength={4} />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Label className="text-xs">IFSC Code</Label>
+                                    <Input value={editBank.ifsc_code} onChange={(e) => setEditBank({ ...editBank, ifsc_code: e.target.value.toUpperCase() })} className="h-8 text-sm" placeholder="ICIC0001234" />
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Button size="sm" onClick={handleSaveEditBank} disabled={bankSaving} className="h-7 text-xs">
+                                  {bankSaving ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Check className="h-3 w-3 mr-1" />} Save
+                                </Button>
+                                <Button size="sm" variant="outline" onClick={() => setEditingBankId(null)} className="h-7 text-xs">Cancel</Button>
+                              </div>
                             </div>
-                          </div>
-                          <div className="flex flex-col items-end gap-2">
-                            <Switch checked={bank.is_active} onCheckedChange={(v) => handleToggleBankActive(bank._id, v)} />
-                            <button onClick={() => handleDeleteBank(bank._id)} className="p-1 rounded-md hover:bg-rose-50 text-gray-400 hover:text-rose transition-colors">
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
+                          ) : (
+                            /* Display mode */
+                            <div className="flex items-start gap-3">
+                              <BankLogo bankId={bank.logo_id} size="lg" customColor={bank.logo_color || undefined} />
+                              <div className="flex-1 min-w-0">
+                                <div className="font-semibold text-sm text-text-primary">{bank.bank_name}</div>
+                                <div className="text-xs text-text-tertiary mt-0.5">{bank.display_name}</div>
+                                <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                                  {bank.account_last4 ? (
+                                    <span className="text-[11px] text-text-tertiary bg-gray-100 px-2 py-0.5 rounded-md">**** {bank.account_last4}</span>
+                                  ) : (
+                                    <span className="text-[11px] text-text-tertiary italic">No account number</span>
+                                  )}
+                                  {bank.ifsc_code && (
+                                    <span className="text-[11px] text-text-tertiary bg-gray-100 px-2 py-0.5 rounded-md">{bank.ifsc_code}</span>
+                                  )}
+                                  <Badge variant="secondary" className="text-[10px]">
+                                    {bank.account_type === "internal" ? "My Account" : "Beneficiary"}
+                                  </Badge>
+                                </div>
+                              </div>
+                              <div className="flex flex-col items-end gap-1.5">
+                                <Switch checked={bank.is_active} onCheckedChange={(v) => handleToggleBankActive(bank._id, v)} />
+                                <div className="flex items-center gap-1">
+                                  <button onClick={() => startEditBank(bank)} className="p-1 rounded-md hover:bg-accent/10 text-gray-400 hover:text-accent transition-colors" title="Edit">
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </button>
+                                  <button onClick={() => handleDeleteBank(bank._id)} className="p-1 rounded-md hover:bg-rose-50 text-gray-400 hover:text-rose transition-colors" title="Delete">
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                 </div>
 
                 {(bankAccounts ?? []).length === 0 && (
