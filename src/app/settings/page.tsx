@@ -13,8 +13,37 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/lib/auth-context";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { User, Calculator, Receipt, Bell, Download, Loader2, Lightbulb, Calendar, CheckCircle2, Tags, ChevronUp, ChevronDown, Eye, EyeOff, RotateCcw, Plus, X, Save } from "lucide-react";
+import { User, Calculator, Receipt, Bell, Download, Loader2, Lightbulb, Calendar, CheckCircle2, Tags, ChevronUp, ChevronDown, Eye, EyeOff, RotateCcw, Plus, X, Save, Trash2, Home, UtensilsCrossed, Car, Heart, GraduationCap, Shield as ShieldIcon, TrendingUp, Zap, Film, ShoppingCart, ShoppingBag, Shirt, Sparkles, CreditCard, Landmark, Plane, Smartphone, Users as UsersIcon, Banknote, ArrowLeftRight, MoreHorizontal, Wallet, DollarSign, Building, Coins, ReceiptText } from "lucide-react";
 import { EXPENSE_CATEGORIES, INCOME_TYPES, CATEGORY_COLORS, getMergedCategories } from "@/lib/utils";
+
+// Icon mapping for categories
+const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
+  Home, UtensilsCrossed, Car, Heart, GraduationCap, Shield: ShieldIcon, TrendingUp, Zap, Film,
+  ShoppingCart, ShoppingBag, Shirt, Sparkles, CreditCard, Landmark, Plane, Smartphone,
+  Users: UsersIcon, Banknote, ArrowLeftRight, MoreHorizontal, Wallet, DollarSign, Building,
+  Coins, Receipt: ReceiptText, User, School: GraduationCap, Save,
+};
+
+// Slug-to-icon name mapping
+const SLUG_ICONS: Record<string, string> = {
+  housing: "Home", food: "UtensilsCrossed", transport: "Car", medical: "Heart",
+  education: "GraduationCap", insurance: "Shield", investment: "TrendingUp",
+  driver_salary: "Users", school_fees: "GraduationCap", utilities: "Zap",
+  entertainment: "Film", clothing: "Shirt", grocery: "ShoppingCart",
+  shopping: "ShoppingBag", personal_care: "Sparkles", subscription: "CreditCard",
+  donation: "Heart", emi: "Landmark", rent: "Home", travel: "Plane",
+  tax_payment: "Receipt", credit_card_bill: "CreditCard", recharge: "Smartphone",
+  household: "Users", cash_withdrawal: "Banknote", transfer: "ArrowLeftRight",
+  other: "MoreHorizontal",
+  salary: "Wallet", freelance: "DollarSign", rental: "Building", interest: "Coins",
+  dividend: "TrendingUp", refund: "ArrowLeftRight", reimbursement: "Banknote",
+};
+
+function CategoryIcon({ slug, className, color }: { slug: string; className?: string; color?: string }) {
+  const iconName = SLUG_ICONS[slug] || "MoreHorizontal";
+  const IconComp = ICON_MAP[iconName] || MoreHorizontal;
+  return <span style={{ color }}><IconComp className={className} /></span>;
+}
 
 export default function SettingsPage() {
   const { user } = useAuth();
@@ -104,6 +133,24 @@ export default function SettingsPage() {
     const subs = [...(newList[catIndex].subcategories || [])];
     subs.splice(subIndex, 1);
     newList[catIndex] = { ...newList[catIndex], subcategories: subs };
+    setList(newList);
+  };
+
+  const addNewCategory = (list: CatItem[], setList: (v: CatItem[]) => void) => {
+    const slug = `custom_${Date.now()}`;
+    setList([...list, {
+      slug,
+      label: "New Category",
+      icon: "MoreHorizontal",
+      color: "#6B7280",
+      hidden: false,
+      sort_order: list.length,
+      subcategories: [],
+    }]);
+  };
+
+  const deleteCategory = (list: CatItem[], setList: (v: CatItem[]) => void, index: number) => {
+    const newList = list.filter((_, i) => i !== index).map((c, i) => ({ ...c, sort_order: i }));
     setList(newList);
   };
 
@@ -308,136 +355,140 @@ export default function SettingsPage() {
           <CardContent>
             <Tabs defaultValue="expense">
               <TabsList className="mb-4">
-                <TabsTrigger value="expense">Expense Categories</TabsTrigger>
-                <TabsTrigger value="income">Income Types</TabsTrigger>
+                <TabsTrigger value="expense">Expense Categories ({expenseCats.filter(c => !c.hidden).length} active)</TabsTrigger>
+                <TabsTrigger value="income">Income Types ({incomeCats.filter(c => !c.hidden).length} active)</TabsTrigger>
               </TabsList>
 
+              {/* EXPENSE CATEGORIES */}
               <TabsContent value="expense">
-                <div className="space-y-2">
-                  <div className="grid grid-cols-[32px_1fr_120px_40px_40px] gap-2 px-2 py-1 text-xs font-medium text-text-tertiary uppercase tracking-wider">
-                    <span></span>
-                    <span>Label</span>
-                    <span>Subcategories</span>
-                    <span className="text-center">Visible</span>
-                    <span className="text-center">Order</span>
-                  </div>
+                <div className="space-y-1.5">
                   {expenseCats.map((cat, index) => (
-                    <div key={cat.slug} className={`grid grid-cols-[32px_1fr_120px_40px_40px] gap-2 items-start p-2 rounded-lg border transition-all ${cat.hidden ? "border-border-light bg-gray-50 opacity-60" : "border-border bg-white"}`}>
-                      <div className="w-6 h-6 rounded-md mt-1" style={{ backgroundColor: cat.color }} />
-                      <div className="space-y-1.5">
+                    <div key={cat.slug} className={`rounded-lg border p-3 transition-all ${cat.hidden ? "border-gray-100 bg-gray-50/50 opacity-50" : "border-gray-200 bg-white"}`}>
+                      {/* Row 1: Icon + Label + Actions */}
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center justify-center w-8 h-8 rounded-lg shrink-0" style={{ backgroundColor: cat.color + "20" }}>
+                          <CategoryIcon slug={cat.slug} className="h-4 w-4" color={cat.color} />
+                        </div>
                         <Input
                           value={cat.label}
                           onChange={(e) => updateLabel(expenseCats, setExpenseCats, index, e.target.value)}
-                          className="h-8 text-sm font-medium"
+                          className="h-8 text-sm font-medium flex-1 max-w-[200px]"
                         />
-                        <div className="flex flex-wrap gap-1">
-                          {(cat.subcategories || []).map((sub, si) => (
-                            <span key={si} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-accent/10 text-accent text-xs">
-                              {sub}
-                              <button onClick={() => removeSubcategory(expenseCats, setExpenseCats, index, si)} className="hover:text-rose"><X className="h-3 w-3" /></button>
-                            </span>
-                          ))}
-                          <div className="inline-flex items-center gap-1">
-                            <input
-                              value={newSubcategory[cat.slug] || ""}
-                              onChange={(e) => setNewSubcategory({ ...newSubcategory, [cat.slug]: e.target.value })}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") {
-                                  addSubcategory(expenseCats, setExpenseCats, index, newSubcategory[cat.slug] || "");
-                                  setNewSubcategory({ ...newSubcategory, [cat.slug]: "" });
-                                }
-                              }}
-                              placeholder="+ add"
-                              className="w-16 px-1.5 py-0.5 text-xs rounded border border-dashed border-gray-300 bg-transparent focus:border-accent focus:outline-none"
-                            />
-                          </div>
+                        <div className="flex items-center gap-1 ml-auto">
+                          <button onClick={() => toggleHidden(expenseCats, setExpenseCats, index)} className="p-1.5 rounded-md hover:bg-gray-100 transition-colors" title={cat.hidden ? "Show in dropdowns" : "Hide from dropdowns"}>
+                            {cat.hidden ? <EyeOff className="h-4 w-4 text-gray-400" /> : <Eye className="h-4 w-4 text-accent-light" />}
+                          </button>
+                          <button onClick={() => moveCategory(expenseCats, setExpenseCats, index, "up")} disabled={index === 0} className="p-1.5 rounded-md hover:bg-gray-100 disabled:opacity-20 transition-colors" title="Move up">
+                            <ChevronUp className="h-4 w-4" />
+                          </button>
+                          <button onClick={() => moveCategory(expenseCats, setExpenseCats, index, "down")} disabled={index === expenseCats.length - 1} className="p-1.5 rounded-md hover:bg-gray-100 disabled:opacity-20 transition-colors" title="Move down">
+                            <ChevronDown className="h-4 w-4" />
+                          </button>
+                          <button onClick={() => deleteCategory(expenseCats, setExpenseCats, index)} className="p-1.5 rounded-md hover:bg-rose-50 text-gray-400 hover:text-rose transition-colors" title="Delete category">
+                            <Trash2 className="h-4 w-4" />
+                          </button>
                         </div>
                       </div>
-                      <div className="text-xs text-text-tertiary mt-2">
-                        {(cat.subcategories || []).length} items
-                      </div>
-                      <button onClick={() => toggleHidden(expenseCats, setExpenseCats, index)} className="mt-1 mx-auto p-1 rounded hover:bg-gray-100 transition-colors">
-                        {cat.hidden ? <EyeOff className="h-4 w-4 text-text-tertiary" /> : <Eye className="h-4 w-4 text-accent-light" />}
-                      </button>
-                      <div className="flex flex-col items-center gap-0.5 mt-0.5">
-                        <button onClick={() => moveCategory(expenseCats, setExpenseCats, index, "up")} disabled={index === 0} className="p-0.5 rounded hover:bg-gray-100 disabled:opacity-30"><ChevronUp className="h-3.5 w-3.5" /></button>
-                        <button onClick={() => moveCategory(expenseCats, setExpenseCats, index, "down")} disabled={index === expenseCats.length - 1} className="p-0.5 rounded hover:bg-gray-100 disabled:opacity-30"><ChevronDown className="h-3.5 w-3.5" /></button>
+                      {/* Row 2: Subcategories */}
+                      <div className="mt-2 ml-11 flex flex-wrap items-center gap-1.5">
+                        {(cat.subcategories || []).map((sub, si) => (
+                          <span key={si} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-accent/8 text-accent text-xs font-medium border border-accent/15">
+                            {sub}
+                            <button onClick={() => removeSubcategory(expenseCats, setExpenseCats, index, si)} className="hover:text-rose ml-0.5"><X className="h-3 w-3" /></button>
+                          </span>
+                        ))}
+                        <div className="inline-flex items-center">
+                          <input
+                            value={newSubcategory[cat.slug] || ""}
+                            onChange={(e) => setNewSubcategory({ ...newSubcategory, [cat.slug]: e.target.value })}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                addSubcategory(expenseCats, setExpenseCats, index, newSubcategory[cat.slug] || "");
+                                setNewSubcategory({ ...newSubcategory, [cat.slug]: "" });
+                              }
+                            }}
+                            placeholder="+ Add subcategory"
+                            className="w-32 px-2 py-1 text-xs rounded-full border border-dashed border-gray-300 bg-transparent placeholder:text-gray-400 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/20"
+                          />
+                        </div>
                       </div>
                     </div>
                   ))}
                 </div>
-                <div className="flex items-center justify-between mt-4 pt-4 border-t border-border-light">
-                  <button onClick={() => handleResetCategories("expense")} className="flex items-center gap-1.5 text-sm text-text-tertiary hover:text-text-secondary transition-colors">
-                    <RotateCcw className="h-3.5 w-3.5" /> Reset to defaults
-                  </button>
+                <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
+                  <div className="flex items-center gap-3">
+                    <Button size="sm" variant="outline" onClick={() => addNewCategory(expenseCats, setExpenseCats)}>
+                      <Plus className="h-4 w-4 mr-1" /> Add Category
+                    </Button>
+                    <button onClick={() => handleResetCategories("expense")} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors">
+                      <RotateCcw className="h-3.5 w-3.5" /> Reset defaults
+                    </button>
+                  </div>
                   <Button size="sm" onClick={() => handleSaveCategories("expense", expenseCats)} disabled={catSaving}>
                     {catSaving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
-                    {catSaved ? "Saved!" : "Save Categories"}
+                    {catSaved ? "Saved!" : "Save All"}
                   </Button>
                 </div>
               </TabsContent>
 
+              {/* INCOME TYPES */}
               <TabsContent value="income">
-                <div className="space-y-2">
-                  <div className="grid grid-cols-[32px_1fr_120px_40px_40px] gap-2 px-2 py-1 text-xs font-medium text-text-tertiary uppercase tracking-wider">
-                    <span></span>
-                    <span>Label</span>
-                    <span>Subcategories</span>
-                    <span className="text-center">Visible</span>
-                    <span className="text-center">Order</span>
-                  </div>
+                <div className="space-y-1.5">
                   {incomeCats.map((cat, index) => (
-                    <div key={cat.slug} className={`grid grid-cols-[32px_1fr_120px_40px_40px] gap-2 items-start p-2 rounded-lg border transition-all ${cat.hidden ? "border-border-light bg-gray-50 opacity-60" : "border-border bg-white"}`}>
-                      <div className="w-6 h-6 rounded-md mt-1" style={{ backgroundColor: cat.color }} />
-                      <div className="space-y-1.5">
+                    <div key={cat.slug} className={`rounded-lg border p-3 transition-all ${cat.hidden ? "border-gray-100 bg-gray-50/50 opacity-50" : "border-gray-200 bg-white"}`}>
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center justify-center w-8 h-8 rounded-lg shrink-0" style={{ backgroundColor: (cat.color || "#10B981") + "20" }}>
+                          <CategoryIcon slug={cat.slug} className="h-4 w-4" color={cat.color || "#10B981"} />
+                        </div>
                         <Input
                           value={cat.label}
                           onChange={(e) => updateLabel(incomeCats, setIncomeCats, index, e.target.value)}
-                          className="h-8 text-sm font-medium"
+                          className="h-8 text-sm font-medium flex-1 max-w-[200px]"
                         />
-                        <div className="flex flex-wrap gap-1">
-                          {(cat.subcategories || []).map((sub, si) => (
-                            <span key={si} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald/10 text-emerald text-xs">
-                              {sub}
-                              <button onClick={() => removeSubcategory(incomeCats, setIncomeCats, index, si)} className="hover:text-rose"><X className="h-3 w-3" /></button>
-                            </span>
-                          ))}
-                          <div className="inline-flex items-center gap-1">
-                            <input
-                              value={newSubcategory[cat.slug] || ""}
-                              onChange={(e) => setNewSubcategory({ ...newSubcategory, [cat.slug]: e.target.value })}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") {
-                                  addSubcategory(incomeCats, setIncomeCats, index, newSubcategory[cat.slug] || "");
-                                  setNewSubcategory({ ...newSubcategory, [cat.slug]: "" });
-                                }
-                              }}
-                              placeholder="+ add"
-                              className="w-16 px-1.5 py-0.5 text-xs rounded border border-dashed border-gray-300 bg-transparent focus:border-accent focus:outline-none"
-                            />
-                          </div>
+                        <div className="flex items-center gap-1 ml-auto">
+                          <button onClick={() => toggleHidden(incomeCats, setIncomeCats, index)} className="p-1.5 rounded-md hover:bg-gray-100 transition-colors">
+                            {cat.hidden ? <EyeOff className="h-4 w-4 text-gray-400" /> : <Eye className="h-4 w-4 text-emerald" />}
+                          </button>
+                          <button onClick={() => moveCategory(incomeCats, setIncomeCats, index, "up")} disabled={index === 0} className="p-1.5 rounded-md hover:bg-gray-100 disabled:opacity-20"><ChevronUp className="h-4 w-4" /></button>
+                          <button onClick={() => moveCategory(incomeCats, setIncomeCats, index, "down")} disabled={index === incomeCats.length - 1} className="p-1.5 rounded-md hover:bg-gray-100 disabled:opacity-20"><ChevronDown className="h-4 w-4" /></button>
+                          <button onClick={() => deleteCategory(incomeCats, setIncomeCats, index)} className="p-1.5 rounded-md hover:bg-rose-50 text-gray-400 hover:text-rose transition-colors"><Trash2 className="h-4 w-4" /></button>
                         </div>
                       </div>
-                      <div className="text-xs text-text-tertiary mt-2">
-                        {(cat.subcategories || []).length} items
-                      </div>
-                      <button onClick={() => toggleHidden(incomeCats, setIncomeCats, index)} className="mt-1 mx-auto p-1 rounded hover:bg-gray-100 transition-colors">
-                        {cat.hidden ? <EyeOff className="h-4 w-4 text-text-tertiary" /> : <Eye className="h-4 w-4 text-emerald" />}
-                      </button>
-                      <div className="flex flex-col items-center gap-0.5 mt-0.5">
-                        <button onClick={() => moveCategory(incomeCats, setIncomeCats, index, "up")} disabled={index === 0} className="p-0.5 rounded hover:bg-gray-100 disabled:opacity-30"><ChevronUp className="h-3.5 w-3.5" /></button>
-                        <button onClick={() => moveCategory(incomeCats, setIncomeCats, index, "down")} disabled={index === incomeCats.length - 1} className="p-0.5 rounded hover:bg-gray-100 disabled:opacity-30"><ChevronDown className="h-3.5 w-3.5" /></button>
+                      <div className="mt-2 ml-11 flex flex-wrap items-center gap-1.5">
+                        {(cat.subcategories || []).map((sub, si) => (
+                          <span key={si} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald/8 text-emerald text-xs font-medium border border-emerald/15">
+                            {sub}
+                            <button onClick={() => removeSubcategory(incomeCats, setIncomeCats, index, si)} className="hover:text-rose ml-0.5"><X className="h-3 w-3" /></button>
+                          </span>
+                        ))}
+                        <input
+                          value={newSubcategory[cat.slug] || ""}
+                          onChange={(e) => setNewSubcategory({ ...newSubcategory, [cat.slug]: e.target.value })}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              addSubcategory(incomeCats, setIncomeCats, index, newSubcategory[cat.slug] || "");
+                              setNewSubcategory({ ...newSubcategory, [cat.slug]: "" });
+                            }
+                          }}
+                          placeholder="+ Add subcategory"
+                          className="w-32 px-2 py-1 text-xs rounded-full border border-dashed border-gray-300 bg-transparent placeholder:text-gray-400 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/20"
+                        />
                       </div>
                     </div>
                   ))}
                 </div>
-                <div className="flex items-center justify-between mt-4 pt-4 border-t border-border-light">
-                  <button onClick={() => handleResetCategories("income")} className="flex items-center gap-1.5 text-sm text-text-tertiary hover:text-text-secondary transition-colors">
-                    <RotateCcw className="h-3.5 w-3.5" /> Reset to defaults
-                  </button>
+                <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
+                  <div className="flex items-center gap-3">
+                    <Button size="sm" variant="outline" onClick={() => addNewCategory(incomeCats, setIncomeCats)}>
+                      <Plus className="h-4 w-4 mr-1" /> Add Type
+                    </Button>
+                    <button onClick={() => handleResetCategories("income")} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors">
+                      <RotateCcw className="h-3.5 w-3.5" /> Reset defaults
+                    </button>
+                  </div>
                   <Button size="sm" onClick={() => handleSaveCategories("income", incomeCats)} disabled={catSaving}>
                     {catSaving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
-                    {catSaved ? "Saved!" : "Save Categories"}
+                    {catSaved ? "Saved!" : "Save All"}
                   </Button>
                 </div>
               </TabsContent>
