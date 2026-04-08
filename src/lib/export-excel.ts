@@ -45,6 +45,7 @@ interface ExpenseRow {
   "Voucher Type": string;
   Particulars: string;
   "Expense Category": string;
+  Subcategory: string;
   Debit: number | string;
   Credit: number | string;
   "Bank Name": string;
@@ -206,6 +207,7 @@ export function exportExpensesToExcel(entries: ExpenseEntry[], fyLabel: string):
       "Voucher Type": "Payment",
       Particulars: parsed.payee,
       "Expense Category": expenseCategoryLabel(e.category),
+      Subcategory: (e as ExpenseEntry & { subcategory?: string }).subcategory || "",
       Debit: fmt(e.amount),
       Credit: fmt(e.amount),
       "Bank Name": parsed.bank || "",
@@ -226,6 +228,7 @@ export function exportExpensesToExcel(entries: ExpenseEntry[], fyLabel: string):
     "Voucher Type": "",
     Particulars: "TOTAL",
     "Expense Category": "",
+    Subcategory: "",
     Debit: fmt(totalAmount),
     Credit: fmt(totalAmount),
     "Bank Name": "",

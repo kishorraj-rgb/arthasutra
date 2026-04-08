@@ -842,7 +842,12 @@ export default function ExpensesPage() {
               </span>
             </Button>
             <Button
-              onClick={() => exportExpensesToExcel(filtered, selectedFY || "2025-26")}
+              onClick={() => {
+                const entriesToExport = selectedIds.size > 0
+                  ? filtered.filter((e) => selectedIds.has(e._id))
+                  : filtered;
+                exportExpensesToExcel(entriesToExport, selectedFY || "2025-26");
+              }}
               variant="outline"
               className="gap-2"
               disabled={filtered.length === 0}

@@ -88,7 +88,9 @@ async function callGemini(
   prompt: string,
   apiKey: string
 ): Promise<CategorizedResult[]> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+  // Try gemini-2.0-flash first, fallback to gemini-1.5-flash
+  const model = "gemini-2.0-flash-lite";
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
   const response = await fetch(url, {
     method: "POST",
@@ -163,7 +165,8 @@ export async function POST(request: NextRequest) {
         allResults.push(...results);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        errors.push(`Batch ${Math.floor(i / BATCH_SIZE) + 1} failed: ${msg}`);
+        console.error(`AI Categorize batch ${Math.floor(i / BATCH_SIZE) + 1} error:`, msg);
+        errors.push(`Batch ${Math.floor(i / BATCH_SIZE) + 1}: ${msg}`);
         // Continue with next batch
       }
     }
