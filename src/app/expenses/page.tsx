@@ -455,7 +455,14 @@ export default function ExpensesPage() {
       }
       if (showBusinessOnly && !e.is_business_expense) return false;
       if (categoryFilter && e.category !== categoryFilter) return false;
-      if (subcategoryFilter && (e as typeof e & { subcategory?: string }).subcategory !== subcategoryFilter) return false;
+      if (subcategoryFilter) {
+        const sub = (e as typeof e & { subcategory?: string }).subcategory;
+        if (subcategoryFilter === "__none__") {
+          if (sub) return false; // Has subcategory, filter it out
+        } else {
+          if (sub !== subcategoryFilter) return false;
+        }
+      }
       if (sourceFilter && (e as Record<string, unknown>).source_bank !== sourceFilter) return false;
       if (bankFilter || methodFilter) {
         const parsed = parseDescription(e.description);
@@ -687,6 +694,7 @@ export default function ExpensesPage() {
             className="w-full text-xs rounded-lg border border-gray-200 px-3 py-2 bg-white focus:border-accent focus:outline-none cursor-pointer"
           >
             <option value="">All Subcategories</option>
+            <option value="__none__">— No Subcategory —</option>
             {availableSubcategories.map((sub) => (
               <option key={sub.name} value={sub.name}>
                 {sub.name} ({sub.count})
