@@ -213,6 +213,7 @@ export default function ExpensesPage() {
   // Filter state
   const [showBusinessOnly, setShowBusinessOnly] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState("");
+  const [subcategoryFilter, setSubcategoryFilter] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFY, setSelectedFY] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("");
@@ -395,6 +396,21 @@ export default function ExpensesPage() {
   }, [availableFYs, selectedFY]);
 
   // Available banks from data with counts and preset IDs
+  // Available subcategories from data (filtered by current category if selected)
+  const availableSubcategories = useMemo(() => {
+    const subMap = new Map<string, number>();
+    for (const e of allExpenses) {
+      const sub = (e as typeof e & { subcategory?: string }).subcategory;
+      if (sub) {
+        if (categoryFilter && e.category !== categoryFilter) continue;
+        subMap.set(sub, (subMap.get(sub) || 0) + 1);
+      }
+    }
+    return Array.from(subMap.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [allExpenses, categoryFilter]);
+
   const availableBanks = useMemo(() => {
     const bankMap = new Map<string, { name: string; presetId: string; count: number }>();
     for (const e of allExpenses) {
@@ -439,6 +455,7 @@ export default function ExpensesPage() {
       }
       if (showBusinessOnly && !e.is_business_expense) return false;
       if (categoryFilter && e.category !== categoryFilter) return false;
+      if (subcategoryFilter && (e as typeof e & { subcategory?: string }).subcategory !== subcategoryFilter) return false;
       if (sourceFilter && (e as Record<string, unknown>).source_bank !== sourceFilter) return false;
       if (bankFilter || methodFilter) {
         const parsed = parseDescription(e.description);
@@ -451,7 +468,7 @@ export default function ExpensesPage() {
       }
       return true;
     });
-  }, [allExpenses, showBusinessOnly, categoryFilter, selectedFY, selectedMonth, searchQuery, bankFilter, sourceFilter, methodFilter]);
+  }, [allExpenses, showBusinessOnly, categoryFilter, subcategoryFilter, selectedFY, selectedMonth, searchQuery, bankFilter, sourceFilter, methodFilter]);
 
   // Sorted entries
   const sorted = useMemo(() => {
@@ -475,7 +492,7 @@ export default function ExpensesPage() {
   }, [sorted, currentPage]);
 
   // Reset page when filters change
-  useEffect(() => { setCurrentPage(1); }, [categoryFilter, searchQuery, selectedFY, selectedMonth, bankFilter, sourceFilter, methodFilter, showBusinessOnly]);
+  useEffect(() => { setCurrentPage(1); }, [categoryFilter, subcategoryFilter, searchQuery, selectedFY, selectedMonth, bankFilter, sourceFilter, methodFilter, showBusinessOnly]);
 
   const totalExpenses = useMemo(
     () => allExpenses.reduce((s, e) => s + e.amount, 0),
@@ -548,10 +565,11 @@ export default function ExpensesPage() {
 
   const formCategoryOptions = allCategories;
 
-  const hasActiveFilters = !!(categoryFilter || searchQuery || selectedMonth || bankFilter || sourceFilter || methodFilter || showBusinessOnly);
+  const hasActiveFilters = !!(categoryFilter || subcategoryFilter || searchQuery || selectedMonth || bankFilter || sourceFilter || methodFilter || showBusinessOnly);
 
   function clearAllFilters() {
     setCategoryFilter("");
+    setSubcategoryFilter("");
     setSearchQuery("");
     setSelectedMonth("");
     setBankFilter("");
@@ -654,10 +672,29 @@ export default function ExpensesPage() {
         <Select
           options={categoryOptions}
           value={categoryFilter}
-          onChange={(e) => setCategoryFilter(e.target.value)}
+          onChange={(e) => { setCategoryFilter(e.target.value); setSubcategoryFilter(""); }}
           className="w-full"
         />
       </div>
+
+      {/* Subcategory filter */}
+      {availableSubcategories.length > 0 && (
+        <div className="space-y-1.5">
+          <label className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">Subcategory</label>
+          <select
+            value={subcategoryFilter}
+            onChange={(e) => setSubcategoryFilter(e.target.value)}
+            className="w-full text-xs rounded-lg border border-gray-200 px-3 py-2 bg-white focus:border-accent focus:outline-none cursor-pointer"
+          >
+            <option value="">All Subcategories</option>
+            {availableSubcategories.map((sub) => (
+              <option key={sub.name} value={sub.name}>
+                {sub.name} ({sub.count})
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* From Account filter (user's own bank accounts) */}
       {(bankAccounts ?? []).length > 0 && (
