@@ -128,6 +128,11 @@ export default function ImportPage() {
       return;
     }
 
+    // If client-side parsing failed or returned 0 transactions, fall back to AI
+    if (result.transactions.length === 0 || result.error) {
+      result = await parsePDF(file, selectedBank); // AI-powered API route handles all file types
+    }
+
     if (result.error) {
       setError(result.error);
       setParsing(false);
