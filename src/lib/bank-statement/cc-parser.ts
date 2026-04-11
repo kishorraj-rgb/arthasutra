@@ -34,18 +34,19 @@ const CC_FORMATS: CCFormat[] = [
     id: "hdfc_cc",
     name: "HDFC Credit Card",
     detect: (headers) => {
-      const h = headers.map((x) => x.toLowerCase());
+      const h = headers.map((x) => x.toLowerCase().trim());
       return (
         h.some((x) => x.includes("date")) &&
-        (h.some((x) => x.includes("narration") || x.includes("transaction details")) ||
+        (h.some((x) => x.includes("narration") || x.includes("transaction details") || x.includes("description")) ||
           h.some((x) => x.includes("particulars"))) &&
-        h.some((x) => x.includes("amount") || x.includes("inr"))
+        (h.some((x) => x.includes("amount") || x.includes("inr") || x === "amt") ||
+          h.some((x) => x.includes("debit /credit") || x.includes("debit/credit")))
       );
     },
-    dateColumns: ["Date", "Transaction Date"],
+    dateColumns: ["Date", "DATE", "Transaction Date"],
     descriptionColumns: ["Narration", "Transaction Details", "Particulars", "Description"],
-    amountColumns: ["Amount (INR)", "Amount(INR)", "Amount", "Debit/Credit"],
-    typeColumns: ["Type", "Cr/Dr", "DR/CR"],
+    amountColumns: ["Amount (INR)", "Amount(INR)", "AMT", "Amount", "Debit/Credit"],
+    typeColumns: ["Type", "Cr/Dr", "DR/CR", "Debit /Credit", "Debit/Credit"],
     amountMode: "single",
   },
   {
@@ -209,6 +210,99 @@ function getCCFormatById(id: string): CCFormat | null {
   return CC_FORMATS.find((f) => f.id === id) ?? null;
 }
 
+// HDFC CC statement format: ~|~ delimited (or ~,~ after PapaParse comma-split)
+// Headers: Transaction type~|~Primary / Addon Customer Name~|~DATE~|~Description~|~AMT~|~Debit /Credit~|~
+function parseHDFCPipeCC(rawRows: string[][]): CCTransaction[] {
+  // Re-join rows — PapaParse may have split on commas inside ~|~
+  const lines = rawRows.map((r) => r.join(","));
+
+  // Detect the actual delimiter used
+  const delim = lines.some((l) => l.includes("~|~")) ? "~|~" : "~,~";
+
+  // Find the transaction header row
+  let headerIdx = -1;
+  for (let i = 0; i < Math.min(lines.length, 40); i++) {
+    const line = lines[i];
+    if ((line.includes("DATE") || line.includes("Date")) &&
+        (line.includes("Description") || line.includes("Particulars")) &&
+        (line.includes("AMT") || line.includes("Amount"))) {
+      headerIdx = i;
+      break;
+    }
+    if (line.includes("Transaction type") && (line.includes("~|~") || line.includes("~,~"))) {
+      headerIdx = i;
+      break;
+    }
+  }
+
+  if (headerIdx === -1) return [];
+
+  const transactions: CCTransaction[] = [];
+
+  for (let i = headerIdx + 1; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    // Stop at non-transaction sections
+    const lineNoDelim = line.replace(/~[|,]~/g, " ").trim().toLowerCase();
+    if (lineNoDelim.startsWith("cashback") || lineNoDelim.startsWith("gst summary") ||
+        lineNoDelim.startsWith("state account") || lineNoDelim.startsWith("hsn") ||
+        lineNoDelim.startsWith("registered") || lineNoDelim.startsWith("*gst")) break;
+
+    const parts = line.split(delim).map((s) => s.trim());
+    if (parts.length < 5) continue;
+
+    // Parts: [Transaction type, Customer Name, DATE, Description, AMT, Debit/Credit]
+    const rawDate = parts[2];
+    const description = parts[3];
+    const rawAmount = parts[4];
+    const typeIndicator = parts[5] || "";
+
+    if (!rawDate || !description) continue;
+
+    // Parse date: "DD/MM/YYYY HH:MM:SS" or "DD/MM/YYYY"
+    const datePart = rawDate.split(" ")[0];
+    const date = parseDate(datePart);
+    if (!date) continue;
+
+    const amount = parseAmount(rawAmount);
+    if (amount === 0) continue;
+
+    const type: "debit" | "credit" = typeIndicator.toLowerCase().startsWith("cr") ? "credit" : "debit";
+
+    // Detect payments by description
+    const descLower = description.toLowerCase();
+    const isPayment = descLower.includes("credit card payment") || descLower.includes("payment received");
+    const finalType = isPayment ? "credit" : type;
+
+    const merchant_name = cleanMerchantName(description);
+
+    // Auto-categorize
+    const fakeParsedTx: ParsedTransaction = {
+      id: generateId(), date, description, amount, type: finalType,
+      incomeType: "other", expenseCategory: "other", isDuplicate: false, selected: true,
+    };
+    const categorized = categorizeTransaction(fakeParsedTx);
+
+    let category = finalType === "debit" ? categorized.expenseCategory : "credit_card_bill";
+    if (descLower.includes("igst") || descLower.includes("cgst") || descLower.includes("sgst")) category = "tax_payment";
+    if (descLower.includes("membership fee") || descLower.includes("annual fee")) category = "other";
+    if (descLower.includes("cashback")) category = "other";
+
+    transactions.push({
+      id: generateId(),
+      date,
+      amount,
+      type: finalType,
+      description,
+      merchant_name,
+      category,
+      selected: true,
+    });
+  }
+
+  return transactions;
+}
+
 export function parseCCStatement(
   file: File,
   ccFormatId?: string
@@ -223,7 +317,21 @@ export function parseCCStatement(
           return;
         }
 
-        const allRows = results.data as string[][];
+        let allRows = results.data as string[][];
+
+        // HDFC CC statements use ~|~ delimiter (appears as ~,~ after PapaParse comma-split)
+        const firstFewLines = allRows.slice(0, 30).map((r) => r.join(","));
+        const isHdfcPipeFormat = firstFewLines.some(
+          (line) => (line.includes("~|~") || line.includes("~,~")) &&
+            (line.includes("DATE") || line.includes("Description") || line.includes("AMT"))
+        );
+        if (isHdfcPipeFormat) {
+          const transactions = parseHDFCPipeCC(allRows);
+          if (transactions.length > 0) {
+            resolve({ transactions });
+            return;
+          }
+        }
 
         // Check for ICICI merged format first (special case with 4 empty cols between fields)
         if (isICICIMergedFormat(allRows)) {
