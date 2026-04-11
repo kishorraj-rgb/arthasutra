@@ -140,6 +140,43 @@ export default function CreditCardsPage() {
     user ? { userId: user.userId } : "skip"
   );
 
+  // Category preferences (for custom categories + subcategories)
+  const catPrefs = useQuery(
+    api.categories.getCategoryPreferences,
+    user ? { userId: user.userId, scope: "expense" as const } : "skip"
+  );
+
+  const allCategories = useMemo(() => {
+    const base: { value: string; label: string }[] = EXPENSE_CATEGORIES.map((c) => ({
+      value: c.value as string,
+      label: c.label as string,
+    }));
+    if (catPrefs) {
+      const defaultSlugs = new Set(base.map((c) => c.value));
+      for (const pref of catPrefs) {
+        const existing = base.find((c) => c.value === pref.slug);
+        if (existing) {
+          existing.label = pref.label;
+        } else if (!defaultSlugs.has(pref.slug) && !pref.hidden) {
+          base.push({ value: pref.slug, label: pref.label });
+        }
+      }
+    }
+    return base;
+  }, [catPrefs]);
+
+  const subcategoryMap = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    if (catPrefs) {
+      for (const pref of catPrefs) {
+        if (pref.subcategories && pref.subcategories.length > 0) {
+          map[pref.slug] = pref.subcategories;
+        }
+      }
+    }
+    return map;
+  }, [catPrefs]);
+
   // ── Convex Mutations ──────────────────────────────────────────────────
   const addCreditCard = useMutation(api.creditCards.addCreditCard);
   const updateCreditCard = useMutation(api.creditCards.updateCreditCard);
@@ -151,7 +188,7 @@ export default function CreditCardsPage() {
 
   // ── Filter State ──────────────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedFY, setSelectedFY] = useState("");
+  const [selectedFYs, setSelectedFYs] = useState<Set<string>>(new Set());
   const [cardFilter, setCardFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [matchStatusFilter, setMatchStatusFilter] = useState("");
@@ -224,23 +261,43 @@ export default function CreditCardsPage() {
 
   // Auto-select FY
   useEffect(() => {
-    if (availableFYs.length > 0) {
-      if (!selectedFY || !availableFYs.includes(selectedFY)) {
-        setSelectedFY(availableFYs[0]);
-      }
+    if (availableFYs.length > 0 && selectedFYs.size === 0) {
+      setSelectedFYs(new Set([availableFYs[0]]));
     }
-  }, [availableFYs, selectedFY]);
+  }, [availableFYs, selectedFYs.size]);
+
+  const toggleFY = (fy: string) => {
+    setSelectedFYs((prev) => {
+      const next = new Set(prev);
+      if (next.has(fy)) {
+        next.delete(fy);
+        if (next.size === 0) next.add(fy); // Keep at least one
+      } else {
+        next.add(fy);
+      }
+      return next;
+    });
+    setSelectedMonth("");
+  };
 
   // ── Filtering ─────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
-    const fyDates = selectedFY ? getFinancialYearDates(selectedFY) : null;
     const query = searchQuery.toLowerCase().trim();
 
     return allTxns.filter((t) => {
       // FY date range
-      if (fyDates && (t.date < fyDates.start || t.date > fyDates.end)) return false;
+      // FY filter (multi-select)
+      if (selectedFYs.size > 0) {
+        const fyArray = Array.from(selectedFYs);
+        let inAnyFY = false;
+        for (const fy of fyArray) {
+          const fyDates = getFinancialYearDates(fy);
+          if (t.date >= fyDates.start && t.date <= fyDates.end) { inAnyFY = true; break; }
+        }
+        if (!inAnyFY) return false;
+      }
       // Month filter
-      if (selectedMonth && selectedFY) {
+      if (selectedMonth) {
         const monthObj = FY_MONTHS.find((m) => m.label === selectedMonth);
         if (monthObj && new Date(t.date).getMonth() !== monthObj.month) return false;
       }
@@ -256,12 +313,12 @@ export default function CreditCardsPage() {
       }
       // Search
       if (query) {
-        const haystack = `${t.description} ${t.merchant_name || ""} ${t.category || ""}`.toLowerCase();
+        const haystack = `${t.description} ${t.merchant_name || ""} ${t.category || ""} ${(t as Record<string,unknown>).subcategory || ""}`.toLowerCase();
         if (!haystack.includes(query)) return false;
       }
       return true;
     });
-  }, [allTxns, selectedFY, selectedMonth, cardFilter, categoryFilter, matchStatusFilter, searchQuery]);
+  }, [allTxns, selectedFYs, selectedMonth, cardFilter, categoryFilter, matchStatusFilter, searchQuery]);
 
   // ── Sorting ───────────────────────────────────────────────────────────
   const sorted = useMemo(() => {
@@ -285,7 +342,7 @@ export default function CreditCardsPage() {
   }, [sorted, currentPage]);
 
   // Reset page when filters change
-  useEffect(() => { setCurrentPage(1); }, [categoryFilter, searchQuery, selectedFY, selectedMonth, cardFilter, matchStatusFilter]);
+  useEffect(() => { setCurrentPage(1); }, [categoryFilter, searchQuery, selectedFYs, selectedMonth, cardFilter, matchStatusFilter]);
 
   // ── KPI Stats ─────────────────────────────────────────────────────────
   const stats = useMemo(() => {
@@ -489,7 +546,7 @@ export default function CreditCardsPage() {
       if (importMonth) {
         const [year, month] = importMonth.split("-").map(Number);
         const fy = month >= 4 ? `${year}-${(year + 1).toString().slice(-2)}` : `${year - 1}-${year.toString().slice(-2)}`;
-        setSelectedFY(fy);
+        setSelectedFYs(new Set([fy]));
       }
     } catch (error) {
       console.error("Import failed:", error);
@@ -602,15 +659,24 @@ export default function CreditCardsPage() {
         </div>
       </div>
 
-      {/* FY selector */}
+      {/* FY selector (multi-select chips) */}
       <div className="space-y-1.5">
         <label className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">Financial Year</label>
-        <Select
-          options={availableFYs.map((fy) => ({ value: fy, label: `FY ${fy}` }))}
-          value={selectedFY}
-          onChange={(e) => { setSelectedFY(e.target.value); setSelectedMonth(""); }}
-          className="w-full"
-        />
+        <div className="flex flex-wrap gap-1.5">
+          {availableFYs.map((fy) => (
+            <button
+              key={fy}
+              onClick={() => toggleFY(fy)}
+              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all border ${
+                selectedFYs.has(fy)
+                  ? "bg-rose-500/10 border-rose-400/30 text-rose-600 shadow-sm"
+                  : "border-gray-200 bg-white text-text-secondary hover:border-gray-300"
+              }`}
+            >
+              FY {fy}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Card filter chips */}
@@ -653,7 +719,7 @@ export default function CreditCardsPage() {
       <div className="space-y-1.5">
         <label className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">Category</label>
         <Select
-          options={[{ value: "", label: "All Categories" }, ...EXPENSE_CATEGORIES]}
+          options={[{ value: "", label: "All Categories" }, ...allCategories]}
           value={categoryFilter}
           onChange={(e) => setCategoryFilter(e.target.value)}
           className="w-full"
@@ -686,7 +752,7 @@ export default function CreditCardsPage() {
       </div>
 
       {/* Month chips */}
-      {selectedFY && (
+      {selectedFYs.size > 0 && (
         <div className="space-y-1.5">
           <label className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">Month</label>
           <div className="grid grid-cols-3 gap-1.5">
@@ -1030,7 +1096,7 @@ export default function CreditCardsPage() {
                         className="text-xs rounded-lg border border-gray-200 px-2 py-1.5 bg-white focus:border-rose-400 focus:outline-none cursor-pointer"
                       >
                         <option value="">Category...</option>
-                        {EXPENSE_CATEGORIES.map((c) => (
+                        {allCategories.map((c) => (
                           <option key={c.value} value={c.value}>{c.label}</option>
                         ))}
                       </select>
@@ -1094,22 +1160,34 @@ export default function CreditCardsPage() {
                               })}
                             </td>
                             <td className="px-4 py-3.5">
-                              <select
-                                value={tx.category || ""}
-                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                onChange={(e) => updateCCTx({ id: tx._id as any, category: e.target.value })}
-                                className="text-xs rounded-lg border border-gray-200 px-2 py-1 bg-white focus:border-rose-400 focus:outline-none cursor-pointer"
-                              >
-                                <option value="">Uncategorized</option>
-                                {EXPENSE_CATEGORIES.map((c) => (
-                                  <option key={c.value} value={c.value}>{c.label}</option>
-                                ))}
-                              </select>
-                              {String((tx as Record<string, unknown>).subcategory || "") && (
-                                <span className="text-[10px] text-text-tertiary mt-0.5 block">
-                                  {String((tx as Record<string, unknown>).subcategory || "")}
-                                </span>
-                              )}
+                              <div className="flex flex-col gap-0.5">
+                                <select
+                                  value={tx.category || ""}
+                                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                  onChange={(e) => updateCCTx({ id: tx._id as any, category: e.target.value, subcategory: "" })}
+                                  className="text-xs rounded-lg border border-gray-200 px-2 py-1 bg-white focus:border-rose-400 focus:outline-none cursor-pointer"
+                                >
+                                  <option value="">Uncategorized</option>
+                                  {EXPENSE_CATEGORIES.map((c) => (
+                                    <option key={c.value} value={c.value}>{c.label}</option>
+                                  ))}
+                                </select>
+                                {subcategoryMap[tx.category]?.length > 0 ? (
+                                  <select
+                                    value={String((tx as Record<string, unknown>).subcategory || "")}
+                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                    onChange={(e) => updateCCTx({ id: tx._id as any, subcategory: e.target.value })}
+                                    className="text-[11px] rounded-md border border-dashed border-gray-200 px-1.5 py-0.5 bg-gray-50 focus:border-rose-400 focus:outline-none cursor-pointer text-text-secondary"
+                                  >
+                                    <option value="">— subcategory —</option>
+                                    {subcategoryMap[tx.category].map((sub) => (
+                                      <option key={sub} value={sub}>{sub}</option>
+                                    ))}
+                                  </select>
+                                ) : (tx as Record<string, unknown>).subcategory ? (
+                                  <span className="text-[10px] text-text-tertiary">{String((tx as Record<string, unknown>).subcategory)}</span>
+                                ) : null}
+                              </div>
                             </td>
                             <td className="px-4 py-3.5" title={tx.description}>
                               <div className="flex flex-col gap-0.5">
