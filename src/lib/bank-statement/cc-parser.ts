@@ -231,8 +231,12 @@ function parseHDFCPipeCC(rawRows: string[][]): { transactions: CCTransaction[]; 
   // Re-join rows — PapaParse may have split on commas inside ~|~
   const lines = rawRows.map((r) => r.join(","));
 
-  // Detect the actual delimiter used
-  const delim = lines.some((l) => l.includes("~|~")) ? "~|~" : "~,~";
+  // Detect the actual delimiter used: ~|~ (original) or ~,~ (after PapaParse comma-split) or ~ (older HDFC format)
+  const delim = lines.some((l) => l.includes("~|~"))
+    ? "~|~"
+    : lines.some((l) => l.includes("~,~"))
+      ? "~,~"
+      : "~";
 
   // Extract metadata from header rows
   const meta: CCStatementMeta = {};
@@ -287,7 +291,7 @@ function parseHDFCPipeCC(rawRows: string[][]): { transactions: CCTransaction[]; 
       headerIdx = i;
       break;
     }
-    if (line.includes("Transaction type") && (line.includes("~|~") || line.includes("~,~"))) {
+    if (line.includes("Transaction type") && line.includes("~")) {
       headerIdx = i;
       break;
     }
@@ -301,10 +305,11 @@ function parseHDFCPipeCC(rawRows: string[][]): { transactions: CCTransaction[]; 
     const line = lines[i].trim();
     if (!line) continue;
     // Stop at non-transaction sections
-    const lineNoDelim = line.replace(/~[|,]~/g, " ").trim().toLowerCase();
+    const lineNoDelim = line.replace(/~(\|~|,~)?/g, " ").trim().toLowerCase();
     if (lineNoDelim.startsWith("cashback") || lineNoDelim.startsWith("gst summary") ||
         lineNoDelim.startsWith("state account") || lineNoDelim.startsWith("hsn") ||
-        lineNoDelim.startsWith("registered") || lineNoDelim.startsWith("*gst")) break;
+        lineNoDelim.startsWith("registered") || lineNoDelim.startsWith("*gst") ||
+        lineNoDelim.startsWith("opening bal") || lineNoDelim.startsWith("reward")) break;
 
     const parts = line.split(delim).map((s) => s.trim());
     if (parts.length < 5) continue;
@@ -377,11 +382,12 @@ export function parseCCStatement(
 
         let allRows = results.data as string[][];
 
-        // HDFC CC statements use ~|~ delimiter (appears as ~,~ after PapaParse comma-split)
+        // HDFC CC statements use ~ or ~|~ delimiter (appears as ~,~ after PapaParse comma-split)
         const firstFewLines = allRows.slice(0, 30).map((r) => r.join(","));
         const isHdfcPipeFormat = firstFewLines.some(
-          (line) => (line.includes("~|~") || line.includes("~,~")) &&
-            (line.includes("DATE") || line.includes("Description") || line.includes("AMT"))
+          (line) => line.includes("~") &&
+            (line.includes("DATE") || line.includes("Description") || line.includes("AMT") ||
+             line.includes("Payment Due Date") || line.includes("Statement Date"))
         );
         if (isHdfcPipeFormat) {
           const result = parseHDFCPipeCC(allRows);
