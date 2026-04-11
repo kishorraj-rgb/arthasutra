@@ -788,7 +788,8 @@ export default function CreditCardsPage() {
             )}
             <Button
               onClick={openAddCard}
-              className="bg-rose-500 text-white hover:bg-rose-600 gap-2"
+              variant="destructive"
+              className="gap-2"
             >
               <Plus className="h-4 w-4" />
               <span className="hidden sm:inline">Add Card</span>
@@ -1323,7 +1324,7 @@ export default function CreditCardsPage() {
               <Button
                 onClick={handleImport}
                 disabled={importing || parsedTransactions.filter((t) => t.selected).length === 0 || !importCardId}
-                className="bg-rose-500 text-white hover:bg-rose-600"
+                variant="destructive"
               >
                 {importing ? (
                   <>
@@ -1448,7 +1449,7 @@ export default function CreditCardsPage() {
               <Button
                 onClick={handleCardSubmit}
                 disabled={submitting || !cardForm.card_name || !cardForm.card_last4}
-                className="bg-rose-500 text-white hover:bg-rose-600"
+                variant="destructive"
               >
                 {submitting ? (
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -1470,7 +1471,7 @@ export default function CreditCardsPage() {
               <p className="text-text-secondary text-sm max-w-md mb-6">
                 Add your credit cards to import statements and track CC spends alongside your expenses.
               </p>
-              <Button onClick={openAddCard} className="bg-rose-500 text-white hover:bg-rose-600">
+              <Button onClick={openAddCard} variant="destructive">
                 <Plus className="h-4 w-4 mr-2" />
                 Add Credit Card
               </Button>
