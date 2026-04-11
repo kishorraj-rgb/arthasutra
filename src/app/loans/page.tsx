@@ -20,6 +20,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { formatCurrency } from "@/lib/utils";
+import { resolveBankPresetId, BANK_PRESETS } from "@/components/bank-logo";
 import {
   Plus,
   Home,
@@ -45,6 +46,7 @@ import {
   Target,
   Zap,
   IndianRupee,
+  Bell,
 } from "lucide-react";
 import type { Id } from "../../../convex/_generated/dataModel";
 
@@ -603,6 +605,11 @@ export default function LoansPage() {
                 <p className="text-xl font-display font-bold text-accent-light stat-number tabular-nums">
                   {formatCurrency(totalEMI)}
                 </p>
+                {loansData && loansData.length > 0 && (
+                  <p className="text-[10px] text-text-tertiary mt-0.5">
+                    Due: {loansData.map(l => `${l.emi_date}${l.emi_date === 1 ? "st" : l.emi_date === 2 ? "nd" : l.emi_date === 3 ? "rd" : "th"}`).join(", ")} of month
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -1118,8 +1125,16 @@ function LoanCard({
     extra: number
   ) => number;
 }) {
+  const { user } = useAuth();
+  const addReminder = useMutation(api.reminders.addReminder);
   const Icon = typeIcons[loan.type] || Landmark;
-  const color = typeColors[loan.type] || "text-text-secondary";
+
+  // Bank theme colors
+  const presetId = resolveBankPresetId(loan.lender || "");
+  const bankPreset = BANK_PRESETS[presetId] || BANK_PRESETS.custom;
+  const bankColor = bankPreset.color;
+  const bankBg = bankPreset.bgColor;
+
   const repaidPercent =
     (loan.sanctioned_amount ?? loan.principal) > 0
       ? (((loan.sanctioned_amount ?? loan.principal) - loan.outstanding) /
@@ -1136,6 +1151,14 @@ function LoanCard({
     expanded ? { loanId: loan._id } : "skip"
   );
 
+  // Get actual EMI from latest principal repayment transaction
+  const actualEmi = useMemo(() => {
+    if (!txns) return loan.emi_amount;
+    const principalTxns = txns.filter((t) => t.type === "principal_repayment" && t.credit > 0);
+    if (principalTxns.length > 0) return principalTxns[0].credit; // Latest
+    return loan.emi_amount;
+  }, [txns, loan.emi_amount]);
+
   const totalInterestPaid = useMemo(() => {
     if (!txns) return 0;
     return txns
@@ -1150,29 +1173,49 @@ function LoanCard({
       .reduce((s, t) => s + t.credit, 0);
   }, [txns]);
 
+  const handleCreateReminder = async () => {
+    if (!user) return;
+    await addReminder({
+      userId: user.userId,
+      type: "loan_emi",
+      title: `${loan.lender} ${loan.product_type || loan.type} EMI - ${formatCurrency(actualEmi)}`,
+      due_date: nextEMI.toISOString().split("T")[0],
+      amount: actualEmi,
+      is_recurring: true,
+      frequency: "monthly",
+      is_completed: false,
+      notes: `A/C: ${loan.account_number || ""} | Rate: ${loan.interest_rate}% | Outstanding: ${formatCurrency(loan.outstanding)}`,
+    });
+    alert("Reminder created! Check the Reminders tab.");
+  };
+
   return (
-    <Card className="group relative">
+    <Card className="group relative overflow-hidden" style={{ borderColor: `${bankColor}30` }}>
+      {/* Bank color accent strip */}
+      <div className="absolute top-0 left-0 right-0 h-1" style={{ backgroundColor: bankColor }} />
+
       <button
         onClick={onDelete}
-        className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity text-text-tertiary hover:text-rose text-xs z-10"
+        className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity text-text-tertiary hover:text-rose-400 text-xs z-10"
       >
         Remove
       </button>
 
       {/* Clickable header */}
       <div className="cursor-pointer" onClick={onToggle}>
-        <CardHeader>
+        <CardHeader className="pt-5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div
-                className={`p-2.5 rounded-lg bg-surface-tertiary ${color}`}
+                className="p-2.5 rounded-lg"
+                style={{ backgroundColor: bankBg, color: bankColor }}
               >
                 <Icon className="h-5 w-5" />
               </div>
               <div>
-                <CardTitle>{loan.lender}</CardTitle>
+                <CardTitle style={{ color: bankColor }}>{loan.lender}</CardTitle>
                 <div className="flex items-center gap-2 mt-1">
-                  <Badge>{loan.product_type || loan.type}</Badge>
+                  <Badge style={{ backgroundColor: `${bankColor}15`, color: bankColor, borderColor: `${bankColor}30` }}>{loan.product_type || loan.type}</Badge>
                   <span className="text-text-tertiary text-xs font-mono">
                     {loan.interest_rate}% p.a.
                   </span>
@@ -1184,18 +1227,25 @@ function LoanCard({
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-2 text-text-tertiary">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={(e) => { e.stopPropagation(); handleCreateReminder(); }}
+                className="p-1.5 rounded-lg hover:bg-gray-100 text-text-tertiary hover:text-amber-500 transition-colors"
+                title="Create EMI Reminder"
+              >
+                <Bell className="h-4 w-4" />
+              </button>
               {expanded ? (
-                <ChevronUp className="h-5 w-5" />
+                <ChevronUp className="h-5 w-5 text-text-tertiary" />
               ) : (
-                <ChevronDown className="h-5 w-5" />
+                <ChevronDown className="h-5 w-5 text-text-tertiary" />
               )}
             </div>
           </div>
         </CardHeader>
 
         <CardContent className="space-y-4 pb-4">
-          <div className="grid grid-cols-3 sm:grid-cols-5 gap-4">
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-4">
             <div>
               <p className="text-text-tertiary text-xs">Sanctioned</p>
               <p className="stat-number text-sm text-text-primary">
@@ -1210,8 +1260,8 @@ function LoanCard({
             </div>
             <div>
               <p className="text-text-tertiary text-xs">Monthly EMI</p>
-              <p className="stat-number text-sm text-accent-light">
-                {formatCurrency(loan.emi_amount)}
+              <p className="stat-number text-sm" style={{ color: bankColor }}>
+                {formatCurrency(actualEmi)}
               </p>
             </div>
             <div className="hidden sm:block">
@@ -1228,6 +1278,13 @@ function LoanCard({
                 {loan.interest_rate}%
               </p>
             </div>
+            <div className="hidden sm:block">
+              <p className="text-text-tertiary text-xs">Next EMI</p>
+              <p className="text-sm text-text-primary flex items-center gap-1">
+                <Calendar className="h-3 w-3" />
+                {nextEMI.toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}
+              </p>
+            </div>
           </div>
           <div>
             <div className="flex justify-between text-xs mb-1">
@@ -1236,10 +1293,12 @@ function LoanCard({
                 {repaidPercent.toFixed(1)}%
               </span>
             </div>
-            <Progress
-              value={repaidPercent}
-              indicatorClassName="bg-emerald-400"
-            />
+            <div className="w-full h-2.5 rounded-full bg-gray-100 overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all duration-500"
+                style={{ width: `${Math.min(100, repaidPercent)}%`, backgroundColor: bankColor }}
+              />
+            </div>
           </div>
         </CardContent>
       </div>
@@ -1247,7 +1306,7 @@ function LoanCard({
       {/* Expanded section with tabs */}
       {expanded && (
         <ExpandedLoanSection
-          loan={loan}
+          loan={{ ...loan, emi_amount: actualEmi }}
           txns={txns}
           totalInterestPaid={totalInterestPaid}
           totalPrincipalPaid={totalPrincipalPaid}
