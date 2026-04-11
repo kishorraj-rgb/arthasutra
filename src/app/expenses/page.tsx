@@ -1138,6 +1138,7 @@ export default function ExpensesPage() {
                               {new Date(expense.date).toLocaleDateString("en-IN", {
                                 day: "2-digit",
                                 month: "short",
+                                year: "2-digit",
                               })}
                             </td>
                             <td className="px-5 py-3.5">

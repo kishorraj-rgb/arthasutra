@@ -1607,6 +1607,7 @@ export default function CreditCardsPage() {
                               {new Date(tx.date).toLocaleDateString("en-IN", {
                                 day: "2-digit",
                                 month: "short",
+                                year: "2-digit",
                               })}
                             </td>
                             <td className="px-4 py-3.5">
