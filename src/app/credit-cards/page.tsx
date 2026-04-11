@@ -373,6 +373,77 @@ export default function CreditCardsPage() {
     };
   }, [filtered]);
 
+  // ── Analytics Insights ────────────────────────────────────────────────
+  const [insightsOpen, setInsightsOpen] = useState(true);
+
+  const insights = useMemo(() => {
+    const debits = filtered.filter((t) => t.type === "debit");
+    const credits = filtered.filter((t) => t.type === "credit");
+    if (debits.length === 0) return null;
+
+    // Top category
+    const catMap = new Map<string, number>();
+    for (const t of debits) { catMap.set(t.category, (catMap.get(t.category) || 0) + t.amount); }
+    const catSorted = Array.from(catMap.entries()).sort((a, b) => b[1] - a[1]);
+    const topCat = catSorted[0] || ["other", 0];
+    const topCatLabel = allCategories.find((c) => c.value === topCat[0])?.label || topCat[0];
+    const totalSpends = debits.reduce((s, t) => s + t.amount, 0);
+
+    // Top merchant
+    const merchMap = new Map<string, { total: number; count: number }>();
+    for (const t of debits) {
+      const name = t.merchant_name || t.description.substring(0, 25);
+      const cur = merchMap.get(name) || { total: 0, count: 0 };
+      cur.total += t.amount; cur.count++;
+      merchMap.set(name, cur);
+    }
+    const merchSorted = Array.from(merchMap.entries()).sort((a, b) => b[1].total - a[1].total);
+    const topMerch = merchSorted[0];
+    const mostFrequent = Array.from(merchMap.entries()).sort((a, b) => b[1].count - a[1].count)[0];
+
+    // Top subcategory
+    const subMap = new Map<string, number>();
+    for (const t of debits) {
+      const sub = (t as Record<string, unknown>).subcategory as string;
+      if (sub) subMap.set(sub, (subMap.get(sub) || 0) + t.amount);
+    }
+    const subSorted = Array.from(subMap.entries()).sort((a, b) => b[1] - a[1]);
+    const topSub = subSorted[0];
+
+    // Avg + biggest
+    const amounts = debits.map((t) => t.amount).sort((a, b) => a - b);
+    const avg = totalSpends / debits.length;
+    const median = amounts[Math.floor(amounts.length / 2)] || 0;
+    const biggest = debits.reduce((max, t) => (t.amount > max.amount ? t : max), debits[0]);
+
+    // Monthly trend
+    const now = new Date();
+    const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const lastDate = new Date(now); lastDate.setMonth(lastDate.getMonth() - 1);
+    const lastMonth = `${lastDate.getFullYear()}-${String(lastDate.getMonth() + 1).padStart(2, "0")}`;
+    const thisMonthSpend = debits.filter((t) => t.date.startsWith(thisMonth)).reduce((s, t) => s + t.amount, 0);
+    const lastMonthSpend = debits.filter((t) => t.date.startsWith(lastMonth)).reduce((s, t) => s + t.amount, 0);
+    const trendPct = lastMonthSpend > 0 ? Math.round(((thisMonthSpend - lastMonthSpend) / lastMonthSpend) * 100) : 0;
+
+    // Payment coverage
+    const totalPayments = credits.reduce((s, t) => s + t.amount, 0);
+    const coveragePct = totalSpends > 0 ? Math.min(100, Math.round((totalPayments / totalSpends) * 100)) : 0;
+
+    // Category count
+    const catCount = catMap.size;
+
+    return {
+      topCat: { label: topCatLabel, amount: topCat[1], pct: totalSpends > 0 ? Math.round((topCat[1] / totalSpends) * 100) : 0 },
+      topMerch: topMerch ? { name: topMerch[0], total: topMerch[1].total, count: topMerch[1].count } : null,
+      topSub: topSub ? { name: topSub[0], amount: topSub[1] } : null,
+      avg: Math.round(avg), median: Math.round(median),
+      biggest: { merchant: biggest.merchant_name || biggest.description.substring(0, 20), amount: biggest.amount, date: biggest.date },
+      mostFrequent: mostFrequent ? { name: mostFrequent[0], count: mostFrequent[1].count, total: mostFrequent[1].total } : null,
+      trend: { thisMonth: thisMonthSpend, lastMonth: lastMonthSpend, pct: trendPct },
+      coverage: coveragePct, catCount, totalSpends,
+    };
+  }, [filtered, allCategories]);
+
   const hasActiveFilters = !!(categoryFilter || subcategoryFilter || searchQuery || selectedMonth || cardFilter || matchStatusFilter);
 
   function clearAllFilters() {
@@ -1119,6 +1190,112 @@ export default function CreditCardsPage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* ── Insights Section ── */}
+        {insights && (
+          <div>
+            <button
+              onClick={() => setInsightsOpen(!insightsOpen)}
+              className="flex items-center gap-2 text-xs text-text-tertiary hover:text-text-secondary transition-colors mb-2"
+            >
+              {insightsOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+              <span className="font-medium uppercase tracking-wider">{insightsOpen ? "Hide Insights" : "Show Insights"}</span>
+            </button>
+            {insightsOpen && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 animate-page-enter">
+                {/* Top Category */}
+                <div className="rounded-xl border border-rose-200/50 bg-gradient-to-br from-rose-50 to-white p-4">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-rose-400 mb-1">Top Category</p>
+                  <p className="text-sm font-bold text-text-primary truncate">{insights.topCat.label}</p>
+                  <p className="text-lg font-display font-bold text-rose-500 stat-number">{formatCurrency(insights.topCat.amount)}</p>
+                  <div className="mt-1.5 h-1.5 rounded-full bg-rose-100 overflow-hidden">
+                    <div className="h-full rounded-full" style={{ width: `${insights.topCat.pct}%`, backgroundColor: "#f43f5e" }} />
+                  </div>
+                  <p className="text-[10px] text-text-tertiary mt-1">{insights.topCat.pct}% of total spend</p>
+                </div>
+
+                {/* Top Merchant */}
+                {insights.topMerch && (
+                  <div className="rounded-xl border border-amber-200/50 bg-gradient-to-br from-amber-50 to-white p-4">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-500 mb-1">Top Merchant</p>
+                    <p className="text-sm font-bold text-text-primary truncate">{insights.topMerch.name}</p>
+                    <p className="text-lg font-display font-bold text-amber-600 stat-number">{formatCurrency(insights.topMerch.total)}</p>
+                    <p className="text-[10px] text-text-tertiary mt-1">{insights.topMerch.count} transactions</p>
+                  </div>
+                )}
+
+                {/* Biggest Spend */}
+                <div className="rounded-xl border border-purple-200/50 bg-gradient-to-br from-purple-50 to-white p-4">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-purple-500 mb-1">Biggest Spend</p>
+                  <p className="text-sm font-bold text-text-primary truncate">{insights.biggest.merchant}</p>
+                  <p className="text-lg font-display font-bold text-purple-600 stat-number">{formatCurrency(insights.biggest.amount)}</p>
+                  <p className="text-[10px] text-text-tertiary mt-1">{new Date(insights.biggest.date).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}</p>
+                </div>
+
+                {/* Monthly Trend */}
+                <div className="rounded-xl border border-blue-200/50 bg-gradient-to-br from-blue-50 to-white p-4">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-blue-500 mb-1">Monthly Trend</p>
+                  <div className="flex items-baseline gap-1.5">
+                    <p className="text-lg font-display font-bold stat-number" style={{ color: insights.trend.pct > 0 ? "#f43f5e" : "#10b981" }}>
+                      {insights.trend.pct > 0 ? "↑" : insights.trend.pct < 0 ? "↓" : "→"} {Math.abs(insights.trend.pct)}%
+                    </p>
+                  </div>
+                  <p className="text-[10px] text-text-tertiary mt-1">
+                    This month: {formatCurrency(insights.trend.thisMonth)}
+                  </p>
+                  <p className="text-[10px] text-text-tertiary">
+                    Last month: {formatCurrency(insights.trend.lastMonth)}
+                  </p>
+                </div>
+
+                {/* Most Frequent */}
+                {insights.mostFrequent && (
+                  <div className="rounded-xl border border-emerald-200/50 bg-gradient-to-br from-emerald-50 to-white p-4">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-500 mb-1">Most Frequent</p>
+                    <p className="text-sm font-bold text-text-primary truncate">{insights.mostFrequent.name}</p>
+                    <p className="text-lg font-display font-bold text-emerald-600 stat-number">{insights.mostFrequent.count}x</p>
+                    <p className="text-[10px] text-text-tertiary mt-1">Total: {formatCurrency(insights.mostFrequent.total)}</p>
+                  </div>
+                )}
+
+                {/* Top Subcategory */}
+                {insights.topSub && (
+                  <div className="rounded-xl border border-indigo-200/50 bg-gradient-to-br from-indigo-50 to-white p-4">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-indigo-500 mb-1">Top Subcategory</p>
+                    <p className="text-sm font-bold text-text-primary truncate">{insights.topSub.name}</p>
+                    <p className="text-lg font-display font-bold text-indigo-600 stat-number">{formatCurrency(insights.topSub.amount)}</p>
+                  </div>
+                )}
+
+                {/* Average Transaction */}
+                <div className="rounded-xl border border-slate-200/50 bg-gradient-to-br from-slate-50 to-white p-4">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Avg Transaction</p>
+                  <p className="text-lg font-display font-bold text-text-primary stat-number">{formatCurrency(insights.avg)}</p>
+                  <p className="text-[10px] text-text-tertiary mt-1">Median: {formatCurrency(insights.median)}</p>
+                  <p className="text-[10px] text-text-tertiary">{insights.catCount} categories used</p>
+                </div>
+
+                {/* Payment Coverage */}
+                <div className="rounded-xl border border-teal-200/50 bg-gradient-to-br from-teal-50 to-white p-4">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-teal-500 mb-1">Payment Coverage</p>
+                  <p className="text-lg font-display font-bold stat-number" style={{ color: insights.coverage >= 80 ? "#10b981" : insights.coverage >= 50 ? "#f59e0b" : "#f43f5e" }}>
+                    {insights.coverage}%
+                  </p>
+                  <div className="mt-1.5 h-2 rounded-full bg-gray-100 overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{
+                        width: `${insights.coverage}%`,
+                        backgroundColor: insights.coverage >= 80 ? "#10b981" : insights.coverage >= 50 ? "#f59e0b" : "#f43f5e",
+                      }}
+                    />
+                  </div>
+                  <p className="text-[10px] text-text-tertiary mt-1">of spends covered by payments</p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ── Main Layout: Sidebar + Content ── */}
         <div className="flex gap-6">

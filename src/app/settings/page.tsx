@@ -13,7 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/lib/auth-context";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { User, Calculator, Receipt, Bell, Download, Loader2, CheckCircle2, Tags, ChevronUp, ChevronDown, Eye, EyeOff, RotateCcw, Plus, X, Save, Trash2, Pencil, Check, Home, UtensilsCrossed, Car, Heart, GraduationCap, Shield as ShieldIcon, TrendingUp, Zap, Film, ShoppingCart, ShoppingBag, Shirt, Sparkles, CreditCard, Landmark, Plane, Smartphone, Users as UsersIcon, Banknote, ArrowLeftRight, MoreHorizontal, Wallet, DollarSign, Building, Coins, ReceiptText } from "lucide-react";
+import { User, Calculator, Receipt, Bell, Download, Loader2, CheckCircle2, Tags, ChevronUp, ChevronDown, Eye, EyeOff, RotateCcw, Plus, X, Save, Trash2, Pencil, Check, Home, UtensilsCrossed, Car, Heart, GraduationCap, Shield as ShieldIcon, TrendingUp, Zap, Film, ShoppingCart, ShoppingBag, Shirt, Sparkles, CreditCard, Landmark, Plane, Smartphone, Users as UsersIcon, Banknote, ArrowLeftRight, MoreHorizontal, Wallet, DollarSign, Building, Coins, ReceiptText, Search } from "lucide-react";
 import { EXPENSE_CATEGORIES, INCOME_TYPES, CATEGORY_COLORS, getMergedCategories } from "@/lib/utils";
 import { BankLogo, BANK_PRESETS, BANK_PRESET_IDS } from "@/components/bank-logo";
 import type { Id } from "../../../convex/_generated/dataModel";
@@ -294,12 +294,35 @@ export default function SettingsPage() {
   // ---------------------------------------------------------------------------
   // Category list renderer (shared between expense/income)
   // ---------------------------------------------------------------------------
+  const [catSearchQuery, setCatSearchQuery] = useState("");
+
   function renderCategoryList(cats: CatItem[], setCats: (v: CatItem[]) => void, scope: "expense" | "income") {
     const accentColor = scope === "expense" ? "accent" : "emerald";
+    const query = catSearchQuery.toLowerCase().trim();
+    const filteredCats = query
+      ? cats.filter((c) =>
+          c.label.toLowerCase().includes(query) ||
+          c.slug.toLowerCase().includes(query) ||
+          c.subcategories.some((s) => s.toLowerCase().includes(query))
+        )
+      : cats;
     return (
       <>
+        {/* Search categories */}
+        <div className="relative mb-3">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-text-tertiary" />
+          <input
+            type="text"
+            placeholder="Search categories or subcategories..."
+            value={catSearchQuery}
+            onChange={(e) => setCatSearchQuery(e.target.value)}
+            className="w-full h-8 pl-8 pr-3 rounded-lg border border-gray-200 bg-white text-xs placeholder:text-text-tertiary focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/10"
+          />
+        </div>
         <div className="space-y-1.5 max-h-[60vh] overflow-y-auto pr-1">
-          {cats.map((cat, index) => (
+          {filteredCats.map((cat) => {
+            const index = cats.indexOf(cat);
+            return (
             <div key={cat.slug} className={`rounded-lg border p-3 transition-all ${cat.hidden ? "border-gray-100 bg-gray-50/50 opacity-50" : "border-gray-200 bg-white"}`}>
               <div className="flex items-center gap-3">
                 <div className="flex items-center justify-center w-8 h-8 rounded-lg shrink-0" style={{ backgroundColor: cat.color + "20" }}>
@@ -339,7 +362,8 @@ export default function SettingsPage() {
                 </div>
               </div>
             </div>
-          ))}
+          );
+          })}
         </div>
         <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
           <div className="flex items-center gap-3">
