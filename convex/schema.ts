@@ -427,4 +427,115 @@ export default defineSchema({
   })
     .index("by_user", ["userId"])
     .index("by_card_month", ["credit_card_id", "statement_month"]),
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // Invoice Generator Tables
+  // ═══════════════════════════════════════════════════════════════════════
+
+  invoice_sellers: defineTable({
+    userId: v.id("users"),
+    name: v.string(),
+    address: v.optional(v.string()),
+    gstin: v.optional(v.string()),
+    pan: v.optional(v.string()),
+    email: v.optional(v.string()),
+    phone: v.optional(v.string()),
+    logoDataUrl: v.optional(v.string()),
+    logoPosition: v.optional(v.string()),
+    invoicePrefix: v.optional(v.string()),
+    upiId: v.optional(v.string()),
+    signatureDataUrl: v.optional(v.string()),
+    defaultBankId: v.optional(v.id("invoice_banks")),
+  }).index("by_user", ["userId"]),
+
+  invoice_buyers: defineTable({
+    userId: v.id("users"),
+    name: v.string(),
+    address: v.optional(v.string()),
+    gstin: v.optional(v.string()),
+    pan: v.optional(v.string()),
+    email: v.optional(v.string()),
+    phone: v.optional(v.string()),
+    contactPerson: v.optional(v.string()),
+  }).index("by_user", ["userId"]),
+
+  invoice_banks: defineTable({
+    userId: v.id("users"),
+    sellerId: v.optional(v.id("invoice_sellers")),
+    accountName: v.string(),
+    accountNumber: v.string(),
+    bankName: v.string(),
+    branch: v.optional(v.string()),
+    ifscCode: v.string(),
+  }).index("by_user", ["userId"]),
+
+  invoice_products: defineTable({
+    userId: v.id("users"),
+    name: v.string(),
+    description: v.optional(v.string()),
+    hsnSac: v.optional(v.string()),
+    rate: v.number(),
+    gstRate: v.optional(v.number()),
+  }).index("by_user", ["userId"]),
+
+  invoices: defineTable({
+    userId: v.id("users"),
+    sellerId: v.optional(v.id("invoice_sellers")),
+    buyerId: v.optional(v.id("invoice_buyers")),
+    bankId: v.optional(v.id("invoice_banks")),
+    documentType: v.string(),
+    invoiceNumber: v.string(),
+    invoiceDate: v.string(),
+    dueDate: v.optional(v.string()),
+    terms: v.optional(v.string()),
+    subject: v.optional(v.string()),
+    placeOfSupplyCode: v.optional(v.string()),
+    items: v.array(v.object({
+      description: v.string(),
+      hsnSac: v.optional(v.string()),
+      qty: v.number(),
+      rate: v.number(),
+      gstRate: v.optional(v.number()),
+    })),
+    subtotal: v.number(),
+    gstTotal: v.number(),
+    tdsAmount: v.optional(v.number()),
+    roundOff: v.optional(v.number()),
+    netTotal: v.number(),
+    status: v.string(),
+    template: v.optional(v.string()),
+    watermark: v.optional(v.string()),
+    notes: v.optional(v.string()),
+    tdsEnabled: v.optional(v.boolean()),
+    tdsRate: v.optional(v.number()),
+    tdsSection: v.optional(v.string()),
+    gstInclusive: v.optional(v.boolean()),
+    logoDataUrl: v.optional(v.string()),
+    signatureDataUrl: v.optional(v.string()),
+    showUpiQr: v.optional(v.boolean()),
+    // Denormalized seller/buyer data for PDF rendering without joins
+    sellerData: v.optional(v.any()),
+    buyerData: v.optional(v.any()),
+    bankData: v.optional(v.any()),
+    // Link to ArthaSutra income entry (when paid)
+    linkedIncomeId: v.optional(v.id("income_entries")),
+  })
+    .index("by_user", ["userId"])
+    .index("by_seller", ["sellerId"])
+    .index("by_status", ["userId", "status"]),
+
+  invoice_payments: defineTable({
+    userId: v.id("users"),
+    invoiceId: v.id("invoices"),
+    amount: v.number(),
+    method: v.optional(v.string()),
+    date: v.string(),
+    note: v.optional(v.string()),
+  }).index("by_invoice", ["invoiceId"]),
+
+  invoice_counters: defineTable({
+    userId: v.id("users"),
+    sellerId: v.id("invoice_sellers"),
+    nextNum: v.number(),
+  }).index("by_user_seller", ["userId", "sellerId"]),
 });

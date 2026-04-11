@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, TrendingUp, TrendingDown, Calculator, PieChart,
   Shield, Landmark, Bell, FileText, Settings, LogOut, ChevronLeft, ChevronRight, Upload,
-  RefreshCw, FolderLock, CreditCard,
+  RefreshCw, FolderLock, CreditCard, Receipt,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useState } from "react";
@@ -18,6 +18,7 @@ const navigation = [
   { name: "Import", href: "/import", icon: Upload },
   { name: "Subscriptions", href: "/subscriptions", icon: RefreshCw },
   { name: "Credit Cards", href: "/credit-cards", icon: CreditCard },
+  { name: "Invoices", href: "/invoices", icon: Receipt },
   { name: "Tax", href: "/tax", icon: Calculator },
   { name: "Investments", href: "/investments", icon: PieChart },
   { name: "Insurance", href: "/insurance", icon: Shield },
