@@ -145,6 +145,7 @@ export default function CreditCardsPage() {
   const importCCTransactions = useMutation(api.creditCards.importCCTransactions);
   const autoMatchTransactions = useMutation(api.creditCards.autoMatchTransactions);
   const updateCCTx = useMutation(api.creditCards.updateCCTransaction);
+  const purgeTxns = useMutation(api.creditCards.purgeCCTransactions);
 
   // ── Filter State ──────────────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState("");
@@ -432,6 +433,15 @@ export default function CreditCardsPage() {
         setParseError(result.error);
       } else {
         setParsedTransactions(result.transactions);
+        // Auto-detect statement month from transaction dates
+        if (result.transactions.length > 0 && !importMonth) {
+          const dates = result.transactions.map((t) => t.date).filter(Boolean).sort();
+          if (dates.length > 0) {
+            // Use the most common month, or the latest date's month
+            const latest = dates[dates.length - 1]; // YYYY-MM-DD
+            setImportMonth(latest.substring(0, 7)); // YYYY-MM
+          }
+        }
       }
     },
     [importFormat]
@@ -763,6 +773,19 @@ export default function CreditCardsPage() {
               <Upload className="h-4 w-4" />
               <span className="hidden sm:inline">Import Statement</span>
             </Button>
+            {allTxns && allTxns.length > 0 && (
+              <Button
+                variant="outline"
+                className="gap-2 text-rose-400 border-rose-200 hover:bg-rose-50"
+                onClick={async () => {
+                  if (!user || !confirm(`Purge all ${allTxns.length} CC transactions? This cannot be undone.`)) return;
+                  await purgeTxns({ userId: user.userId });
+                }}
+              >
+                <Trash2 className="h-4 w-4" />
+                <span className="hidden sm:inline">Purge All</span>
+              </Button>
+            )}
             <Button
               onClick={openAddCard}
               className="bg-rose-500 text-white hover:bg-rose-600 gap-2"
@@ -1031,6 +1054,11 @@ export default function CreditCardsPage() {
                                   <option key={c.value} value={c.value}>{c.label}</option>
                                 ))}
                               </select>
+                              {String((tx as Record<string, unknown>).subcategory || "") && (
+                                <span className="text-[10px] text-text-tertiary mt-0.5 block">
+                                  {String((tx as Record<string, unknown>).subcategory || "")}
+                                </span>
+                              )}
                             </td>
                             <td className="px-4 py-3.5" title={tx.description}>
                               <div className="flex flex-col gap-0.5">

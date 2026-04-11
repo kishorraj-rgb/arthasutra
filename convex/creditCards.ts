@@ -230,6 +230,46 @@ export const importCCTransactions = mutation({
   },
 });
 
+// Purge all CC transactions for a card (for re-import after parsing fix)
+export const purgeCCTransactions = mutation({
+  args: {
+    userId: v.id("users"),
+    creditCardId: v.optional(v.id("credit_cards")),
+  },
+  handler: async (ctx, args) => {
+    const txns = args.creditCardId
+      ? await ctx.db
+          .query("cc_transactions")
+          .withIndex("by_card", (q) => q.eq("credit_card_id", args.creditCardId!))
+          .collect()
+      : await ctx.db
+          .query("cc_transactions")
+          .withIndex("by_user", (q) => q.eq("userId", args.userId))
+          .collect();
+
+    for (const t of txns) {
+      await ctx.db.delete(t._id);
+    }
+
+    // Also delete associated statements
+    const statements = args.creditCardId
+      ? await ctx.db
+          .query("cc_statements")
+          .withIndex("by_card_month", (q) => q.eq("credit_card_id", args.creditCardId!))
+          .collect()
+      : await ctx.db
+          .query("cc_statements")
+          .withIndex("by_user", (q) => q.eq("userId", args.userId))
+          .collect();
+
+    for (const s of statements) {
+      await ctx.db.delete(s._id);
+    }
+
+    return { deleted: txns.length };
+  },
+});
+
 // ─── Auto-Match ─────────────────────────────────────────────────────────
 
 function wordOverlap(a: string, b: string): number {
