@@ -43,6 +43,22 @@ function formatDate(iso: string) {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type PolicyDoc = any;
 
+/** Recursively strip null values from an object (Convex rejects null for optional fields) */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function stripNulls(obj: any): any {
+  if (obj === null || obj === undefined) return undefined;
+  if (Array.isArray(obj)) return obj.map(stripNulls).filter((v: unknown) => v !== undefined);
+  if (typeof obj === "object") {
+    const result: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(obj)) {
+      const cleaned = stripNulls(v);
+      if (cleaned !== undefined) result[k] = cleaned;
+    }
+    return result;
+  }
+  return obj;
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -141,8 +157,11 @@ export default function InsurancePage() {
         ? existingPolicies.find((p: PolicyDoc) => p.policy_number === d.policy_number)
         : null;
 
-      const policyData = {
-        type: (d.type as "term" | "health" | "vehicle" | "home" | "travel") || "vehicle",
+      const validTypes = ["term", "health", "vehicle", "home", "travel"] as const;
+      const pType = validTypes.includes(d.type) ? d.type : "vehicle";
+
+      const policyData = stripNulls({
+        type: pType,
         provider: d.provider || "Unknown",
         policy_number: d.policy_number || "",
         sum_assured: Number(d.sum_assured) || 0,
@@ -155,14 +174,14 @@ export default function InsurancePage() {
         vehicle_details: importPreview.vehicle_details || undefined,
         insured_members: importPreview.insured_members?.length > 0 ? importPreview.insured_members : undefined,
         add_ons: importPreview.add_ons?.length > 0 ? importPreview.add_ons : undefined,
-        ncb_percent: d.ncb_percent ?? undefined,
+        ncb_percent: d.ncb_percent != null ? Number(d.ncb_percent) : undefined,
         policy_category: d.policy_category || undefined,
         coverage_type: d.coverage_type || undefined,
-        deductible: d.deductible ?? undefined,
+        deductible: d.deductible != null ? Number(d.deductible) : undefined,
         financier: d.financier || undefined,
         previous_policy_number: d.previous_policy_number || undefined,
         previous_insurer: d.previous_insurer || undefined,
-      };
+      });
 
       if (existing) {
         await updatePolicy({ id: existing._id, ...policyData });
@@ -202,6 +221,7 @@ export default function InsurancePage() {
         }
       }
     } catch (err) {
+      console.error("Insurance import error:", err);
       setImportError(err instanceof Error ? err.message : "Import failed");
     } finally {
       setImportSaving(false);

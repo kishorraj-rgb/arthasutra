@@ -90,6 +90,22 @@ function formatDate(iso: string) {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type LoanDoc = any;
 
+/** Recursively strip null values (Convex rejects null for optional fields) */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function stripNulls(obj: any): any {
+  if (obj === null || obj === undefined) return undefined;
+  if (Array.isArray(obj)) return obj.map(stripNulls).filter((v: unknown) => v !== undefined);
+  if (typeof obj === "object") {
+    const result: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(obj)) {
+      const cleaned = stripNulls(v);
+      if (cleaned !== undefined) result[k] = cleaned;
+    }
+    return result;
+  }
+  return obj;
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -243,35 +259,42 @@ export default function LoansPage() {
 
       let loanId: Id<"loans">;
 
+      // Safely coerce numbers (avoid NaN)
+      const safeNum = (v: unknown, fallback = 0) => {
+        const n = Number(v);
+        return isNaN(n) ? fallback : n;
+      };
+
       if (existingLoan) {
-        // Update existing loan metadata
         loanId = existingLoan._id;
         await updateLoan({
           id: loanId,
-          outstanding: details.outstanding,
-          emi_amount: details.emi_amount,
-          tenure_remaining: details.remaining_tenure,
-          interest_rate: details.interest_rate,
+          outstanding: safeNum(details.outstanding),
+          emi_amount: safeNum(details.emi_amount),
+          tenure_remaining: safeNum(details.remaining_tenure),
+          interest_rate: safeNum(details.interest_rate),
         });
       } else {
-        // Create new loan
+        const loanType = (["home", "car", "personal", "education"] as const).includes(details.loan_type)
+          ? details.loan_type as "home" | "car" | "personal" | "education"
+          : "personal";
         loanId = await addLoan({
           userId: user.userId,
-          type: (details.loan_type as "home" | "car" | "personal" | "education") || "personal",
+          type: loanType,
           lender: details.lender || "Unknown",
-          principal: details.sanctioned_amount || details.outstanding || 0,
-          outstanding: details.outstanding || 0,
-          emi_amount: details.emi_amount || 0,
-          interest_rate: details.interest_rate || 0,
-          emi_date: details.emi_date || 10,
-          tenure_remaining: details.remaining_tenure || 0,
-          account_number: details.account_number,
-          sanctioned_amount: details.sanctioned_amount,
-          product_type: details.product_type,
-          start_date: details.start_date,
-          loan_term: details.loan_term,
-          ifsc_code: details.ifsc_code,
-          branch_name: details.branch_name,
+          principal: safeNum(details.sanctioned_amount) || safeNum(details.outstanding),
+          outstanding: safeNum(details.outstanding),
+          emi_amount: safeNum(details.emi_amount),
+          interest_rate: safeNum(details.interest_rate),
+          emi_date: safeNum(details.emi_date, 10),
+          tenure_remaining: safeNum(details.remaining_tenure),
+          account_number: details.account_number || undefined,
+          sanctioned_amount: details.sanctioned_amount ? safeNum(details.sanctioned_amount) : undefined,
+          product_type: details.product_type || undefined,
+          start_date: details.start_date || undefined,
+          loan_term: details.loan_term ? safeNum(details.loan_term) : undefined,
+          ifsc_code: details.ifsc_code || undefined,
+          branch_name: details.branch_name || undefined,
         });
       }
 
@@ -281,7 +304,7 @@ export default function LoansPage() {
         "interest_repayment", "charges", "deposit", "other",
       ]);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const allTxns = importPreview.transactions.map((t: any) => ({
+      const allTxns = importPreview.transactions.map((t: any) => stripNulls({
         date: t.post_date || t.date || "",
         value_date: t.value_date || undefined,
         description: String(t.description || ""),
@@ -307,10 +330,10 @@ export default function LoansPage() {
           transactions: batch,
           // Only update loan metadata on the first batch
           loanUpdates: i === 0 ? {
-            outstanding: details.outstanding,
-            emi_amount: details.emi_amount,
-            tenure_remaining: details.remaining_tenure,
-            interest_rate: details.interest_rate,
+            outstanding: safeNum(details.outstanding),
+            emi_amount: safeNum(details.emi_amount),
+            tenure_remaining: safeNum(details.remaining_tenure),
+            interest_rate: safeNum(details.interest_rate),
           } : undefined,
         });
         totalInserted += result.inserted;
