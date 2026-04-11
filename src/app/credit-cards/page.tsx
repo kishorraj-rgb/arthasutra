@@ -1185,12 +1185,12 @@ export default function CreditCardsPage() {
                     <span className="text-[9px] text-text-tertiary">{cards.length} cards</span>
                   </button>
                   {cards.map((card) => (
-                    <div key={card._id} className="flex-shrink-0 relative group/card">
+                    <div key={card._id} className="flex-shrink-0 relative group/card w-[160px]">
                       <button
                         onClick={() => setCardFilter(cardFilter === card._id ? "" : card._id)}
-                        className={`transition-all rounded-lg ${
+                        className={`w-full transition-all rounded-lg ${
                           cardFilter === card._id
-                            ? "ring-2 ring-rose-400"
+                            ? "ring-2 ring-rose-400 ring-offset-1"
                             : cardFilter && cardFilter !== card._id
                               ? "opacity-60 hover:opacity-100"
                               : ""
