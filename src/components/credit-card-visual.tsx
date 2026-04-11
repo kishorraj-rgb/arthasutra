@@ -106,7 +106,9 @@ export function CreditCardVisual({
   className,
   compact,
 }: CreditCardVisualProps) {
-  const gradient = getGradient(issuer, color);
+  // Ignore white/empty/invalid colors — use gradient instead
+  const validColor = color && color !== "#ffffff" && color !== "#FFFFFF" && color !== "white" && color.length > 3 ? color : undefined;
+  const gradient = getGradient(issuer, validColor);
   const NetworkIcon = NETWORK_ICONS[network] ?? VisaIcon;
 
   if (compact) {
@@ -116,10 +118,10 @@ export function CreditCardVisual({
           "relative aspect-[1.586/1] w-full max-w-[160px] rounded-lg p-2.5 text-white shadow-lg overflow-hidden",
           "transition-transform duration-300 hover:scale-[1.03]",
           "transform-gpu",
-          !color && `bg-gradient-to-br ${gradient}`,
+          !validColor && `bg-gradient-to-br ${gradient}`,
           className
         )}
-        style={color ? { background: `linear-gradient(135deg, ${color}, ${color}dd, ${color}bb)` } : undefined}
+        style={validColor ? { background: `linear-gradient(135deg, ${validColor}, ${validColor}dd, ${validColor}bb)` } : undefined}
       >
         <div className="absolute inset-0 opacity-10">
           <div className="absolute top-0 right-0 w-20 h-20 rounded-full bg-white/20 -translate-y-5 translate-x-5" />
@@ -148,7 +150,7 @@ export function CreditCardVisual({
         "relative aspect-[1.586/1] w-full max-w-[320px] rounded-xl p-5 text-white shadow-xl overflow-hidden",
         "transition-transform duration-300 hover:scale-[1.02]",
         "transform-gpu",
-        !color && `bg-gradient-to-br ${gradient}`,
+        !validColor && `bg-gradient-to-br ${gradient}`,
         className
       )}
       style={
