@@ -385,15 +385,24 @@ export default function CreditCardsPage() {
     }
   };
 
+  const [bulkUpdating, setBulkUpdating] = useState(false);
+
   // ── Bulk Category / Subcategory Change ─────────────────────────────────
   const handleBulkCategoryChange = async (cat: string, sub?: string) => {
-    for (const id of Array.from(selectedIds)) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await updateCCTx({ id: id as any, category: cat, subcategory: sub || "" });
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    setBulkUpdating(true);
+    try {
+      for (const id of ids) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await updateCCTx({ id: id as any, category: cat, subcategory: sub || "" });
+      }
+    } finally {
+      setBulkUpdating(false);
+      setSelectedIds(new Set());
+      setBulkCategory("");
+      setBulkSubcategory("");
     }
-    setSelectedIds(new Set());
-    setBulkCategory("");
-    setBulkSubcategory("");
   };
 
   const handleBulkSubcategoryChange = async (sub: string) => {
@@ -1096,16 +1105,20 @@ export default function CreditCardsPage() {
                 </CardTitle>
                 {selectedIds.size > 0 && (
                   <div className="flex items-center gap-2 text-sm animate-page-enter flex-wrap">
+                    {bulkUpdating && <Loader2 className="h-4 w-4 animate-spin text-rose-400" />}
                     <span className="text-text-secondary font-medium">{selectedIds.size} selected</span>
                     <div className="flex items-center gap-1.5">
                       <select
                         value={bulkCategory}
+                        disabled={bulkUpdating}
                         onChange={(e) => {
-                          setBulkCategory(e.target.value);
+                          const val = e.target.value;
+                          if (!val) { setBulkCategory(""); return; }
+                          setBulkCategory(val);
                           setBulkSubcategory("");
                           // If no subcategories for this category, apply immediately
-                          if (e.target.value && (!subcategoryMap[e.target.value] || subcategoryMap[e.target.value].length === 0)) {
-                            handleBulkCategoryChange(e.target.value);
+                          if (!subcategoryMap[val] || subcategoryMap[val].length === 0) {
+                            handleBulkCategoryChange(val);
                           }
                         }}
                         className="text-xs rounded-lg border border-gray-200 px-2 py-1.5 bg-white focus:border-rose-400 focus:outline-none cursor-pointer"
@@ -1130,11 +1143,12 @@ export default function CreditCardsPage() {
                           </select>
                           <Button
                             size="sm"
-                            variant="outline"
+                            variant="destructive"
                             className="text-xs h-7"
+                            disabled={bulkUpdating}
                             onClick={() => handleBulkCategoryChange(bulkCategory, bulkSubcategory)}
                           >
-                            Apply
+                            {bulkUpdating ? <><Loader2 className="h-3 w-3 animate-spin mr-1" />Applying...</> : "Apply"}
                           </Button>
                         </>
                       )}
