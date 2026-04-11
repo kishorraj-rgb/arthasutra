@@ -603,14 +603,22 @@ export default function CreditCardsPage() {
 
       const allTxns: CCTransaction[] = [];
       const errors: string[] = [];
+      let successCount = 0;
 
       for (let f = 0; f < files.length; f++) {
         const file = files[f];
-        const result = await parseCCStatement(file, importFormat || undefined);
-        if (result.error) {
-          errors.push(`${file.name}: ${result.error}`);
-        } else {
-          allTxns.push(...result.transactions);
+        try {
+          const result = await parseCCStatement(file, importFormat || undefined);
+          if (result.error) {
+            errors.push(`${file.name}: ${result.error}`);
+          } else if (result.transactions.length === 0) {
+            errors.push(`${file.name}: No transactions found`);
+          } else {
+            allTxns.push(...result.transactions);
+            successCount++;
+          }
+        } catch (err) {
+          errors.push(`${file.name}: ${err instanceof Error ? err.message : "Parse failed"}`);
         }
       }
 
@@ -618,7 +626,7 @@ export default function CreditCardsPage() {
         setParseError(errors.join("\n"));
       } else {
         if (errors.length > 0) {
-          setParseError(`${errors.length} file(s) had errors. ${allTxns.length} transactions parsed from ${files.length - errors.length} file(s).`);
+          setParseError(`✓ ${successCount} file(s) parsed (${allTxns.length} txns). ✗ ${errors.length} failed:\n${errors.join("\n")}`);
         }
 
         // Dedup across files: same date + description prefix + amount
@@ -1760,7 +1768,7 @@ export default function CreditCardsPage() {
 
               {/* Parse Error */}
               {parseError && (
-                <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-600">
+                <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-600 whitespace-pre-line max-h-32 overflow-y-auto">
                   {parseError}
                 </div>
               )}
