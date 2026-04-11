@@ -88,8 +88,27 @@ async function callGemini(
   prompt: string,
   apiKey: string
 ): Promise<CategorizedResult[]> {
-  // Try gemini-2.0-flash first, fallback to gemini-1.5-flash
-  const model = "gemini-2.0-flash-lite";
+  // Try models in order of preference
+  const models = ["gemini-2.0-flash-lite", "gemini-2.0-flash", "gemini-1.5-flash"];
+  let lastError = "";
+
+  for (const model of models) {
+    try {
+      return await callGeminiModel(prompt, apiKey, model);
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : String(err);
+      console.warn(`Gemini model ${model} failed: ${lastError}`);
+      continue;
+    }
+  }
+  throw new Error(`All Gemini models failed. Last error: ${lastError}`);
+}
+
+async function callGeminiModel(
+  prompt: string,
+  apiKey: string,
+  model: string
+): Promise<CategorizedResult[]> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
   const response = await fetch(url, {
