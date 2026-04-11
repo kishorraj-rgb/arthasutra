@@ -381,17 +381,24 @@ export default function CreditCardsPage() {
     const credits = filtered.filter((t) => t.type === "credit");
     if (debits.length === 0) return null;
 
-    // Top category
+    // For spend analytics, exclude EMI principal amortization (already counted in original purchase)
+    const realSpends = debits.filter((t) => {
+      const desc = t.description.toLowerCase();
+      return !desc.includes("principal amount amortization") && !desc.includes("principal amortization");
+    });
+
+    // Top category (using real spends to avoid EMI double-count)
     const catMap = new Map<string, number>();
-    for (const t of debits) { catMap.set(t.category, (catMap.get(t.category) || 0) + t.amount); }
+    for (const t of realSpends) { catMap.set(t.category, (catMap.get(t.category) || 0) + t.amount); }
     const catSorted = Array.from(catMap.entries()).sort((a, b) => b[1] - a[1]);
     const topCat = catSorted[0] || ["other", 0];
     const topCatLabel = allCategories.find((c) => c.value === topCat[0])?.label || topCat[0];
-    const totalSpends = debits.reduce((s, t) => s + t.amount, 0);
+    const totalSpends = realSpends.reduce((s, t) => s + t.amount, 0);
+    const totalAllDebits = debits.reduce((s, t) => s + t.amount, 0); // includes EMI (for KPI)
 
-    // Top merchant
+    // Top merchant (from real spends only)
     const merchMap = new Map<string, { total: number; count: number }>();
-    for (const t of debits) {
+    for (const t of realSpends) {
       const name = t.merchant_name || t.description.substring(0, 25);
       const cur = merchMap.get(name) || { total: 0, count: 0 };
       cur.total += t.amount; cur.count++;
@@ -403,31 +410,35 @@ export default function CreditCardsPage() {
 
     // Top subcategory
     const subMap = new Map<string, number>();
-    for (const t of debits) {
+    for (const t of realSpends) {
       const sub = (t as Record<string, unknown>).subcategory as string;
       if (sub) subMap.set(sub, (subMap.get(sub) || 0) + t.amount);
     }
     const subSorted = Array.from(subMap.entries()).sort((a, b) => b[1] - a[1]);
     const topSub = subSorted[0];
 
-    // Avg + biggest
-    const amounts = debits.map((t) => t.amount).sort((a, b) => a - b);
-    const avg = totalSpends / debits.length;
+    // Avg + biggest (from real spends)
+    const amounts = realSpends.map((t) => t.amount).sort((a, b) => a - b);
+    const avg = realSpends.length > 0 ? totalSpends / realSpends.length : 0;
     const median = amounts[Math.floor(amounts.length / 2)] || 0;
-    const biggest = debits.reduce((max, t) => (t.amount > max.amount ? t : max), debits[0]);
+    const biggest = realSpends.length > 0 ? realSpends.reduce((max, t) => (t.amount > max.amount ? t : max), realSpends[0]) : debits[0];
 
-    // Monthly trend
+    // Monthly trend (real spends only)
     const now = new Date();
     const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
     const lastDate = new Date(now); lastDate.setMonth(lastDate.getMonth() - 1);
     const lastMonth = `${lastDate.getFullYear()}-${String(lastDate.getMonth() + 1).padStart(2, "0")}`;
-    const thisMonthSpend = debits.filter((t) => t.date.startsWith(thisMonth)).reduce((s, t) => s + t.amount, 0);
-    const lastMonthSpend = debits.filter((t) => t.date.startsWith(lastMonth)).reduce((s, t) => s + t.amount, 0);
+    const thisMonthSpend = realSpends.filter((t) => t.date.startsWith(thisMonth)).reduce((s, t) => s + t.amount, 0);
+    const lastMonthSpend = realSpends.filter((t) => t.date.startsWith(lastMonth)).reduce((s, t) => s + t.amount, 0);
     const trendPct = lastMonthSpend > 0 ? Math.round(((thisMonthSpend - lastMonthSpend) / lastMonthSpend) * 100) : 0;
+
+    // EMI summary
+    const emiPrincipal = debits.filter((t) => t.description.toLowerCase().includes("principal amount amortization")).reduce((s, t) => s + t.amount, 0);
+    const emiInterest = debits.filter((t) => t.description.toLowerCase().includes("interest amount amortization")).reduce((s, t) => s + t.amount, 0);
 
     // Payment coverage
     const totalPayments = credits.reduce((s, t) => s + t.amount, 0);
-    const coveragePct = totalSpends > 0 ? Math.min(100, Math.round((totalPayments / totalSpends) * 100)) : 0;
+    const coveragePct = totalAllDebits > 0 ? Math.min(100, Math.round((totalPayments / totalAllDebits) * 100)) : 0;
 
     // Category count
     const catCount = catMap.size;
@@ -440,7 +451,8 @@ export default function CreditCardsPage() {
       biggest: { merchant: biggest.merchant_name || biggest.description.substring(0, 20), amount: biggest.amount, date: biggest.date },
       mostFrequent: mostFrequent ? { name: mostFrequent[0], count: mostFrequent[1].count, total: mostFrequent[1].total } : null,
       trend: { thisMonth: thisMonthSpend, lastMonth: lastMonthSpend, pct: trendPct },
-      coverage: coveragePct, catCount, totalSpends,
+      coverage: coveragePct, catCount, totalSpends, totalPayments,
+      emi: { principal: emiPrincipal, interest: emiInterest, total: emiPrincipal + emiInterest },
     };
   }, [filtered, allCategories]);
 
@@ -1290,8 +1302,18 @@ export default function CreditCardsPage() {
                       }}
                     />
                   </div>
-                  <p className="text-[10px] text-text-tertiary mt-1">of spends covered by payments</p>
+                  <p className="text-[10px] text-text-tertiary mt-1">Paid: {formatCurrency(insights.totalPayments)}</p>
                 </div>
+
+                {/* EMI Breakdown */}
+                {insights.emi.total > 0 && (
+                  <div className="rounded-xl border border-orange-200/50 bg-gradient-to-br from-orange-50 to-white p-4">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-orange-500 mb-1">EMI Breakdown</p>
+                    <p className="text-lg font-display font-bold text-orange-600 stat-number">{formatCurrency(insights.emi.total)}</p>
+                    <p className="text-[10px] text-text-tertiary mt-1">Principal: {formatCurrency(insights.emi.principal)}</p>
+                    <p className="text-[10px] text-text-tertiary">Interest: {formatCurrency(insights.emi.interest)}</p>
+                  </div>
+                )}
               </div>
             )}
           </div>

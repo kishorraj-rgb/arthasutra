@@ -360,6 +360,22 @@ function parseCCRows(
     }
 
     const merchant_name = cleanMerchantName(description);
+    const descLower = description.toLowerCase();
+
+    // Detect EMI amortization transactions
+    const isPrincipalAmortization = descLower.includes("principal amount amortization") || descLower.includes("principal amortization");
+    const isInterestAmortization = descLower.includes("interest amount amortization") || descLower.includes("interest amortization");
+    const isEmiAmortization = isPrincipalAmortization || isInterestAmortization;
+
+    // Detect payment/credit transactions by description keywords
+    const isPaymentByDesc = descLower.includes("payment received") || descLower.includes("payment recd") ||
+      descLower.includes("autodebit payment") || descLower.includes("auto debit") ||
+      descLower.includes("infinity payment") || descLower.includes("credit received");
+
+    // Override type for payment transactions detected by description
+    if (isPaymentByDesc && type === "debit") {
+      type = "credit";
+    }
 
     // Use the categorizer to auto-categorize
     const fakeParsedTx: ParsedTransaction = {
@@ -375,6 +391,13 @@ function parseCCRows(
     };
     const categorized = categorizeTransaction(fakeParsedTx);
 
+    // Smart category assignment
+    let category = type === "debit" ? categorized.expenseCategory : "credit_card_bill";
+    if (isPrincipalAmortization) category = "emi";
+    if (isInterestAmortization) category = "emi";
+    if (descLower.includes("igst-ci@18%") || descLower.includes("cgst") || descLower.includes("sgst")) category = "tax_payment";
+    if (descLower.includes("dcc fee")) category = "other"; // DCC fees
+
     transactions.push({
       id: generateId(),
       date,
@@ -382,8 +405,8 @@ function parseCCRows(
       type,
       description,
       merchant_name,
-      category: type === "debit" ? categorized.expenseCategory : "credit_card_bill",
-      selected: true,
+      category,
+      selected: !isPrincipalAmortization, // Deselect principal EMI by default (already counted in original)
     });
   }
 
