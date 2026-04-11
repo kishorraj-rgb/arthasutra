@@ -193,7 +193,36 @@ export default defineSchema({
     interest_rate: v.number(),
     emi_date: v.number(),
     tenure_remaining: v.number(),
+    // Extended fields from statement import
+    account_number: v.optional(v.string()),
+    sanctioned_amount: v.optional(v.number()),
+    product_type: v.optional(v.string()),
+    start_date: v.optional(v.string()),
+    loan_term: v.optional(v.number()),
+    ifsc_code: v.optional(v.string()),
+    branch_name: v.optional(v.string()),
   }).index("by_user", ["userId"]),
+
+  loan_transactions: defineTable({
+    userId: v.id("users"),
+    loanId: v.id("loans"),
+    date: v.string(),
+    value_date: v.optional(v.string()),
+    description: v.string(),
+    debit: v.number(),
+    credit: v.number(),
+    balance: v.number(),
+    type: v.union(
+      v.literal("interest"),
+      v.literal("principal_repayment"),
+      v.literal("compound_repayment"),
+      v.literal("interest_repayment"),
+      v.literal("charges"),
+      v.literal("deposit"),
+      v.literal("other")
+    ),
+    reference: v.optional(v.string()),
+  }).index("by_loan", ["loanId"]),
 
   subscriptions: defineTable({
     userId: v.id("users"),
