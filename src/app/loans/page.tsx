@@ -41,6 +41,10 @@ import {
   Banknote,
   Clock,
   Percent,
+  CalendarCheck,
+  Target,
+  Zap,
+  IndianRupee,
 } from "lucide-react";
 import type { Id } from "../../../convex/_generated/dataModel";
 
@@ -89,6 +93,151 @@ function formatDate(iso: string) {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type LoanDoc = any;
+
+// ---------------------------------------------------------------------------
+// Amortization & Foreclosure Calculators
+// ---------------------------------------------------------------------------
+
+interface AmortRow {
+  month: number;
+  emiDate: string;
+  emi: number;
+  principal: number;
+  interest: number;
+  balance: number;
+}
+
+/** Generate full amortization schedule from current outstanding */
+function generateAmortization(
+  outstanding: number,
+  annualRate: number,
+  emi: number,
+  tenureMonths: number,
+  startDate?: string
+): AmortRow[] {
+  const monthlyRate = annualRate / 100 / 12;
+  const rows: AmortRow[] = [];
+  let balance = outstanding;
+  const start = startDate ? new Date(startDate) : new Date();
+  // Move to next EMI date
+  const emiStart = new Date(start);
+  if (emiStart < new Date()) {
+    emiStart.setMonth(new Date().getMonth() + 1);
+  }
+
+  for (let i = 1; i <= tenureMonths && balance > 0; i++) {
+    const interest = Math.round(balance * monthlyRate);
+    const principalPart = Math.min(balance, Math.max(0, emi - interest));
+    balance = Math.max(0, balance - principalPart);
+    const emiDate = new Date(emiStart);
+    emiDate.setMonth(emiStart.getMonth() + i - 1);
+
+    rows.push({
+      month: i,
+      emiDate: emiDate.toISOString().split("T")[0],
+      emi: interest + principalPart,
+      principal: principalPart,
+      interest,
+      balance,
+    });
+
+    if (balance <= 0) break;
+  }
+  return rows;
+}
+
+/** Calculate foreclosure details */
+function calcForeclosure(
+  outstanding: number,
+  annualRate: number,
+  emi: number,
+  tenureRemaining: number,
+  loanStartDate?: string
+) {
+  const monthlyRate = annualRate / 100 / 12;
+  // Total payable without foreclosure
+  const totalPayable = emi * tenureRemaining;
+  const totalInterest = totalPayable - outstanding;
+
+  // Foreclosure: pay outstanding today
+  // Check if within 2 years of disbursement (SBI policy)
+  const startDate = loanStartDate ? new Date(loanStartDate) : null;
+  const now = new Date();
+  const monthsSinceDisbursement = startDate
+    ? (now.getFullYear() - startDate.getFullYear()) * 12 + (now.getMonth() - startDate.getMonth())
+    : 999;
+  const withinLockIn = monthsSinceDisbursement < 24;
+
+  // SBI: 3% foreclosure charge within 2 years, 0 after
+  const foreclosureChargeRate = withinLockIn ? 0.03 : 0;
+  const foreclosureCharge = Math.round(outstanding * foreclosureChargeRate);
+  const gstOnCharge = Math.round(foreclosureCharge * 0.18);
+  const totalForeclosureCost = outstanding + foreclosureCharge + gstOnCharge;
+  const interestSaved = Math.max(0, totalInterest);
+
+  return {
+    totalPayable,
+    totalInterest,
+    foreclosureAmount: outstanding,
+    foreclosureCharge,
+    gstOnCharge,
+    totalForeclosureCost,
+    interestSaved,
+    withinLockIn,
+    monthsSinceDisbursement,
+  };
+}
+
+/** Calculate impact of a bullet/part payment */
+function calcPartPayment(
+  outstanding: number,
+  annualRate: number,
+  emi: number,
+  tenureRemaining: number,
+  partPaymentAmount: number,
+  mode: "reduce_tenure" | "reduce_emi",
+  loanStartDate?: string
+) {
+  const monthlyRate = annualRate / 100 / 12;
+  const newOutstanding = outstanding - partPaymentAmount;
+  if (newOutstanding <= 0) return { newTenure: 0, newEmi: 0, interestSaved: 0, monthsSaved: 0, partPaymentCharge: 0 };
+
+  // SBI: 1% prepayment charge on floating rate within 24 months (actually 0 for floating rate new cars)
+  // Conservative: show charge if within 24 months
+  const startDate = loanStartDate ? new Date(loanStartDate) : null;
+  const now = new Date();
+  const monthsSinceDisbursement = startDate
+    ? (now.getFullYear() - startDate.getFullYear()) * 12 + (now.getMonth() - startDate.getMonth())
+    : 999;
+  const partPaymentCharge = monthsSinceDisbursement < 24 ? Math.round(partPaymentAmount * 0.01) : 0;
+
+  if (mode === "reduce_tenure") {
+    // Same EMI, fewer months
+    let balance = newOutstanding;
+    let months = 0;
+    while (balance > 0 && months < 600) {
+      const interest = balance * monthlyRate;
+      const principalPart = emi - interest;
+      if (principalPart <= 0) break;
+      balance -= principalPart;
+      months++;
+    }
+    const monthsSaved = tenureRemaining - months;
+    const originalTotalInterest = emi * tenureRemaining - outstanding;
+    const newTotalInterest = emi * months - newOutstanding;
+    const interestSaved = Math.max(0, originalTotalInterest - newTotalInterest);
+    return { newTenure: months, newEmi: emi, interestSaved: Math.round(interestSaved), monthsSaved, partPaymentCharge };
+  } else {
+    // Same tenure, lower EMI
+    const newEmi = monthlyRate > 0
+      ? Math.round((newOutstanding * monthlyRate * Math.pow(1 + monthlyRate, tenureRemaining)) / (Math.pow(1 + monthlyRate, tenureRemaining) - 1))
+      : Math.round(newOutstanding / tenureRemaining);
+    const originalTotalInterest = emi * tenureRemaining - outstanding;
+    const newTotalInterest = newEmi * tenureRemaining - newOutstanding;
+    const interestSaved = Math.max(0, originalTotalInterest - newTotalInterest);
+    return { newTenure: tenureRemaining, newEmi, interestSaved: Math.round(interestSaved), monthsSaved: 0, partPaymentCharge };
+  }
+}
 
 /** Recursively strip null values (Convex rejects null for optional fields) */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -426,7 +575,7 @@ export default function LoansPage() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           <Card className="card-enter card-enter-1">
             <CardContent className="p-4 flex items-center gap-4">
               <div className="h-12 w-12 rounded-xl bg-rose-500/10 flex items-center justify-center">
@@ -491,6 +640,29 @@ export default function LoansPage() {
                     indicatorClassName="bg-emerald-400"
                   />
                 )}
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="card-enter card-enter-4">
+            <CardContent className="p-4 flex items-center gap-4">
+              <div className="h-12 w-12 rounded-xl bg-amber-500/10 flex items-center justify-center">
+                <Target className="h-6 w-6 text-amber-500" />
+              </div>
+              <div>
+                <p className="text-xs text-text-secondary uppercase tracking-wider">
+                  Total Payable
+                </p>
+                <p className="text-xl font-display font-bold text-amber-500 stat-number tabular-nums">
+                  {formatCurrency(totalEMI * Math.max(...(loansData?.map(l => l.tenure_remaining) ?? [0])))}
+                </p>
+                <p className="text-[10px] text-text-tertiary">
+                  Last EMI: {(() => {
+                    const maxTenure = Math.max(...(loansData?.map(l => l.tenure_remaining) ?? [0]));
+                    const lastEmi = new Date();
+                    lastEmi.setMonth(lastEmi.getMonth() + maxTenure);
+                    return lastEmi.toLocaleDateString("en-IN", { month: "short", year: "numeric" });
+                  })()}
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -1072,166 +1244,356 @@ function LoanCard({
         </CardContent>
       </div>
 
-      {/* Expanded section */}
+      {/* Expanded section with tabs */}
       {expanded && (
-        <div className="border-t border-gray-100 animate-page-enter">
-          <CardContent className="pt-4 space-y-4">
-            {/* Quick stats from transactions */}
-            {txns && txns.length > 0 && (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="rounded-lg bg-rose-50 p-3">
-                  <p className="text-[10px] text-rose-400 uppercase tracking-wider">
-                    Total Interest Paid
-                  </p>
-                  <p className="stat-number text-sm text-rose-500 mt-0.5">
-                    {formatCurrency(totalInterestPaid)}
-                  </p>
-                </div>
-                <div className="rounded-lg bg-emerald-50 p-3">
-                  <p className="text-[10px] text-emerald-500 uppercase tracking-wider">
-                    Principal Repaid
-                  </p>
-                  <p className="stat-number text-sm text-emerald-600 mt-0.5">
-                    {formatCurrency(totalPrincipalPaid)}
-                  </p>
-                </div>
-                <div className="rounded-lg bg-accent/5 p-3">
-                  <p className="text-[10px] text-accent-light uppercase tracking-wider">
-                    Transactions
-                  </p>
-                  <p className="stat-number text-sm text-accent-light mt-0.5">
-                    {txns.length}
-                  </p>
-                </div>
-                <div className="rounded-lg bg-amber-50 p-3">
-                  <p className="text-[10px] text-amber-500 uppercase tracking-wider">
-                    Prepay ₹1L Saves
-                  </p>
-                  <p className="stat-number text-sm text-amber-600 mt-0.5">
-                    ~{formatCurrency(calculatePrepaymentSavings(loan, 100000))}
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* Next EMI + loan info */}
-            <div className="flex flex-wrap items-center gap-4 text-xs text-text-secondary">
-              <div className="flex items-center gap-1.5">
-                <Calendar className="h-3.5 w-3.5 text-text-tertiary" />
-                Next EMI: {nextEMI.toLocaleDateString("en-IN")}
-              </div>
-              {loan.start_date && (
-                <div className="flex items-center gap-1.5">
-                  <Calendar className="h-3.5 w-3.5 text-text-tertiary" />
-                  Started: {formatDate(loan.start_date)}
-                </div>
-              )}
-              {loan.ifsc_code && (
-                <span className="font-mono text-text-tertiary">
-                  IFSC: {loan.ifsc_code}
-                </span>
-              )}
-            </div>
-
-            {loan.type === "home" && (
-              <div className="bg-accent/5 rounded-lg p-3 border border-accent/15">
-                <p className="text-xs text-accent-light font-medium mb-1">
-                  Tax Benefits
-                </p>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div>
-                    <span className="text-text-tertiary">
-                      80C (Principal):{" "}
-                    </span>
-                    <span className="text-text-primary stat-number">
-                      ₹1,50,000
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-text-tertiary">
-                      24(b) (Interest):{" "}
-                    </span>
-                    <span className="text-text-primary stat-number">
-                      ₹2,00,000
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Transaction History */}
-            <div>
-              <h3 className="text-sm font-semibold text-text-primary mb-3">
-                Transaction History
-              </h3>
-              {txns === undefined ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-5 w-5 animate-spin text-text-tertiary" />
-                </div>
-              ) : txns.length === 0 ? (
-                <p className="text-xs text-text-tertiary py-4 text-center">
-                  No transactions yet. Import a loan statement to see history.
-                </p>
-              ) : (
-                <div className="overflow-x-auto rounded-lg border border-gray-100">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="bg-gray-50 text-text-tertiary text-left">
-                        <th className="px-3 py-2 font-medium">Date</th>
-                        <th className="px-3 py-2 font-medium">Description</th>
-                        <th className="px-3 py-2 font-medium">Type</th>
-                        <th className="px-3 py-2 font-medium text-right">
-                          Debit
-                        </th>
-                        <th className="px-3 py-2 font-medium text-right">
-                          Credit
-                        </th>
-                        <th className="px-3 py-2 font-medium text-right">
-                          Balance
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {txns.map((t) => (
-                        <tr
-                          key={t._id}
-                          className="border-t border-gray-50 hover:bg-gray-50/50"
-                        >
-                          <td className="px-3 py-2 text-text-secondary whitespace-nowrap">
-                            {formatDate(t.date)}
-                          </td>
-                          <td
-                            className="px-3 py-2 text-text-primary max-w-[250px] truncate"
-                            title={t.description}
-                          >
-                            {t.description}
-                          </td>
-                          <td className="px-3 py-2">
-                            <span
-                              className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${txnTypeColors[t.type] || txnTypeColors.other}`}
-                            >
-                              {txnTypeLabels[t.type] || t.type}
-                            </span>
-                          </td>
-                          <td className="px-3 py-2 text-right text-rose-400 stat-number">
-                            {t.debit > 0 ? formatCurrency(t.debit) : "-"}
-                          </td>
-                          <td className="px-3 py-2 text-right text-emerald-500 stat-number">
-                            {t.credit > 0 ? formatCurrency(t.credit) : "-"}
-                          </td>
-                          <td className="px-3 py-2 text-right text-text-primary stat-number font-medium">
-                            {formatCurrency(t.balance)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </div>
+        <ExpandedLoanSection
+          loan={loan}
+          txns={txns}
+          totalInterestPaid={totalInterestPaid}
+          totalPrincipalPaid={totalPrincipalPaid}
+          nextEMI={nextEMI}
+        />
       )}
     </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ExpandedLoanSection — Tabs for Transaction History, Schedule, Calculator
+// ---------------------------------------------------------------------------
+
+function ExpandedLoanSection({
+  loan,
+  txns,
+  totalInterestPaid,
+  totalPrincipalPaid,
+  nextEMI,
+}: {
+  loan: LoanDoc;
+  txns: LoanDoc[] | undefined;
+  totalInterestPaid: number;
+  totalPrincipalPaid: number;
+  nextEMI: Date;
+}) {
+  const [activeTab, setActiveTab] = useState<"history" | "schedule" | "calculator">("history");
+  const [partPaymentAmt, setPartPaymentAmt] = useState("100000");
+  const [partPaymentMode, setPartPaymentMode] = useState<"reduce_tenure" | "reduce_emi">("reduce_tenure");
+
+  // Amortization schedule
+  const schedule = useMemo(
+    () => generateAmortization(loan.outstanding, loan.interest_rate, loan.emi_amount, loan.tenure_remaining),
+    [loan.outstanding, loan.interest_rate, loan.emi_amount, loan.tenure_remaining]
+  );
+
+  // Total payable & last EMI
+  const totalPayable = schedule.reduce((s, r) => s + r.emi, 0);
+  const totalFutureInterest = schedule.reduce((s, r) => s + r.interest, 0);
+  const lastEmiDate = schedule.length > 0 ? schedule[schedule.length - 1].emiDate : null;
+
+  // Foreclosure calc
+  const foreclosure = useMemo(
+    () => calcForeclosure(loan.outstanding, loan.interest_rate, loan.emi_amount, loan.tenure_remaining, loan.start_date),
+    [loan.outstanding, loan.interest_rate, loan.emi_amount, loan.tenure_remaining, loan.start_date]
+  );
+
+  // Part payment calc
+  const partPayment = useMemo(
+    () => calcPartPayment(loan.outstanding, loan.interest_rate, loan.emi_amount, loan.tenure_remaining, Number(partPaymentAmt) || 0, partPaymentMode, loan.start_date),
+    [loan.outstanding, loan.interest_rate, loan.emi_amount, loan.tenure_remaining, partPaymentAmt, partPaymentMode, loan.start_date]
+  );
+
+  const tabClass = (t: string) =>
+    `px-4 py-2 text-xs font-medium rounded-lg transition-colors ${
+      activeTab === t
+        ? "bg-accent text-white shadow-sm"
+        : "text-text-secondary hover:bg-gray-100"
+    }`;
+
+  return (
+    <div className="border-t border-gray-100 animate-page-enter">
+      <CardContent className="pt-4 space-y-4">
+        {/* Quick stats */}
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          <div className="rounded-lg bg-rose-50 p-3">
+            <p className="text-[10px] text-rose-400 uppercase tracking-wider">Interest Paid</p>
+            <p className="stat-number text-sm text-rose-500 mt-0.5">{formatCurrency(totalInterestPaid)}</p>
+          </div>
+          <div className="rounded-lg bg-emerald-50 p-3">
+            <p className="text-[10px] text-emerald-500 uppercase tracking-wider">Principal Repaid</p>
+            <p className="stat-number text-sm text-emerald-600 mt-0.5">{formatCurrency(totalPrincipalPaid)}</p>
+          </div>
+          <div className="rounded-lg bg-amber-50 p-3">
+            <p className="text-[10px] text-amber-500 uppercase tracking-wider">Total Payable</p>
+            <p className="stat-number text-sm text-amber-600 mt-0.5">{formatCurrency(totalPayable)}</p>
+          </div>
+          <div className="rounded-lg bg-blue-50 p-3">
+            <p className="text-[10px] text-blue-500 uppercase tracking-wider">Future Interest</p>
+            <p className="stat-number text-sm text-blue-600 mt-0.5">{formatCurrency(totalFutureInterest)}</p>
+          </div>
+          <div className="rounded-lg bg-purple-50 p-3">
+            <p className="text-[10px] text-purple-500 uppercase tracking-wider">Last EMI</p>
+            <p className="stat-number text-sm text-purple-600 mt-0.5">{lastEmiDate ? formatDate(lastEmiDate) : "-"}</p>
+          </div>
+        </div>
+
+        {/* Loan info bar */}
+        <div className="flex flex-wrap items-center gap-4 text-xs text-text-secondary">
+          <span className="flex items-center gap-1.5"><Calendar className="h-3.5 w-3.5 text-text-tertiary" />Next EMI: {nextEMI.toLocaleDateString("en-IN")}</span>
+          {loan.start_date && <span className="flex items-center gap-1.5"><Calendar className="h-3.5 w-3.5 text-text-tertiary" />Started: {formatDate(loan.start_date)}</span>}
+          {loan.ifsc_code && <span className="font-mono text-text-tertiary">IFSC: {loan.ifsc_code}</span>}
+          {txns && <span className="flex items-center gap-1.5"><FileText className="h-3.5 w-3.5" />{txns.length} transactions</span>}
+        </div>
+
+        {loan.type === "home" && (
+          <div className="bg-accent/5 rounded-lg p-3 border border-accent/15">
+            <p className="text-xs text-accent-light font-medium mb-1">Tax Benefits</p>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div><span className="text-text-tertiary">80C (Principal): </span><span className="text-text-primary stat-number">₹1,50,000</span></div>
+              <div><span className="text-text-tertiary">24(b) (Interest): </span><span className="text-text-primary stat-number">₹2,00,000</span></div>
+            </div>
+          </div>
+        )}
+
+        {/* Tabs */}
+        <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+          <button className={tabClass("history")} onClick={() => setActiveTab("history")}>
+            <span className="flex items-center gap-1.5"><FileText className="h-3.5 w-3.5" />Transactions</span>
+          </button>
+          <button className={tabClass("schedule")} onClick={() => setActiveTab("schedule")}>
+            <span className="flex items-center gap-1.5"><CalendarCheck className="h-3.5 w-3.5" />Repayment Schedule</span>
+          </button>
+          <button className={tabClass("calculator")} onClick={() => setActiveTab("calculator")}>
+            <span className="flex items-center gap-1.5"><Calculator className="h-3.5 w-3.5" />Calculator</span>
+          </button>
+        </div>
+
+        {/* Tab Content: Transaction History */}
+        {activeTab === "history" && (
+          <div>
+            {txns === undefined ? (
+              <div className="flex items-center justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-text-tertiary" /></div>
+            ) : txns.length === 0 ? (
+              <p className="text-xs text-text-tertiary py-4 text-center">No transactions yet. Import a loan statement.</p>
+            ) : (
+              <div className="overflow-x-auto rounded-lg border border-gray-100">
+                <table className="w-full text-xs">
+                  <thead><tr className="bg-gray-50 text-text-tertiary text-left">
+                    <th className="px-3 py-2 font-medium">Date</th>
+                    <th className="px-3 py-2 font-medium">Description</th>
+                    <th className="px-3 py-2 font-medium">Type</th>
+                    <th className="px-3 py-2 font-medium text-right">Debit</th>
+                    <th className="px-3 py-2 font-medium text-right">Credit</th>
+                    <th className="px-3 py-2 font-medium text-right">Balance</th>
+                  </tr></thead>
+                  <tbody>
+                    {txns.map((t) => (
+                      <tr key={t._id} className="border-t border-gray-50 hover:bg-gray-50/50">
+                        <td className="px-3 py-2 text-text-secondary whitespace-nowrap">{formatDate(t.date)}</td>
+                        <td className="px-3 py-2 text-text-primary max-w-[250px] truncate" title={t.description}>{t.description}</td>
+                        <td className="px-3 py-2"><span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${txnTypeColors[t.type] || txnTypeColors.other}`}>{txnTypeLabels[t.type] || t.type}</span></td>
+                        <td className="px-3 py-2 text-right text-rose-400 stat-number">{t.debit > 0 ? formatCurrency(t.debit) : "-"}</td>
+                        <td className="px-3 py-2 text-right text-emerald-500 stat-number">{t.credit > 0 ? formatCurrency(t.credit) : "-"}</td>
+                        <td className="px-3 py-2 text-right text-text-primary stat-number font-medium">{formatCurrency(t.balance)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Tab Content: Repayment Schedule */}
+        {activeTab === "schedule" && (
+          <div>
+            <p className="text-xs text-text-tertiary mb-3">
+              Projected repayment schedule from current outstanding of {formatCurrency(loan.outstanding)} at {loan.interest_rate}% p.a.
+            </p>
+            <div className="overflow-x-auto rounded-lg border border-gray-100 max-h-[400px] overflow-y-auto">
+              <table className="w-full text-xs">
+                <thead className="sticky top-0"><tr className="bg-gray-50 text-text-tertiary text-left">
+                  <th className="px-3 py-2 font-medium">#</th>
+                  <th className="px-3 py-2 font-medium">EMI Date</th>
+                  <th className="px-3 py-2 font-medium text-right">EMI</th>
+                  <th className="px-3 py-2 font-medium text-right">Principal</th>
+                  <th className="px-3 py-2 font-medium text-right">Interest</th>
+                  <th className="px-3 py-2 font-medium text-right">Balance</th>
+                </tr></thead>
+                <tbody>
+                  {schedule.map((r) => (
+                    <tr key={r.month} className="border-t border-gray-50 hover:bg-gray-50/50">
+                      <td className="px-3 py-2 text-text-tertiary">{r.month}</td>
+                      <td className="px-3 py-2 text-text-secondary whitespace-nowrap">{formatDate(r.emiDate)}</td>
+                      <td className="px-3 py-2 text-right text-text-primary stat-number">{formatCurrency(r.emi)}</td>
+                      <td className="px-3 py-2 text-right text-emerald-500 stat-number">{formatCurrency(r.principal)}</td>
+                      <td className="px-3 py-2 text-right text-rose-400 stat-number">{formatCurrency(r.interest)}</td>
+                      <td className="px-3 py-2 text-right text-text-primary stat-number font-medium">{formatCurrency(r.balance)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot><tr className="border-t-2 border-gray-200 bg-gray-50 font-medium">
+                  <td className="px-3 py-2" colSpan={2}>Total</td>
+                  <td className="px-3 py-2 text-right stat-number">{formatCurrency(totalPayable)}</td>
+                  <td className="px-3 py-2 text-right text-emerald-500 stat-number">{formatCurrency(schedule.reduce((s, r) => s + r.principal, 0))}</td>
+                  <td className="px-3 py-2 text-right text-rose-400 stat-number">{formatCurrency(totalFutureInterest)}</td>
+                  <td className="px-3 py-2 text-right stat-number">₹0</td>
+                </tr></tfoot>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Tab Content: Calculator */}
+        {activeTab === "calculator" && (
+          <div className="space-y-6">
+            {/* Foreclosure Section */}
+            <div className="rounded-xl border border-rose-200 bg-rose-50/30 p-4">
+              <h4 className="text-sm font-semibold text-rose-600 mb-3 flex items-center gap-2">
+                <Zap className="h-4 w-4" />Foreclosure Analysis
+              </h4>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                <div>
+                  <span className="text-text-tertiary">Outstanding</span>
+                  <p className="font-medium stat-number text-text-primary">{formatCurrency(foreclosure.foreclosureAmount)}</p>
+                </div>
+                <div>
+                  <span className="text-text-tertiary">Foreclosure Charge</span>
+                  <p className="font-medium stat-number text-rose-500">
+                    {foreclosure.foreclosureCharge > 0
+                      ? `${formatCurrency(foreclosure.foreclosureCharge)} (3%)`
+                      : "₹0 (Free)"}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-text-tertiary">GST on Charge</span>
+                  <p className="font-medium stat-number text-text-secondary">{formatCurrency(foreclosure.gstOnCharge)}</p>
+                </div>
+                <div>
+                  <span className="text-text-tertiary">Total to Close</span>
+                  <p className="font-medium stat-number text-rose-600 text-sm">{formatCurrency(foreclosure.totalForeclosureCost)}</p>
+                </div>
+              </div>
+              <div className="mt-3 flex items-center gap-3 text-xs">
+                <div className="rounded-lg bg-emerald-100 text-emerald-700 px-3 py-1.5 font-medium">
+                  Interest Saved: {formatCurrency(foreclosure.interestSaved)}
+                </div>
+                <span className="text-text-tertiary">
+                  {foreclosure.withinLockIn
+                    ? `⚠️ Within 2-year lock-in (${foreclosure.monthsSinceDisbursement} months since disbursement)`
+                    : `✅ Past 2-year lock-in — No foreclosure charges (SBI policy)`}
+                </span>
+              </div>
+              <p className="text-[10px] text-text-tertiary mt-2">
+                SBI Auto Loan: 3% + GST foreclosure charge within 2 years of disbursement. Free after 2 years.
+              </p>
+            </div>
+
+            {/* Part Payment / Bullet Payment Section */}
+            <div className="rounded-xl border border-accent/20 bg-accent/5 p-4">
+              <h4 className="text-sm font-semibold text-accent-light mb-3 flex items-center gap-2">
+                <IndianRupee className="h-4 w-4" />Part Payment / Bullet Payment
+              </h4>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Part Payment Amount</Label>
+                  <Input
+                    type="number"
+                    value={partPaymentAmt}
+                    onChange={(e) => setPartPaymentAmt(e.target.value)}
+                    placeholder="100000"
+                    className="text-sm"
+                  />
+                  <div className="flex gap-1.5">
+                    {[50000, 100000, 200000, 500000].map((amt) => (
+                      <button
+                        key={amt}
+                        onClick={() => setPartPaymentAmt(String(amt))}
+                        className={`px-2 py-1 rounded text-[10px] font-medium border transition-colors ${
+                          partPaymentAmt === String(amt)
+                            ? "bg-accent/10 border-accent/30 text-accent"
+                            : "border-gray-200 text-text-tertiary hover:bg-gray-50"
+                        }`}
+                      >
+                        {amt >= 100000 ? `₹${amt / 100000}L` : `₹${amt / 1000}K`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Impact Mode</Label>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setPartPaymentMode("reduce_tenure")}
+                      className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium border transition-colors ${
+                        partPaymentMode === "reduce_tenure"
+                          ? "bg-accent text-white border-accent"
+                          : "border-gray-200 text-text-secondary hover:bg-gray-50"
+                      }`}
+                    >
+                      Reduce Tenure
+                    </button>
+                    <button
+                      onClick={() => setPartPaymentMode("reduce_emi")}
+                      className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium border transition-colors ${
+                        partPaymentMode === "reduce_emi"
+                          ? "bg-accent text-white border-accent"
+                          : "border-gray-200 text-text-secondary hover:bg-gray-50"
+                      }`}
+                    >
+                      Reduce EMI
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {Number(partPaymentAmt) > 0 && (
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs">
+                  <div className="rounded-lg bg-white p-3 border border-gray-100">
+                    <span className="text-text-tertiary">New {partPaymentMode === "reduce_tenure" ? "Tenure" : "EMI"}</span>
+                    <p className="font-medium stat-number text-text-primary text-sm mt-0.5">
+                      {partPaymentMode === "reduce_tenure"
+                        ? `${partPayment.newTenure} months`
+                        : formatCurrency(partPayment.newEmi)}
+                    </p>
+                  </div>
+                  {partPaymentMode === "reduce_tenure" && (
+                    <div className="rounded-lg bg-emerald-50 p-3 border border-emerald-100">
+                      <span className="text-emerald-600">Months Saved</span>
+                      <p className="font-medium stat-number text-emerald-700 text-sm mt-0.5">{partPayment.monthsSaved} months</p>
+                    </div>
+                  )}
+                  {partPaymentMode === "reduce_emi" && (
+                    <div className="rounded-lg bg-emerald-50 p-3 border border-emerald-100">
+                      <span className="text-emerald-600">EMI Reduction</span>
+                      <p className="font-medium stat-number text-emerald-700 text-sm mt-0.5">{formatCurrency(loan.emi_amount - partPayment.newEmi)}/mo</p>
+                    </div>
+                  )}
+                  <div className="rounded-lg bg-green-50 p-3 border border-green-100">
+                    <span className="text-green-600">Interest Saved</span>
+                    <p className="font-medium stat-number text-green-700 text-sm mt-0.5">{formatCurrency(partPayment.interestSaved)}</p>
+                  </div>
+                  <div className="rounded-lg bg-white p-3 border border-gray-100">
+                    <span className="text-text-tertiary">Prepay Charge</span>
+                    <p className="font-medium stat-number text-text-primary text-sm mt-0.5">
+                      {partPayment.partPaymentCharge > 0 ? formatCurrency(partPayment.partPaymentCharge) : "₹0 (Free)"}
+                    </p>
+                  </div>
+                  <div className="rounded-lg bg-amber-50 p-3 border border-amber-100">
+                    <span className="text-amber-600">New Outstanding</span>
+                    <p className="font-medium stat-number text-amber-700 text-sm mt-0.5">{formatCurrency(loan.outstanding - Number(partPaymentAmt))}</p>
+                  </div>
+                </div>
+              )}
+
+              <p className="text-[10px] text-text-tertiary mt-3">
+                SBI Auto Loan (floating rate): No prepayment charges for new car loans. Fixed rate: 1% + GST within 24 months.
+                Part payment reduces either tenure (same EMI) or EMI (same tenure) based on your choice.
+              </p>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </div>
   );
 }
