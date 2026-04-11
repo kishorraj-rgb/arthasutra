@@ -275,34 +275,52 @@ export default function LoansPage() {
         });
       }
 
-      // Import transactions with dedup
-      const result = await importLoanTxns({
-        loanId,
-        userId: user.userId,
-        transactions: importPreview.transactions.map(
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (t: any) => ({
-            date: t.post_date,
-            value_date: t.value_date || undefined,
-            description: t.description,
-            debit: Number(t.debit) || 0,
-            credit: Number(t.credit) || 0,
-            balance: Number(t.balance) || 0,
-            type: t.type || "other",
-            reference: t.reference || undefined,
-          })
-        ),
-        loanUpdates: {
-          outstanding: details.outstanding,
-          emi_amount: details.emi_amount,
-          tenure_remaining: details.remaining_tenure,
-          interest_rate: details.interest_rate,
-        },
-      });
+      // Validate and normalize transaction types
+      const VALID_TYPES = new Set([
+        "interest", "principal_repayment", "compound_repayment",
+        "interest_repayment", "charges", "deposit", "other",
+      ]);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const allTxns = importPreview.transactions.map((t: any) => ({
+        date: t.post_date || t.date || "",
+        value_date: t.value_date || undefined,
+        description: String(t.description || ""),
+        debit: Number(t.debit) || 0,
+        credit: Number(t.credit) || 0,
+        balance: Number(t.balance) || 0,
+        type: VALID_TYPES.has(t.type) ? t.type : "other",
+        reference: t.reference || undefined,
+      })).filter((t: { date: string; description: string; debit: number; credit: number }) =>
+        t.date && t.description && (t.debit > 0 || t.credit > 0)
+      );
 
-      setImportResult(result);
+      // Batch in groups of 25 to avoid Convex size/time limits
+      const BATCH_SIZE = 25;
+      let totalInserted = 0;
+      let totalSkipped = 0;
+
+      for (let i = 0; i < allTxns.length; i += BATCH_SIZE) {
+        const batch = allTxns.slice(i, i + BATCH_SIZE);
+        const result = await importLoanTxns({
+          loanId,
+          userId: user.userId,
+          transactions: batch,
+          // Only update loan metadata on the first batch
+          loanUpdates: i === 0 ? {
+            outstanding: details.outstanding,
+            emi_amount: details.emi_amount,
+            tenure_remaining: details.remaining_tenure,
+            interest_rate: details.interest_rate,
+          } : undefined,
+        });
+        totalInserted += result.inserted;
+        totalSkipped += result.skipped;
+      }
+
+      setImportResult({ inserted: totalInserted, skipped: totalSkipped });
       setExpandedLoanId(loanId);
     } catch (err) {
+      console.error("Loan import error:", err);
       setImportError(
         err instanceof Error ? err.message : "Import failed"
       );
