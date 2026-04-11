@@ -83,6 +83,7 @@ export default function SettingsPage() {
   const expenseCatPrefs = useQuery(api.categories.getCategoryPreferences, user ? { userId: user.userId, scope: "expense" as const } : "skip");
   const incomeCatPrefs = useQuery(api.categories.getCategoryPreferences, user ? { userId: user.userId, scope: "income" as const } : "skip");
   const batchSaveCategories = useMutation(api.categories.batchSaveCategoryPreferences);
+  const upsertCategory = useMutation(api.categories.upsertCategoryPreference);
   const resetCategories = useMutation(api.categories.resetCategoryPreferences);
 
   type CatItem = { slug: string; label: string; icon: string; color: string; hidden: boolean; sort_order: number; subcategories: string[] };
@@ -207,14 +208,41 @@ export default function SettingsPage() {
   const updateLabel = (list: CatItem[], setList: (v: CatItem[]) => void, index: number, label: string) => {
     const newList = [...list]; newList[index] = { ...newList[index], label }; setList(newList);
   };
-  const addSubcategory = (list: CatItem[], setList: (v: CatItem[]) => void, index: number, sub: string) => {
-    if (!sub.trim()) return; const newList = [...list]; const existing = newList[index].subcategories || [];
-    if (existing.includes(sub.trim())) return;
-    newList[index] = { ...newList[index], subcategories: [...existing, sub.trim()] }; setList(newList);
+  // Auto-save a single category preference to Convex
+  const autoSaveCategory = async (cat: CatItem, scope: "expense" | "income") => {
+    if (!user) return;
+    await upsertCategory({
+      userId: user.userId,
+      scope,
+      slug: cat.slug,
+      label: cat.label,
+      icon: cat.icon,
+      color: cat.color,
+      sort_order: cat.sort_order,
+      hidden: cat.hidden,
+      subcategories: cat.subcategories.length > 0 ? cat.subcategories : undefined,
+    });
   };
-  const removeSubcategory = (list: CatItem[], setList: (v: CatItem[]) => void, catIndex: number, subIndex: number) => {
-    const newList = [...list]; const subs = [...(newList[catIndex].subcategories || [])]; subs.splice(subIndex, 1);
-    newList[catIndex] = { ...newList[catIndex], subcategories: subs }; setList(newList);
+
+  const addSubcategory = (list: CatItem[], setList: (v: CatItem[]) => void, index: number, sub: string, scope: "expense" | "income") => {
+    if (!sub.trim()) return;
+    const newList = [...list];
+    const existing = newList[index].subcategories || [];
+    if (existing.includes(sub.trim())) return;
+    newList[index] = { ...newList[index], subcategories: [...existing, sub.trim()] };
+    setList(newList);
+    // Auto-save this category immediately
+    autoSaveCategory(newList[index], scope);
+  };
+
+  const removeSubcategory = (list: CatItem[], setList: (v: CatItem[]) => void, catIndex: number, subIndex: number, scope: "expense" | "income") => {
+    const newList = [...list];
+    const subs = [...(newList[catIndex].subcategories || [])];
+    subs.splice(subIndex, 1);
+    newList[catIndex] = { ...newList[catIndex], subcategories: subs };
+    setList(newList);
+    // Auto-save this category immediately
+    autoSaveCategory(newList[catIndex], scope);
   };
   const addNewCategory = (list: CatItem[], setList: (v: CatItem[]) => void) => {
     setList([...list, { slug: `custom_${Date.now()}`, label: "New Category", icon: "MoreHorizontal", color: "#6B7280", hidden: false, sort_order: list.length, subcategories: [] }]);
@@ -293,7 +321,7 @@ export default function SettingsPage() {
                     {cat.subcategories.map((sub, si) => (
                       <span key={si} className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-${accentColor}/8 text-${accentColor} text-xs font-medium border border-${accentColor}/15`}>
                         {sub}
-                        <button onClick={() => removeSubcategory(cats, setCats, index, si)} className="hover:text-rose ml-0.5"><X className="h-3 w-3" /></button>
+                        <button onClick={() => removeSubcategory(cats, setCats, index, si, scope)} className="hover:text-rose ml-0.5"><X className="h-3 w-3" /></button>
                       </span>
                     ))}
                   </div>
@@ -301,10 +329,10 @@ export default function SettingsPage() {
                 <div className="flex items-center gap-2">
                   <input
                     value={newSubcategory[cat.slug] || ""} onChange={(e) => setNewSubcategory({ ...newSubcategory, [cat.slug]: e.target.value })}
-                    onKeyDown={(e) => { if (e.key === "Enter" && (newSubcategory[cat.slug] || "").trim()) { e.preventDefault(); addSubcategory(cats, setCats, index, newSubcategory[cat.slug] || ""); setNewSubcategory({ ...newSubcategory, [cat.slug]: "" }); } }}
+                    onKeyDown={(e) => { if (e.key === "Enter" && (newSubcategory[cat.slug] || "").trim()) { e.preventDefault(); addSubcategory(cats, setCats, index, newSubcategory[cat.slug] || "", scope); setNewSubcategory({ ...newSubcategory, [cat.slug]: "" }); } }}
                     placeholder="Add subcategory..." className="flex-1 max-w-[200px] h-7 px-2.5 text-xs rounded-lg border border-gray-200 bg-gray-50 placeholder:text-gray-400 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/20 focus:bg-white"
                   />
-                  <button onClick={() => { if ((newSubcategory[cat.slug] || "").trim()) { addSubcategory(cats, setCats, index, newSubcategory[cat.slug] || ""); setNewSubcategory({ ...newSubcategory, [cat.slug]: "" }); } }}
+                  <button onClick={() => { if ((newSubcategory[cat.slug] || "").trim()) { addSubcategory(cats, setCats, index, newSubcategory[cat.slug] || "", scope); setNewSubcategory({ ...newSubcategory, [cat.slug]: "" }); } }}
                     className={`h-7 px-2.5 rounded-lg bg-${accentColor}/10 text-${accentColor} hover:bg-${accentColor}/20 text-xs font-medium transition-colors flex items-center gap-1`}>
                     <Plus className="h-3 w-3" /> Add
                   </button>
