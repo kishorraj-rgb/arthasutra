@@ -19,7 +19,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { formatCurrency, amountInWords, INCOME_TYPES, CATEGORY_COLORS, getCurrentFinancialYear, getFinancialYearDates } from "@/lib/utils";
-import { parseDescription, getMethodColor } from "@/lib/bank-statement/description-parser";
+import { parseDescription, getMethodColor, type PaymentMethod } from "@/lib/bank-statement/description-parser";
+import { BankChip } from "@/components/bank-logo";
 import {
   Plus,
   TrendingUp,
@@ -32,6 +33,7 @@ import {
   Wand2,
   Loader2,
   X,
+  SlidersHorizontal,
 } from "lucide-react";
 import { exportIncomeToExcel } from "@/lib/export-excel";
 import {
@@ -102,6 +104,8 @@ export default function IncomePage() {
   const [selectedFY, setSelectedFY] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("");
   const [bankFilter, setBankFilter] = useState("");
+  const [methodFilter, setMethodFilter] = useState("");
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -263,9 +267,10 @@ export default function IncomePage() {
         if (monthObj && new Date(e.date).getMonth() !== monthObj.month) return false;
       }
       if (typeFilter && e.type !== typeFilter) return false;
-      if (bankFilter) {
+      if (bankFilter || methodFilter) {
         const parsed = parseDescription(e.description);
-        if (parsed.bank !== bankFilter) return false;
+        if (bankFilter && parsed.bank !== bankFilter) return false;
+        if (methodFilter && parsed.method !== methodFilter) return false;
       }
       if (query) {
         const haystack = `${e.description} ${e.type} ${e.date}`.toLowerCase();
@@ -273,7 +278,7 @@ export default function IncomePage() {
       }
       return true;
     });
-  }, [safeEntries, typeFilter, selectedFY, selectedMonth, searchQuery, bankFilter]);
+  }, [safeEntries, typeFilter, selectedFY, selectedMonth, searchQuery, bankFilter, methodFilter]);
 
   // Sort state
   const [sortField, setSortField] = useState<"date" | "amount" | "type" | "payee">("date");
@@ -296,15 +301,43 @@ export default function IncomePage() {
     return arr;
   }, [filtered, sortField, sortDir]);
 
-  // Available banks
+  // Available banks (with counts for filter display)
   const availableBanks = useMemo(() => {
-    const bankSet = new Set<string>();
+    const bankMap = new Map<string, number>();
     for (const e of safeEntries) {
       const parsed = parseDescription(e.description);
-      if (parsed.bank) bankSet.add(parsed.bank);
+      if (parsed.bank) bankMap.set(parsed.bank, (bankMap.get(parsed.bank) || 0) + 1);
     }
-    return Array.from(bankSet).sort();
+    return Array.from(bankMap.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
   }, [safeEntries]);
+
+  // Available payment methods
+  const availableMethods = useMemo(() => {
+    const methodMap = new Map<string, number>();
+    for (const e of safeEntries) {
+      const parsed = parseDescription(e.description);
+      if (parsed.method) methodMap.set(parsed.method, (methodMap.get(parsed.method) || 0) + 1);
+    }
+    return Array.from(methodMap.entries())
+      .map(([method, count]) => ({ method: method as PaymentMethod, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [safeEntries]);
+
+  const hasActiveFilters = !!(typeFilter || searchQuery || selectedMonth || bankFilter || methodFilter);
+
+  function clearAllFilters() {
+    setTypeFilter("");
+    setSearchQuery("");
+    setSelectedMonth("");
+    setBankFilter("");
+    setMethodFilter("");
+  }
+
+  const filteredTotal = useMemo(() => filtered.reduce((s, e) => s + e.amount, 0), [filtered]);
+  const filteredTds = useMemo(() => filtered.reduce((s, e) => s + e.tds_deducted, 0), [filtered]);
+  const filteredGst = useMemo(() => filtered.reduce((s, e) => s + e.gst_collected, 0), [filtered]);
 
   // Pagination
   const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
@@ -313,7 +346,7 @@ export default function IncomePage() {
     return sorted.slice(start, start + PAGE_SIZE);
   }, [sorted, currentPage]);
 
-  useEffect(() => { setCurrentPage(1); }, [typeFilter, searchQuery, selectedFY, selectedMonth, bankFilter]);
+  useEffect(() => { setCurrentPage(1); }, [typeFilter, searchQuery, selectedFY, selectedMonth, bankFilter, methodFilter]);
 
   // Monthly chart data grouped by month (FY order: Apr-Mar)
   const monthlyChartData = useMemo(() => {
@@ -444,18 +477,170 @@ export default function IncomePage() {
   // Render
   // ---------------------------------------------------------------------------
 
+  // -------------------------------------------------------------------------
+  // Filter Panel (shared between desktop sidebar and mobile overlay)
+  // -------------------------------------------------------------------------
+  const filterPanelContent = (
+    <div className="space-y-5">
+      {/* Search */}
+      <div className="space-y-1.5">
+        <label className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">Search</label>
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-text-tertiary" />
+          <input
+            type="text"
+            placeholder="Payee, description..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full h-8 pl-8 pr-3 rounded-lg border border-gray-200 bg-white text-xs placeholder:text-text-tertiary transition-all duration-200 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/10"
+          />
+        </div>
+      </div>
+
+      {/* FY selector */}
+      <div className="space-y-1.5">
+        <label className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">Financial Year</label>
+        <Select
+          options={availableFYs.map((fy) => ({ value: fy, label: `FY ${fy}` }))}
+          value={selectedFY}
+          onChange={(e) => { setSelectedFY(e.target.value); setSelectedMonth(""); }}
+          className="w-full"
+        />
+      </div>
+
+      {/* Type filter */}
+      <div className="space-y-1.5">
+        <label className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">Type</label>
+        <Select
+          options={[{ value: "", label: "All Types" }, ...INCOME_TYPES.map((t) => ({ value: t.value, label: t.label }))]}
+          value={typeFilter}
+          onChange={(e) => setTypeFilter(e.target.value)}
+          className="w-full"
+        />
+      </div>
+
+      {/* Bank filter */}
+      {availableBanks.length > 0 && (
+        <div className="space-y-1.5">
+          <label className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">Bank</label>
+          <select
+            value={bankFilter}
+            onChange={(e) => setBankFilter(e.target.value)}
+            className="w-full text-xs rounded-lg border border-gray-200 px-3 py-2 bg-white focus:border-accent focus:outline-none cursor-pointer"
+          >
+            <option value="">All Banks</option>
+            {availableBanks.map((bank) => (
+              <option key={bank.name} value={bank.name}>
+                {bank.name} ({bank.count})
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {/* Method filter chips */}
+      {availableMethods.length > 1 && (
+        <div className="space-y-1.5">
+          <label className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">Method</label>
+          <div className="flex flex-wrap gap-1.5">
+            <button
+              onClick={() => setMethodFilter("")}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all border ${
+                !methodFilter
+                  ? "bg-accent/10 border-accent/30 text-accent shadow-sm"
+                  : "border-gray-200 bg-white text-text-secondary hover:border-gray-300 hover:bg-gray-50"
+              }`}
+            >
+              All
+            </button>
+            {availableMethods.map(({ method, count }) => (
+              <button
+                key={method}
+                onClick={() => setMethodFilter(methodFilter === method ? "" : method)}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all border ${
+                  methodFilter === method
+                    ? getMethodColor(method) + " border-current/20 shadow-sm"
+                    : "border-gray-200 bg-white text-text-secondary hover:border-gray-300 hover:bg-gray-50"
+                }`}
+              >
+                <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${getMethodColor(method)}`}>
+                  {method}
+                </span>
+                <span className="tabular-nums text-[10px] opacity-60">{count}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Month chips */}
+      {selectedFY && (
+        <div className="space-y-1.5">
+          <label className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">Month</label>
+          <div className="grid grid-cols-3 gap-1.5">
+            <button
+              onClick={() => setSelectedMonth("")}
+              className={`px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                !selectedMonth ? "bg-accent text-white" : "bg-white border border-gray-200 text-text-secondary hover:bg-gray-100"
+              }`}
+            >
+              All
+            </button>
+            {FY_MONTHS.map((m) => (
+              <button
+                key={m.label}
+                onClick={() => setSelectedMonth(selectedMonth === m.label ? "" : m.label)}
+                className={`px-2 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+                  selectedMonth === m.label ? "bg-accent text-white" : "bg-white border border-gray-200 text-text-secondary hover:bg-gray-100"
+                }`}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Clear All */}
+      {hasActiveFilters && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={clearAllFilters}
+          className="w-full text-xs text-text-secondary hover:text-text-primary"
+        >
+          Clear All Filters
+        </Button>
+      )}
+    </div>
+  );
+
   return (
     <AppLayout>
-      <div className="space-y-6 animate-page-enter">
+      <div className="space-y-4 animate-page-enter">
         {/* ---- Header ---- */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-3xl font-display font-bold text-text-primary">Income</h1>
-            <p className="text-text-secondary text-sm mt-1">
+            <h1 className="font-display text-2xl font-bold text-text-primary">Income</h1>
+            <p className="mt-1 text-sm text-text-secondary">
               Track all income sources, TDS and GST{selectedFY ? ` for FY ${selectedFY}` : ""}
             </p>
           </div>
           <div className="flex items-center gap-2">
+            {/* Mobile filter toggle */}
+            <Button
+              variant="outline"
+              className="lg:hidden gap-2"
+              onClick={() => setFiltersOpen(!filtersOpen)}
+            >
+              <SlidersHorizontal className="h-4 w-4" />
+              Filters
+              {hasActiveFilters && (
+                <span className="ml-1 flex h-5 w-5 items-center justify-center rounded-full bg-accent text-[10px] text-white font-semibold">
+                  !
+                </span>
+              )}
+            </Button>
             <Button
               onClick={handleAiCategorize}
               variant="outline"
@@ -482,14 +667,14 @@ export default function IncomePage() {
               disabled={filtered.length === 0}
             >
               <Download className="h-4 w-4" />
-              Export Excel
+              <span className="hidden sm:inline">Export Excel</span>
             </Button>
             <Button
               onClick={() => setDialogOpen(true)}
-              className="bg-accent text-white hover:bg-accent/90 font-semibold"
+              className="bg-accent text-white hover:bg-accent/90 font-semibold gap-2"
             >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Income
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline">Add Income</span>
             </Button>
           </div>
         </div>
@@ -571,85 +756,70 @@ export default function IncomePage() {
           </Card>
         </div>
 
-        {/* ---- Filter Bar ---- */}
-        <Card>
-          <CardContent className="p-4 space-y-3">
-            <div className="flex flex-wrap items-center gap-3">
-              {/* Search */}
-              <div className="relative flex-1 min-w-[200px] max-w-md">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
-                <input
-                  type="text"
-                  placeholder="Search payee, description..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full h-9 pl-9 pr-3 rounded-lg border border-gray-200 bg-white text-sm placeholder:text-text-tertiary transition-all duration-200 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/10 focus:shadow-sm"
-                />
-              </div>
-              {/* FY selector */}
-              <Select
-                options={availableFYs.map((fy) => ({ value: fy, label: `FY ${fy}` }))}
-                value={selectedFY}
-                onChange={(e) => { setSelectedFY(e.target.value); setSelectedMonth(""); }}
-                className="w-36"
-              />
-              {/* Type filter */}
-              <Select
-                options={[{ value: "", label: "All Types" }, ...INCOME_TYPES.map((t) => ({ value: t.value, label: t.label }))]}
-                value={typeFilter}
-                onChange={(e) => setTypeFilter(e.target.value)}
-                className="w-44"
-              />
-              {/* Bank filter */}
-              {availableBanks.length > 0 && (
-                <Select
-                  options={[{ value: "", label: "All Banks" }, ...availableBanks.map((b) => ({ value: b, label: b }))]}
-                  value={bankFilter}
-                  onChange={(e) => setBankFilter(e.target.value)}
-                  className="w-36"
-                />
-              )}
-              {(typeFilter || searchQuery || selectedMonth || bankFilter) && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => { setTypeFilter(""); setSearchQuery(""); setSelectedMonth(""); setBankFilter(""); }}
-                  className="text-text-secondary hover:text-text-primary text-xs"
-                >
-                  Clear
-                </Button>
-              )}
+        {/* ---- Main Layout: Sidebar + Content ---- */}
+        <div className="flex gap-6">
+          {/* ---- Left Filter Panel (desktop) ---- */}
+          <aside className="hidden lg:block w-64 flex-shrink-0">
+            <div className="sticky top-4 rounded-xl border border-gray-200 bg-gray-50/80 p-4">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-text-tertiary mb-4">Filters</h2>
+              {filterPanelContent}
             </div>
-            {/* Month chips */}
-            {selectedFY && (
-              <div className="flex flex-wrap gap-1.5">
-                <button
-                  onClick={() => setSelectedMonth("")}
-                  className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                    !selectedMonth
-                      ? "bg-accent text-white"
-                      : "bg-gray-100 text-text-secondary hover:bg-gray-200"
-                  }`}
-                >
-                  All
-                </button>
-                {FY_MONTHS.map((m) => (
-                  <button
-                    key={m.label}
-                    onClick={() => setSelectedMonth(selectedMonth === m.label ? "" : m.label)}
-                    className={`px-3 py-1 rounded-full text-xs font-medium transition-all duration-200 ${
-                      selectedMonth === m.label
-                        ? "bg-accent text-white"
-                        : "bg-gray-100 text-text-secondary hover:bg-gray-200"
-                    }`}
-                  >
-                    {m.label}
+          </aside>
+
+          {/* ---- Mobile Filter Overlay ---- */}
+          {filtersOpen && (
+            <div className="fixed inset-0 z-50 lg:hidden">
+              <div className="absolute inset-0 bg-black/30" onClick={() => setFiltersOpen(false)} />
+              <div className="absolute left-0 top-0 bottom-0 w-72 bg-white shadow-xl overflow-y-auto animate-page-enter">
+                <div className="flex items-center justify-between p-4 border-b border-gray-200">
+                  <h2 className="text-sm font-bold text-text-primary">Filters</h2>
+                  <button onClick={() => setFiltersOpen(false)} className="p-1 rounded-lg hover:bg-gray-100">
+                    <X className="h-4 w-4" />
                   </button>
-                ))}
+                </div>
+                <div className="p-4">
+                  {filterPanelContent}
+                </div>
               </div>
-            )}
-          </CardContent>
-        </Card>
+            </div>
+          )}
+
+          {/* ---- Right Content Area ---- */}
+          <div className="flex-1 min-w-0 space-y-4">
+            {/* ---- Top Summary Bar ---- */}
+            <div className="rounded-xl border border-gray-200 bg-white px-5 py-3">
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+                <div className="flex items-baseline gap-2">
+                  <span className="font-display text-xl font-bold text-emerald-400 stat-number tabular-nums">
+                    {formatCurrency(filteredTotal)}
+                  </span>
+                  <span className="text-xs text-text-tertiary">total</span>
+                </div>
+                <div className="h-6 w-px bg-gray-200 hidden sm:block" />
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-sm font-semibold text-text-primary tabular-nums">{filtered.length}</span>
+                  <span className="text-xs text-text-tertiary">entries</span>
+                </div>
+                <div className="h-6 w-px bg-gray-200 hidden sm:block" />
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-sm font-semibold text-rose-400 tabular-nums">{formatCurrency(filteredTds)}</span>
+                  <span className="text-xs text-text-tertiary">TDS</span>
+                </div>
+                <div className="h-6 w-px bg-gray-200 hidden sm:block" />
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-sm font-semibold text-blue-400 tabular-nums">{formatCurrency(filteredGst)}</span>
+                  <span className="text-xs text-text-tertiary">GST</span>
+                </div>
+                {filteredTotal > 0 && (
+                  <>
+                    <div className="h-6 w-px bg-gray-200 hidden md:block" />
+                    <span className="text-[11px] text-text-tertiary truncate max-w-[200px] hidden md:block" title={amountInWords(filteredTotal)}>
+                      {amountInWords(filteredTotal)}
+                    </span>
+                  </>
+                )}
+              </div>
+            </div>
 
         {/* ---- Income Entries Table ---- */}
         <Card>
@@ -833,6 +1003,9 @@ export default function IncomePage() {
             )}
           </CardContent>
         </Card>
+
+          </div>{/* end flex-1 content area */}
+        </div>{/* end flex gap-6 sidebar layout */}
 
         {/* ---- Monthly Income by Category Chart ---- */}
         <Card>
