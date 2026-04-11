@@ -87,6 +87,12 @@ export default function IncomePage() {
   const updateIncome = useMutation(api.income.updateIncomeEntry);
   const deleteIncome = useMutation(api.income.deleteIncomeEntry);
 
+  // Master bank accounts (for "To Account" filter)
+  const bankAccounts = useQuery(
+    api.bankAccounts.getBankAccounts,
+    user ? { userId: user.userId } : "skip"
+  );
+
   // Dialog + form state
   const [dialogOpen, setDialogOpen] = useState(false);
   const [formDate, setFormDate] = useState("");
@@ -104,6 +110,7 @@ export default function IncomePage() {
   const [selectedFY, setSelectedFY] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("");
   const [bankFilter, setBankFilter] = useState("");
+  const [sourceFilter, setSourceFilter] = useState(""); // "To Account" — user's own bank
   const [methodFilter, setMethodFilter] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
 
@@ -267,6 +274,7 @@ export default function IncomePage() {
         if (monthObj && new Date(e.date).getMonth() !== monthObj.month) return false;
       }
       if (typeFilter && e.type !== typeFilter) return false;
+      if (sourceFilter && (e as Record<string, unknown>).source_bank !== sourceFilter) return false;
       if (bankFilter || methodFilter) {
         const parsed = parseDescription(e.description);
         if (bankFilter && parsed.bank !== bankFilter) return false;
@@ -278,7 +286,7 @@ export default function IncomePage() {
       }
       return true;
     });
-  }, [safeEntries, typeFilter, selectedFY, selectedMonth, searchQuery, bankFilter, methodFilter]);
+  }, [safeEntries, typeFilter, selectedFY, selectedMonth, searchQuery, bankFilter, sourceFilter, methodFilter]);
 
   // Sort state
   const [sortField, setSortField] = useState<"date" | "amount" | "type" | "payee">("date");
@@ -325,13 +333,14 @@ export default function IncomePage() {
       .sort((a, b) => b.count - a.count);
   }, [safeEntries]);
 
-  const hasActiveFilters = !!(typeFilter || searchQuery || selectedMonth || bankFilter || methodFilter);
+  const hasActiveFilters = !!(typeFilter || searchQuery || selectedMonth || bankFilter || sourceFilter || methodFilter);
 
   function clearAllFilters() {
     setTypeFilter("");
     setSearchQuery("");
     setSelectedMonth("");
     setBankFilter("");
+    setSourceFilter("");
     setMethodFilter("");
   }
 
@@ -346,7 +355,7 @@ export default function IncomePage() {
     return sorted.slice(start, start + PAGE_SIZE);
   }, [sorted, currentPage]);
 
-  useEffect(() => { setCurrentPage(1); }, [typeFilter, searchQuery, selectedFY, selectedMonth, bankFilter, methodFilter]);
+  useEffect(() => { setCurrentPage(1); }, [typeFilter, searchQuery, selectedFY, selectedMonth, bankFilter, sourceFilter, methodFilter]);
 
   // Monthly chart data grouped by month (FY order: Apr-Mar)
   const monthlyChartData = useMemo(() => {
@@ -519,10 +528,37 @@ export default function IncomePage() {
         />
       </div>
 
-      {/* Bank filter */}
+      {/* To Account filter (user's own bank accounts) */}
+      {(bankAccounts ?? []).length > 0 && (
+        <div className="space-y-1.5">
+          <label className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">To Account</label>
+          <div className="flex flex-col gap-1.5">
+            <button
+              onClick={() => setSourceFilter("")}
+              className={`flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium transition-all border ${
+                !sourceFilter
+                  ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 shadow-sm"
+                  : "border-gray-200 bg-white text-text-secondary hover:border-gray-300 hover:bg-gray-50"
+              }`}
+            >
+              All Accounts
+            </button>
+            {(bankAccounts ?? []).filter(b => b.is_active).map((bank) => (
+              <BankChip
+                key={bank._id}
+                bankId={bank.logo_id}
+                active={sourceFilter === bank.bank_name}
+                onClick={() => setSourceFilter(sourceFilter === bank.bank_name ? "" : bank.bank_name)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* From Bank dropdown */}
       {availableBanks.length > 0 && (
         <div className="space-y-1.5">
-          <label className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">Bank</label>
+          <label className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">From Bank</label>
           <select
             value={bankFilter}
             onChange={(e) => setBankFilter(e.target.value)}
@@ -547,7 +583,7 @@ export default function IncomePage() {
               onClick={() => setMethodFilter("")}
               className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all border ${
                 !methodFilter
-                  ? "bg-accent/10 border-accent/30 text-accent shadow-sm"
+                  ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 shadow-sm"
                   : "border-gray-200 bg-white text-text-secondary hover:border-gray-300 hover:bg-gray-50"
               }`}
             >
@@ -581,7 +617,7 @@ export default function IncomePage() {
             <button
               onClick={() => setSelectedMonth("")}
               className={`px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                !selectedMonth ? "bg-accent text-white" : "bg-white border border-gray-200 text-text-secondary hover:bg-gray-100"
+                !selectedMonth ? "bg-emerald-500 text-white" : "bg-white border border-gray-200 text-text-secondary hover:bg-gray-100"
               }`}
             >
               All
@@ -591,7 +627,7 @@ export default function IncomePage() {
                 key={m.label}
                 onClick={() => setSelectedMonth(selectedMonth === m.label ? "" : m.label)}
                 className={`px-2 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
-                  selectedMonth === m.label ? "bg-accent text-white" : "bg-white border border-gray-200 text-text-secondary hover:bg-gray-100"
+                  selectedMonth === m.label ? "bg-emerald-500 text-white" : "bg-white border border-gray-200 text-text-secondary hover:bg-gray-100"
                 }`}
               >
                 {m.label}
@@ -636,7 +672,7 @@ export default function IncomePage() {
               <SlidersHorizontal className="h-4 w-4" />
               Filters
               {hasActiveFilters && (
-                <span className="ml-1 flex h-5 w-5 items-center justify-center rounded-full bg-accent text-[10px] text-white font-semibold">
+                <span className="ml-1 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-[10px] text-white font-semibold">
                   !
                 </span>
               )}
@@ -671,7 +707,7 @@ export default function IncomePage() {
             </Button>
             <Button
               onClick={() => setDialogOpen(true)}
-              className="bg-accent text-white hover:bg-accent/90 font-semibold gap-2"
+              className="bg-emerald-500 text-white hover:bg-emerald-600 font-semibold gap-2"
             >
               <Plus className="h-4 w-4" />
               <span className="hidden sm:inline">Add Income</span>
@@ -760,8 +796,8 @@ export default function IncomePage() {
         <div className="flex gap-6">
           {/* ---- Left Filter Panel (desktop) ---- */}
           <aside className="hidden lg:block w-64 flex-shrink-0">
-            <div className="sticky top-4 rounded-xl border border-gray-200 bg-gray-50/80 p-4">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-text-tertiary mb-4">Filters</h2>
+            <div className="sticky top-4 rounded-xl border border-emerald-200/60 bg-emerald-50/30 p-4">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-emerald-600/70 mb-4">Filters</h2>
               {filterPanelContent}
             </div>
           </aside>
@@ -771,8 +807,8 @@ export default function IncomePage() {
             <div className="fixed inset-0 z-50 lg:hidden">
               <div className="absolute inset-0 bg-black/30" onClick={() => setFiltersOpen(false)} />
               <div className="absolute left-0 top-0 bottom-0 w-72 bg-white shadow-xl overflow-y-auto animate-page-enter">
-                <div className="flex items-center justify-between p-4 border-b border-gray-200">
-                  <h2 className="text-sm font-bold text-text-primary">Filters</h2>
+                <div className="flex items-center justify-between p-4 border-b border-emerald-200/60">
+                  <h2 className="text-sm font-bold text-emerald-700">Filters</h2>
                   <button onClick={() => setFiltersOpen(false)} className="p-1 rounded-lg hover:bg-gray-100">
                     <X className="h-4 w-4" />
                   </button>
@@ -787,7 +823,7 @@ export default function IncomePage() {
           {/* ---- Right Content Area ---- */}
           <div className="flex-1 min-w-0 space-y-4">
             {/* ---- Top Summary Bar ---- */}
-            <div className="rounded-xl border border-gray-200 bg-white px-5 py-3">
+            <div className="rounded-xl border border-emerald-200/50 bg-emerald-50/20 px-5 py-3">
               <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
                 <div className="flex items-baseline gap-2">
                   <span className="font-display text-xl font-bold text-emerald-400 stat-number tabular-nums">
