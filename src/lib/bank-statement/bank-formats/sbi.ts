@@ -2,7 +2,7 @@ import { BankFormat } from "../types";
 
 export const sbiFormat: BankFormat = {
   id: "sbi",
-  name: "SBI",
+  name: "State Bank of India",
   detectFormat: (headers: string[]) => {
     const h = headers.map((s) => s.toLowerCase().trim());
     return (

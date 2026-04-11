@@ -463,7 +463,12 @@ export default function ExpensesPage() {
           if (sub !== subcategoryFilter) return false;
         }
       }
-      if (sourceFilter && (e as Record<string, unknown>).source_bank !== sourceFilter) return false;
+      if (sourceFilter) {
+        const entryBank = (e as Record<string, unknown>).source_bank as string | undefined;
+        if (!entryBank) return false;
+        // Compare by preset ID to handle name variations (e.g. "SBI" vs "State Bank of India")
+        if (entryBank !== sourceFilter && resolveBankPresetId(entryBank) !== resolveBankPresetId(sourceFilter)) return false;
+      }
       if (bankFilter || methodFilter) {
         const parsed = parseDescription(e.description);
         if (bankFilter && parsed.bank !== bankFilter) return false;

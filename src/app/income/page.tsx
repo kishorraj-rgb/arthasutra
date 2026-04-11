@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { formatCurrency, amountInWords, INCOME_TYPES, CATEGORY_COLORS, getCurrentFinancialYear, getFinancialYearDates } from "@/lib/utils";
 import { parseDescription, getMethodColor, type PaymentMethod } from "@/lib/bank-statement/description-parser";
-import { BankChip } from "@/components/bank-logo";
+import { BankChip, resolveBankPresetId } from "@/components/bank-logo";
 import {
   Plus,
   TrendingUp,
@@ -274,7 +274,11 @@ export default function IncomePage() {
         if (monthObj && new Date(e.date).getMonth() !== monthObj.month) return false;
       }
       if (typeFilter && e.type !== typeFilter) return false;
-      if (sourceFilter && (e as Record<string, unknown>).source_bank !== sourceFilter) return false;
+      if (sourceFilter) {
+        const entryBank = (e as Record<string, unknown>).source_bank as string | undefined;
+        if (!entryBank) return false;
+        if (entryBank !== sourceFilter && resolveBankPresetId(entryBank) !== resolveBankPresetId(sourceFilter)) return false;
+      }
       if (bankFilter || methodFilter) {
         const parsed = parseDescription(e.description);
         if (bankFilter && parsed.bank !== bankFilter) return false;
