@@ -183,38 +183,38 @@ export default function InsurancePage() {
         previous_insurer: d.previous_insurer || undefined,
       });
 
+      let savedPolicyId: Id<"insurance_policies">;
+
       if (existing) {
         await updatePolicy({ id: existing._id, ...policyData });
+        savedPolicyId = existing._id;
         setImportResult("Policy updated successfully");
-        setExpandedPolicyId(existing._id);
       } else {
-        const newId = await addPolicy({ userId: user.userId, ...policyData });
+        savedPolicyId = await addPolicy({ userId: user.userId, ...policyData });
         setImportResult("Policy imported successfully");
-        setExpandedPolicyId(newId);
       }
 
+      setExpandedPolicyId(savedPolicyId);
+
       // Auto-upload the source PDF as a document
-      if (importFile) {
+      if (importFile && savedPolicyId) {
         try {
-          const policyId = existing?._id || (expandedPolicyId as Id<"insurance_policies">);
-          if (policyId) {
-            const uploadUrl = await generateUploadUrl();
-            const uploadResp = await fetch(uploadUrl, {
-              method: "POST",
-              headers: { "Content-Type": importFile.type || "application/pdf" },
-              body: importFile,
+          const uploadUrl = await generateUploadUrl();
+          const uploadResp = await fetch(uploadUrl, {
+            method: "POST",
+            headers: { "Content-Type": importFile.type || "application/pdf" },
+            body: importFile,
+          });
+          if (uploadResp.ok) {
+            const { storageId } = await uploadResp.json();
+            await saveDocument({
+              userId: user.userId,
+              policyId: savedPolicyId,
+              storageId,
+              name: importFile.name,
+              file_size: importFile.size,
+              file_type: importFile.type || "application/pdf",
             });
-            if (uploadResp.ok) {
-              const { storageId } = await uploadResp.json();
-              await saveDocument({
-                userId: user.userId,
-                policyId: policyId as Id<"insurance_policies">,
-                storageId,
-                name: importFile.name,
-                file_size: importFile.size,
-                file_type: importFile.type || "application/pdf",
-              });
-            }
           }
         } catch {
           // Non-critical — document upload failure shouldn't block import
@@ -222,7 +222,9 @@ export default function InsurancePage() {
       }
     } catch (err) {
       console.error("Insurance import error:", err);
-      setImportError(err instanceof Error ? err.message : "Import failed");
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("Insurance import error details:", msg);
+      setImportError(msg || "Import failed");
     } finally {
       setImportSaving(false);
     }

@@ -52,16 +52,19 @@ const CC_FORMATS: CCFormat[] = [
     id: "icici_cc",
     name: "ICICI Credit Card",
     detect: (headers) => {
-      const h = headers.map((x) => x.toLowerCase());
+      const h = headers.map((x) => x.toLowerCase().trim());
       return (
-        h.some((x) => x.includes("transaction date")) &&
+        h.some((x) => x === "date" || x.includes("transaction date")) &&
         h.some((x) => x.includes("transaction details") || x.includes("details")) &&
-        h.some((x) => x.includes("billingamount") || x.includes("billing amount") || x.includes("amount"))
+        (h.some((x) => x.includes("amount(in rs)") || x.includes("amount (in rs)") ||
+                       x.includes("billingamount") || x.includes("billing amount")) ||
+         h.some((x) => x.includes("billingamountsign")))
       );
     },
-    dateColumns: ["Transaction Date", "Date"],
+    dateColumns: ["Date", "Transaction Date"],
     descriptionColumns: ["Transaction Details", "Details", "Description"],
-    amountColumns: ["BillingAmount", "Billing Amount", "Amount (in Rs.)", "Amount"],
+    amountColumns: ["Amount(in Rs)", "Amount (in Rs)", "Amount(in Rs.)", "Amount (in Rs.)", "BillingAmount", "Billing Amount", "Amount"],
+    typeColumns: ["BillingAmountSign", "Cr/Dr", "DR/CR", "Type"],
     amountMode: "single",
   },
   {
