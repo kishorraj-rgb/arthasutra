@@ -191,6 +191,7 @@ export default function CreditCardsPage() {
   const [selectedFYs, setSelectedFYs] = useState<Set<string>>(new Set());
   const [cardFilter, setCardFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
+  const [subcategoryFilter, setSubcategoryFilter] = useState("");
   const [matchStatusFilter, setMatchStatusFilter] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -306,6 +307,11 @@ export default function CreditCardsPage() {
       if (cardFilter && t.credit_card_id !== cardFilter) return false;
       // Category filter
       if (categoryFilter && t.category !== categoryFilter) return false;
+      if (subcategoryFilter) {
+        const sub = (t as Record<string, unknown>).subcategory as string | undefined;
+        if (subcategoryFilter === "__none__") { if (sub) return false; }
+        else { if (sub !== subcategoryFilter) return false; }
+      }
       // Match status filter
       if (matchStatusFilter) {
         if (matchStatusFilter === "matched" && t.match_status !== "matched" && t.match_status !== "manual_match") return false;
@@ -319,7 +325,7 @@ export default function CreditCardsPage() {
       }
       return true;
     });
-  }, [allTxns, selectedFYs, selectedMonth, cardFilter, categoryFilter, matchStatusFilter, searchQuery]);
+  }, [allTxns, selectedFYs, selectedMonth, cardFilter, categoryFilter, subcategoryFilter, matchStatusFilter, searchQuery]);
 
   // ── Sorting ───────────────────────────────────────────────────────────
   const sorted = useMemo(() => {
@@ -343,7 +349,7 @@ export default function CreditCardsPage() {
   }, [sorted, currentPage]);
 
   // Reset page when filters change
-  useEffect(() => { setCurrentPage(1); }, [categoryFilter, searchQuery, selectedFYs, selectedMonth, cardFilter, matchStatusFilter]);
+  useEffect(() => { setCurrentPage(1); }, [categoryFilter, subcategoryFilter, searchQuery, selectedFYs, selectedMonth, cardFilter, matchStatusFilter]);
 
   // ── KPI Stats ─────────────────────────────────────────────────────────
   const stats = useMemo(() => {
@@ -364,10 +370,11 @@ export default function CreditCardsPage() {
     };
   }, [filtered]);
 
-  const hasActiveFilters = !!(categoryFilter || searchQuery || selectedMonth || cardFilter || matchStatusFilter);
+  const hasActiveFilters = !!(categoryFilter || subcategoryFilter || searchQuery || selectedMonth || cardFilter || matchStatusFilter);
 
   function clearAllFilters() {
     setCategoryFilter("");
+    setSubcategoryFilter("");
     setSearchQuery("");
     setSelectedMonth("");
     setCardFilter("");
@@ -741,10 +748,47 @@ export default function CreditCardsPage() {
         <Select
           options={[{ value: "", label: "All Categories" }, ...allCategories]}
           value={categoryFilter}
-          onChange={(e) => setCategoryFilter(e.target.value)}
+          onChange={(e) => { setCategoryFilter(e.target.value); setSubcategoryFilter(""); }}
           className="w-full"
         />
       </div>
+
+      {/* Subcategory filter */}
+      {(() => {
+        // Show subcategories: from subcategoryMap if category selected, or from all transactions
+        const subs: { name: string; count: number }[] = [];
+        if (categoryFilter && subcategoryMap[categoryFilter]?.length > 0) {
+          const subCounts = new Map<string, number>();
+          for (const t of (allTxns || [])) {
+            if (t.category === categoryFilter) {
+              const sub = (t as Record<string, unknown>).subcategory as string || "";
+              if (sub) subCounts.set(sub, (subCounts.get(sub) || 0) + 1);
+            }
+          }
+          for (const name of subcategoryMap[categoryFilter]) {
+            subs.push({ name, count: subCounts.get(name) || 0 });
+          }
+        }
+        if (subs.length === 0) return null;
+        return (
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">Subcategory</label>
+            <select
+              value={subcategoryFilter}
+              onChange={(e) => setSubcategoryFilter(e.target.value)}
+              className="w-full text-xs rounded-lg border border-gray-200 px-3 py-2 bg-white focus:border-rose-400 focus:outline-none cursor-pointer"
+            >
+              <option value="">All Subcategories</option>
+              <option value="__none__">— No Subcategory —</option>
+              {subs.map((sub) => (
+                <option key={sub.name} value={sub.name}>
+                  {sub.name} ({sub.count})
+                </option>
+              ))}
+            </select>
+          </div>
+        );
+      })()}
 
       {/* Match status chips */}
       <div className="space-y-1.5">
