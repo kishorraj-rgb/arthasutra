@@ -868,42 +868,46 @@ export default function CreditCardsPage() {
         />
       </div>
 
-      {/* Subcategory filter */}
-      {(() => {
-        // Show subcategories: from subcategoryMap if category selected, or from all transactions
-        const subs: { name: string; count: number }[] = [];
-        if (categoryFilter && subcategoryMap[categoryFilter]?.length > 0) {
+      {/* Subcategory filter — always visible */}
+      <div className="space-y-1.5">
+        <label className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">Subcategory</label>
+        {(() => {
+          // Gather subcategories from transactions + subcategoryMap
           const subCounts = new Map<string, number>();
+          let noSubCount = 0;
           for (const t of (allTxns || [])) {
-            if (t.category === categoryFilter) {
-              const sub = (t as Record<string, unknown>).subcategory as string || "";
-              if (sub) subCounts.set(sub, (subCounts.get(sub) || 0) + 1);
+            if (categoryFilter && t.category !== categoryFilter) continue;
+            const sub = (t as Record<string, unknown>).subcategory as string || "";
+            if (sub) subCounts.set(sub, (subCounts.get(sub) || 0) + 1);
+            else noSubCount++;
+          }
+          // Also include subcategories from preferences that may not have transactions yet
+          if (categoryFilter && subcategoryMap[categoryFilter]) {
+            for (const name of subcategoryMap[categoryFilter]) {
+              if (!subCounts.has(name)) subCounts.set(name, 0);
             }
           }
-          for (const name of subcategoryMap[categoryFilter]) {
-            subs.push({ name, count: subCounts.get(name) || 0 });
-          }
-        }
-        if (subs.length === 0) return null;
-        return (
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">Subcategory</label>
+          const subs = Array.from(subCounts.entries())
+            .map(([name, count]) => ({ name, count }))
+            .sort((a, b) => b.count - a.count);
+
+          return (
             <select
               value={subcategoryFilter}
               onChange={(e) => setSubcategoryFilter(e.target.value)}
               className="w-full text-xs rounded-lg border border-gray-200 px-3 py-2 bg-white focus:border-rose-400 focus:outline-none cursor-pointer"
             >
               <option value="">All Subcategories</option>
-              <option value="__none__">— No Subcategory —</option>
+              <option value="__none__">— No Subcategory — ({noSubCount})</option>
               {subs.map((sub) => (
                 <option key={sub.name} value={sub.name}>
                   {sub.name} ({sub.count})
                 </option>
               ))}
             </select>
-          </div>
-        );
-      })()}
+          );
+        })()}
+      </div>
 
       {/* Match status chips */}
       <div className="space-y-1.5">
