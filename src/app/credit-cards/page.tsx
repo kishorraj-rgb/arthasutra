@@ -43,6 +43,8 @@ import {
   ArrowUpDown,
   TrendingDown,
   TrendingUp,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 
 // ─── Constants ──────────────────────────────────────────────────────────
@@ -155,6 +157,7 @@ export default function CreditCardsPage() {
   const [matchStatusFilter, setMatchStatusFilter] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [cardsExpanded, setCardsExpanded] = useState(true);
 
   // ── Sort State ────────────────────────────────────────────────────────
   const [sortField, setSortField] = useState<"date" | "amount" | "category" | "merchant">("date");
@@ -812,46 +815,64 @@ export default function CreditCardsPage() {
           </div>
         )}
 
-        {/* ── Visual Cards Row ── */}
+        {/* ── Visual Cards Row (collapsible) ── */}
         {cards.length > 0 && (
-          <div className="overflow-x-auto pb-2">
-            <div className="flex gap-4 min-w-0">
-              {/* All Cards indicator */}
-              <button
-                onClick={() => setCardFilter("")}
-                className={`flex-shrink-0 w-48 h-28 rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-1 transition-all ${
-                  !cardFilter
-                    ? "border-rose-400 bg-rose-50 ring-2 ring-rose-400"
-                    : "border-gray-300 bg-gray-50 opacity-60 hover:opacity-100"
-                }`}
-              >
-                <CreditCard className="h-6 w-6 text-rose-400" />
-                <span className="text-xs font-semibold text-rose-600">All Cards</span>
-                <span className="text-[10px] text-text-tertiary">{cards.length} cards</span>
-              </button>
-              {cards.map((card) => (
-                <button
-                  key={card._id}
-                  onClick={() => setCardFilter(cardFilter === card._id ? "" : card._id)}
-                  className={`flex-shrink-0 transition-all rounded-xl ${
-                    cardFilter === card._id
-                      ? "ring-2 ring-rose-400"
-                      : cardFilter && cardFilter !== card._id
-                        ? "opacity-60 hover:opacity-100"
-                        : ""
-                  }`}
-                >
-                  <CreditCardVisual
-                    cardName={card.card_name}
-                    last4={card.card_last4}
-                    network={card.card_network}
-                    issuer={card.issuer}
-                    color={card.color ?? undefined}
-                    className="w-52"
-                  />
-                </button>
-              ))}
-            </div>
+          <div>
+            <button
+              onClick={() => setCardsExpanded(!cardsExpanded)}
+              className="flex items-center gap-2 text-xs text-text-tertiary hover:text-text-secondary transition-colors mb-2"
+            >
+              {cardsExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+              <span className="font-medium uppercase tracking-wider">
+                {cardsExpanded ? "Hide Cards" : "Show Cards"}
+              </span>
+              <span className="text-text-tertiary">({cards.length})</span>
+              {cardFilter && (
+                <Badge className="text-[9px] ml-1" variant="secondary">
+                  Filtered: {cards.find(c => c._id === cardFilter)?.card_last4}
+                </Badge>
+              )}
+            </button>
+            {cardsExpanded && (
+              <div className="overflow-x-auto pb-2 animate-page-enter">
+                <div className="flex gap-4 min-w-0">
+                  <button
+                    onClick={() => setCardFilter("")}
+                    className={`flex-shrink-0 w-48 h-28 rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-1 transition-all ${
+                      !cardFilter
+                        ? "border-rose-400 bg-rose-50 ring-2 ring-rose-400"
+                        : "border-gray-300 bg-gray-50 opacity-60 hover:opacity-100"
+                    }`}
+                  >
+                    <CreditCard className="h-6 w-6 text-rose-400" />
+                    <span className="text-xs font-semibold text-rose-600">All Cards</span>
+                    <span className="text-[10px] text-text-tertiary">{cards.length} cards</span>
+                  </button>
+                  {cards.map((card) => (
+                    <button
+                      key={card._id}
+                      onClick={() => setCardFilter(cardFilter === card._id ? "" : card._id)}
+                      className={`flex-shrink-0 transition-all rounded-xl ${
+                        cardFilter === card._id
+                          ? "ring-2 ring-rose-400"
+                          : cardFilter && cardFilter !== card._id
+                            ? "opacity-60 hover:opacity-100"
+                            : ""
+                      }`}
+                    >
+                      <CreditCardVisual
+                        cardName={card.card_name}
+                        last4={card.card_last4}
+                        network={card.card_network}
+                        issuer={card.issuer}
+                        color={card.color ?? undefined}
+                        className="w-52"
+                      />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
