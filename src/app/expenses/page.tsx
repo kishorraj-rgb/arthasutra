@@ -46,7 +46,7 @@ import {
   X,
   Wand2,
 } from "lucide-react";
-import { exportExpensesToExcel } from "@/lib/export-excel";
+import { exportExpensesToExcel, setCategoryLabelMap } from "@/lib/export-excel";
 import { BankChip, BankLogo, resolveBankPresetId, BANK_PRESETS } from "@/components/bank-logo";
 import {
   PieChart,
@@ -893,6 +893,10 @@ export default function ExpensesPage() {
             </Button>
             <Button
               onClick={async () => {
+                // Set category label map so custom categories export with correct names
+                const labelMap: Record<string, string> = {};
+                for (const c of allCategories) { labelMap[c.value] = c.label; }
+                setCategoryLabelMap(labelMap);
                 const entriesToExport = selectedIds.size > 0
                   ? filtered.filter((e) => selectedIds.has(e._id))
                   : filtered;

@@ -88,23 +88,30 @@ function incomeTypeLabel(type: string): string {
   return map[type] || type.charAt(0).toUpperCase() + type.slice(1);
 }
 
-/** Title-case an expense category value */
+/** Title-case an expense category value — uses custom label map if provided */
+let _categoryLabelMap: Record<string, string> = {};
+
+export function setCategoryLabelMap(map: Record<string, string>): void {
+  _categoryLabelMap = map;
+}
+
 function expenseCategoryLabel(cat: string): string {
-  const map: Record<string, string> = {
-    housing: "Housing/Rent",
-    food: "Food & Dining",
-    transport: "Transport",
-    medical: "Medical",
-    education: "Education",
-    insurance: "Insurance",
-    investment: "Investment",
-    driver_salary: "Driver Salary",
-    school_fees: "School Fees",
-    utilities: "Utilities",
-    entertainment: "Entertainment",
-    other: "Other",
+  // Check custom label map first (set by the caller with actual category prefs)
+  if (_categoryLabelMap[cat]) return _categoryLabelMap[cat];
+
+  const defaults: Record<string, string> = {
+    housing: "Housing/Rent", food: "Food & Dining", transport: "Transport",
+    medical: "Medical", education: "Education", insurance: "Insurance",
+    investment: "Investment", driver_salary: "Driver Salary", school_fees: "School Fees",
+    utilities: "Utilities", entertainment: "Entertainment", clothing: "Clothing & Apparel",
+    grocery: "Grocery", shopping: "Shopping", personal_care: "Personal Care",
+    subscription: "Subscriptions", donation: "Donations/Charity", emi: "EMI/Loan Payment",
+    rent: "Rent Payment", travel: "Travel", tax_payment: "Tax/GST Payment",
+    credit_card_bill: "Credit Card Bill", recharge: "Recharge/Mobile",
+    household: "Household Help", cash_withdrawal: "Cash Withdrawal",
+    transfer: "Transfer", other: "Other",
   };
-  return map[cat] || cat.charAt(0).toUpperCase() + cat.slice(1);
+  return defaults[cat] || cat.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 /** Auto-size columns based on the worksheet range */

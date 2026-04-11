@@ -22,7 +22,7 @@ import {
 import { formatCurrency, EXPENSE_CATEGORIES, getCurrentFinancialYear, getFinancialYearDates } from "@/lib/utils";
 import { CreditCardVisual } from "@/components/credit-card-visual";
 import { parseCCStatement, CC_FORMAT_OPTIONS } from "@/lib/bank-statement/cc-parser";
-import { exportCCToExcel } from "@/lib/export-excel";
+import { exportCCToExcel, setCategoryLabelMap } from "@/lib/export-excel";
 import type { CCTransaction } from "@/lib/bank-statement/cc-parser";
 import {
   Plus,
@@ -1040,13 +1040,17 @@ export default function CreditCardsPage() {
             <Button
               variant="outline"
               className="gap-2"
-              onClick={() => {
+              onClick={async () => {
+                // Set category labels so custom categories export correctly
+                const labelMap: Record<string, string> = {};
+                for (const c of allCategories) { labelMap[c.value] = c.label; }
+                setCategoryLabelMap(labelMap);
                 const entriesToExport = selectedIds.size > 0
                   ? filtered.filter((t) => selectedIds.has(t._id))
                   : filtered;
                 if (entriesToExport.length === 0) return;
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                exportCCToExcel(entriesToExport as any, cardMap, Array.from(selectedFYs).join(", "));
+                await exportCCToExcel(entriesToExport as any, cardMap, Array.from(selectedFYs).join(", "));
               }}
               disabled={filtered.length === 0}
             >
