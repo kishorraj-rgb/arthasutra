@@ -401,6 +401,15 @@ function parseAxisCCXLSX(rows: string[][]): { transactions: CCTransaction[]; met
 
   if (headerIdx === -1) return { transactions: [], meta };
 
+  // Find column indices from header row
+  const headerCells = rows[headerIdx].map((c) => (c || "").toString().toLowerCase().trim());
+  const dateCol = headerCells.findIndex((c) => c === "date");
+  const descCol = headerCells.findIndex((c) => c.includes("transaction") || c.includes("details") || c.includes("description"));
+  const amtCol = headerCells.findIndex((c) => c.includes("amount") || c === "amt");
+  const typeCol = headerCells.findIndex((c) => c.includes("debit") || c.includes("credit") || c.includes("dr/cr"));
+
+  if (dateCol === -1 || descCol === -1 || amtCol === -1) return { transactions: [], meta };
+
   const transactions: CCTransaction[] = [];
   const monthMap: Record<string, string> = {
     jan: "01", feb: "02", mar: "03", apr: "04", may: "05", jun: "06",
@@ -409,14 +418,13 @@ function parseAxisCCXLSX(rows: string[][]): { transactions: CCTransaction[]; met
 
   for (let i = headerIdx + 1; i < rows.length; i++) {
     const cells = rows[i].map((c) => (c || "").toString().trim());
-    if (cells.length < 4) continue;
     // Stop at end marker
     if (cells.some((c) => c.includes("End of Statement"))) break;
 
-    const rawDate = cells[0];
-    const description = cells[1];
-    const rawAmount = cells[2];
-    const typeStr = cells[3];
+    const rawDate = cells[dateCol] || "";
+    const description = cells[descCol] || "";
+    const rawAmount = cells[amtCol] || "";
+    const typeStr = typeCol >= 0 ? (cells[typeCol] || "") : "";
 
     if (!rawDate || !description) continue;
 
