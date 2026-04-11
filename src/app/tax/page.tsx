@@ -171,7 +171,21 @@ const FY_MONTHS = [
 
 export default function TaxPage() {
   const { user } = useAuth();
-  const fy = getCurrentFinancialYear();
+  const currentFY = getCurrentFinancialYear();
+
+  // Available FYs: current + 2 previous
+  const availableFYs = useMemo(() => {
+    const [yearStr] = currentFY.split("-");
+    const year = parseInt(yearStr);
+    return [
+      `${year}-${String(year + 1).slice(-2)}`,
+      `${year - 1}-${String(year).slice(-2)}`,
+      `${year - 2}-${String(year - 1).slice(-2)}`,
+    ];
+  }, [currentFY]);
+
+  const [selectedFY, setSelectedFY] = useState(currentFY);
+  const fy = selectedFY;
   const [startYearStr] = fy.split("-");
   const startYear = parseInt(startYearStr);
   const ayYear = `${startYear + 1}-${String(startYear + 2).slice(-2)}`;
@@ -180,13 +194,31 @@ export default function TaxPage() {
     <AppLayout>
       <div className="space-y-6">
         {/* Page Header */}
-        <div>
-          <h1 className="text-3xl font-display font-bold text-text-primary">
-            Tax Planning & Compliance
-          </h1>
-          <p className="text-text-secondary mt-1">
-            FY {fy} (AY {ayYear}) &mdash; Comprehensive tax management
-          </p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-display font-bold text-text-primary">
+              Tax Planning & Compliance
+            </h1>
+            <p className="text-text-secondary mt-1">
+              FY {fy} (AY {ayYear}) &mdash; Comprehensive tax management
+            </p>
+          </div>
+          <div className="flex gap-2">
+            {availableFYs.map((f) => (
+              <button
+                key={f}
+                onClick={() => setSelectedFY(f)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  selectedFY === f
+                    ? "text-white shadow-sm"
+                    : "border border-gray-200 bg-white text-text-secondary hover:border-gray-300"
+                }`}
+                style={selectedFY === f ? { backgroundColor: "#6366f1" } : undefined}
+              >
+                FY {f}
+              </button>
+            ))}
+          </div>
         </div>
 
         <Tabs defaultValue="calculator" className="space-y-4">
