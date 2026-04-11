@@ -69,12 +69,47 @@ export async function POST(req: NextRequest) {
     }
 
     let fileBuffer = Buffer.from(await file.arrayBuffer());
+    const isPdf = file.name.toLowerCase().endsWith(".pdf");
+    let extractedText: string | null = null;
 
-    // Decrypt if password provided
-    if (password) {
+    // For password-protected PDFs, extract text using unpdf
+    if (password && isPdf) {
+      try {
+        const { getDocumentProxy } = await import("unpdf");
+        const uint8 = new Uint8Array(fileBuffer);
+        const doc = await getDocumentProxy(uint8, { password });
+        const pages: string[] = [];
+        for (let i = 1; i <= doc.numPages; i++) {
+          const page = await doc.getPage(i);
+          const textContent = await page.getTextContent();
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const text = textContent.items.map((item: any) => item.str).join(" ");
+          pages.push(`--- PAGE ${i} ---\n${text}`);
+        }
+        extractedText = pages.join("\n\n");
+        doc.destroy();
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Decryption failed";
+        if (msg.includes("password") || msg.includes("Password")) {
+          return NextResponse.json(
+            { error: "Incorrect PDF password. Please try again." },
+            { status: 401 }
+          );
+        }
+        return NextResponse.json(
+          { error: `PDF decryption failed: ${msg}` },
+          { status: 401 }
+        );
+      }
+    }
+
+    // For password-protected Office files (XLSX/XLS), use officecrypto-tool
+    if (password && !isPdf) {
       try {
         const officeCrypto = await import("officecrypto-tool");
-        fileBuffer = Buffer.from(await officeCrypto.decrypt(fileBuffer, { password }));
+        fileBuffer = Buffer.from(
+          await officeCrypto.decrypt(fileBuffer, { password })
+        );
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Decryption failed";
         return NextResponse.json(
@@ -84,11 +119,35 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Send to OpenAI
-    const base64 = fileBuffer.toString("base64");
-    const mimeType = file.name.endsWith(".pdf")
+    // Build OpenAI request
+    // If we extracted text from an encrypted PDF, send as text prompt
+    // Otherwise, send the file as base64
+    const mimeType = isPdf
       ? "application/pdf"
       : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+    // Build content array for OpenAI
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const content: any[] = [];
+
+    if (extractedText) {
+      // Password-protected PDF: send extracted text
+      content.push({
+        type: "text",
+        text: `Here is the extracted text from a loan statement PDF:\n\n${extractedText}\n\n${LOAN_PROMPT}`,
+      });
+    } else {
+      // Regular file: send as base64
+      const base64 = fileBuffer.toString("base64");
+      content.push({
+        type: "file",
+        file: {
+          filename: file.name,
+          file_data: `data:${mimeType};base64,${base64}`,
+        },
+      });
+      content.push({ type: "text", text: LOAN_PROMPT });
+    }
 
     const response = await fetch(
       "https://api.openai.com/v1/chat/completions",
@@ -101,21 +160,7 @@ export async function POST(req: NextRequest) {
         body: JSON.stringify({
           model: "gpt-4o-mini",
           response_format: { type: "json_object" },
-          messages: [
-            {
-              role: "user",
-              content: [
-                {
-                  type: "file",
-                  file: {
-                    filename: file.name,
-                    file_data: `data:${mimeType};base64,${base64}`,
-                  },
-                },
-                { type: "text", text: LOAN_PROMPT },
-              ],
-            },
-          ],
+          messages: [{ role: "user", content }],
         }),
       }
     );
