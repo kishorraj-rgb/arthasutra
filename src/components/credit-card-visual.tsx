@@ -9,6 +9,7 @@ interface CreditCardVisualProps {
   issuer: string;
   color?: string;
   className?: string;
+  compact?: boolean;
 }
 
 const NETWORK_LABELS: Record<string, string> = {
@@ -103,9 +104,43 @@ export function CreditCardVisual({
   issuer,
   color,
   className,
+  compact,
 }: CreditCardVisualProps) {
   const gradient = getGradient(issuer, color);
   const NetworkIcon = NETWORK_ICONS[network] ?? VisaIcon;
+
+  if (compact) {
+    return (
+      <div
+        className={cn(
+          "relative aspect-[1.586/1] w-full max-w-[160px] rounded-lg p-2.5 text-white shadow-lg overflow-hidden",
+          "transition-transform duration-300 hover:scale-[1.03]",
+          "transform-gpu",
+          !color && `bg-gradient-to-br ${gradient}`,
+          className
+        )}
+        style={color ? { background: `linear-gradient(135deg, ${color}, ${color}dd, ${color}bb)` } : undefined}
+      >
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute top-0 right-0 w-20 h-20 rounded-full bg-white/20 -translate-y-5 translate-x-5" />
+        </div>
+        <div className="relative h-full flex flex-col justify-between">
+          <div className="flex items-start justify-between">
+            <p className="text-[7px] uppercase tracking-widest text-white/60 font-medium truncate max-w-[70px]">{issuer}</p>
+            <div className="scale-[0.6] origin-top-right"><NetworkIcon /></div>
+          </div>
+          <div>
+            <p className="font-mono text-[10px] tracking-[0.15em] text-white/90">
+              •••• {last4}
+            </p>
+            <p className="text-[7px] font-medium text-white/70 uppercase truncate mt-0.5 max-w-[100px]">
+              {cardName}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div

@@ -841,40 +841,63 @@ export default function CreditCardsPage() {
             </button>
             {cardsExpanded && (
               <div className="overflow-x-auto pb-2 animate-page-enter">
-                <div className="flex gap-4 min-w-0">
+                <div className="flex gap-3 min-w-0">
                   <button
                     onClick={() => setCardFilter("")}
-                    className={`flex-shrink-0 w-48 h-28 rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-1 transition-all ${
+                    className={`flex-shrink-0 w-32 h-20 rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-0.5 transition-all text-center ${
                       !cardFilter
                         ? "border-rose-400 bg-rose-50 ring-2 ring-rose-400"
                         : "border-gray-300 bg-gray-50 opacity-60 hover:opacity-100"
                     }`}
                   >
-                    <CreditCard className="h-6 w-6 text-rose-400" />
-                    <span className="text-xs font-semibold text-rose-600">All Cards</span>
-                    <span className="text-[10px] text-text-tertiary">{cards.length} cards</span>
+                    <CreditCard className="h-4 w-4 text-rose-400" />
+                    <span className="text-[10px] font-semibold text-rose-600">All Cards</span>
+                    <span className="text-[9px] text-text-tertiary">{cards.length} cards</span>
                   </button>
                   {cards.map((card) => (
-                    <button
-                      key={card._id}
-                      onClick={() => setCardFilter(cardFilter === card._id ? "" : card._id)}
-                      className={`flex-shrink-0 transition-all rounded-xl ${
-                        cardFilter === card._id
-                          ? "ring-2 ring-rose-400"
-                          : cardFilter && cardFilter !== card._id
-                            ? "opacity-60 hover:opacity-100"
-                            : ""
-                      }`}
-                    >
-                      <CreditCardVisual
-                        cardName={card.card_name}
-                        last4={card.card_last4}
-                        network={card.card_network}
-                        issuer={card.issuer}
-                        color={card.color ?? undefined}
-                        className="w-52"
-                      />
-                    </button>
+                    <div key={card._id} className="flex-shrink-0 relative group/card">
+                      <button
+                        onClick={() => setCardFilter(cardFilter === card._id ? "" : card._id)}
+                        className={`transition-all rounded-lg ${
+                          cardFilter === card._id
+                            ? "ring-2 ring-rose-400"
+                            : cardFilter && cardFilter !== card._id
+                              ? "opacity-60 hover:opacity-100"
+                              : ""
+                        }`}
+                      >
+                        <CreditCardVisual
+                          cardName={card.card_name}
+                          last4={card.card_last4}
+                          network={card.card_network}
+                          issuer={card.issuer}
+                          color={card.color ?? undefined}
+                          compact
+                        />
+                      </button>
+                      {/* Edit + Delete overlay */}
+                      <div className="absolute top-1 right-1 flex gap-0.5 opacity-0 group-hover/card:opacity-100 transition-opacity z-10">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); openEditCard(card); }}
+                          className="p-1 rounded bg-black/40 text-white hover:bg-black/60 transition-colors"
+                          title="Edit card"
+                        >
+                          <Edit3 className="h-3 w-3" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (confirm(`Delete ${card.card_name}? All transactions will be removed.`)) {
+                              deleteCreditCard({ id: card._id });
+                            }
+                          }}
+                          className="p-1 rounded bg-black/40 text-white hover:bg-red-500/80 transition-colors"
+                          title="Delete card"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
+                    </div>
                   ))}
                 </div>
               </div>
