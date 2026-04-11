@@ -366,10 +366,144 @@ function parseHDFCPipeCC(rawRows: string[][]): { transactions: CCTransaction[]; 
   return { transactions, meta };
 }
 
+// Axis Bank CC XLSX parser
+function parseAxisCCXLSX(rows: string[][]): { transactions: CCTransaction[]; meta: CCStatementMeta } {
+  const meta: CCStatementMeta = {};
+
+  // Extract metadata from rows 1-5
+  for (let i = 0; i < Math.min(rows.length, 6); i++) {
+    const row = rows[i].map((c) => (c || "").toString().trim()).join(" ");
+    // Card number
+    const cardMatch = row.match(/Credit Card Number[:\s]*(\d{4}X+\d{4})/i);
+    if (cardMatch) meta.cardLast4 = cardMatch[1].slice(-4);
+    // Payment due
+    const dueMatch = row.match(/Total Payment Due\s*₹?\s*([\d,.]+)/);
+    if (dueMatch) meta.totalAmountDue = parseFloat(dueMatch[1].replace(/,/g, "")) || undefined;
+    const minMatch = row.match(/Minimum Payment Due\s*₹?\s*([\d,.]+)/);
+    if (minMatch) meta.minimumDue = parseFloat(minMatch[1].replace(/,/g, "")) || undefined;
+    const dueDateMatch = row.match(/Payment Due Date\s*(\d{2}\s+\w+\s+'\d{2})/);
+    if (dueDateMatch) meta.paymentDueDate = dueDateMatch[1];
+    const limitMatch = row.match(/Credit Limit\s*₹?\s*([\d,.]+)/);
+    if (limitMatch) meta.creditLimit = parseFloat(limitMatch[1].replace(/,/g, "")) || undefined;
+    const openMatch = row.match(/Opening Balance\s*₹?\s*([\d,.]+)/);
+    if (openMatch) meta.openingBalance = parseFloat(openMatch[1].replace(/,/g, "")) || undefined;
+  }
+
+  // Find header row: "Date | Transaction Details | Amount (INR) | Debit/Credit"
+  let headerIdx = -1;
+  for (let i = 0; i < Math.min(rows.length, 15); i++) {
+    const row = rows[i].map((c) => (c || "").toString().toLowerCase().trim());
+    if (row.some((c) => c.includes("date")) && row.some((c) => c.includes("transaction")) && row.some((c) => c.includes("amount"))) {
+      headerIdx = i;
+      break;
+    }
+  }
+
+  if (headerIdx === -1) return { transactions: [], meta };
+
+  const transactions: CCTransaction[] = [];
+  const monthMap: Record<string, string> = {
+    jan: "01", feb: "02", mar: "03", apr: "04", may: "05", jun: "06",
+    jul: "07", aug: "08", sep: "09", oct: "10", nov: "11", dec: "12",
+  };
+
+  for (let i = headerIdx + 1; i < rows.length; i++) {
+    const cells = rows[i].map((c) => (c || "").toString().trim());
+    if (cells.length < 4) continue;
+    // Stop at end marker
+    if (cells.some((c) => c.includes("End of Statement"))) break;
+
+    const rawDate = cells[0];
+    const description = cells[1];
+    const rawAmount = cells[2];
+    const typeStr = cells[3];
+
+    if (!rawDate || !description) continue;
+
+    // Parse date: "11 Mar '26" or "23 Feb '26"
+    const dateMatch = rawDate.match(/(\d{1,2})\s+(\w{3})\s+'(\d{2})/);
+    if (!dateMatch) continue;
+    const [, day, monStr, yr] = dateMatch;
+    const month = monthMap[monStr.toLowerCase()];
+    if (!month) continue;
+    const year = parseInt(yr) > 50 ? `19${yr}` : `20${yr}`;
+    const date = `${year}-${month}-${day.padStart(2, "0")}`;
+
+    // Parse amount: "₹ 2,801.00"
+    const amount = parseAmount(rawAmount.replace(/₹/g, ""));
+    if (amount === 0) continue;
+
+    const type: "debit" | "credit" = typeStr.toLowerCase().includes("credit") ? "credit" : "debit";
+    const descLower = description.toLowerCase();
+
+    // Detect payments
+    const isPayment = descLower.includes("ib payment") || descLower.includes("payment received") || descLower.includes("cashback credit");
+    const finalType = isPayment && type === "debit" ? "credit" : type;
+
+    const merchant_name = cleanMerchantName(description);
+
+    // Categorize
+    const isPrincipalEmi = descLower.includes("emi principal");
+    const isInterestEmi = descLower.includes("emi interest");
+
+    const fakeTx: ParsedTransaction = {
+      id: generateId(), date, description, amount, type: finalType,
+      incomeType: "other", expenseCategory: "other", isDuplicate: false, selected: true,
+    };
+    const categorized = categorizeTransaction(fakeTx);
+
+    let category = finalType === "debit" ? categorized.expenseCategory : "credit_card_bill";
+    if (isPrincipalEmi || isInterestEmi) category = "emi";
+    if (descLower.includes("gst") && amount < 500) category = "tax_payment";
+    if (descLower.includes("annual fee") || descLower.includes("membership fee")) category = "other";
+
+    transactions.push({
+      id: generateId(), date, amount, type: finalType, description, merchant_name, category,
+      selected: !isPrincipalEmi,
+    });
+  }
+
+  return { transactions, meta };
+}
+
 export function parseCCStatement(
   file: File,
   ccFormatId?: string
 ): Promise<{ transactions: CCTransaction[]; error?: string; meta?: CCStatementMeta }> {
+  // Handle XLSX/XLS files (Axis Bank, etc.)
+  const ext = file.name.split(".").pop()?.toLowerCase();
+  if (ext === "xlsx" || ext === "xls") {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const XLSX = await import("xlsx");
+          const data = e.target?.result;
+          if (!data) { resolve({ transactions: [], error: "Failed to read file" }); return; }
+          const wb = XLSX.read(data, { type: "array" });
+          const sheet = wb.Sheets[wb.SheetNames[0]];
+          const rows: string[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, defval: "" });
+          if (!rows || rows.length === 0) { resolve({ transactions: [], error: "No data in Excel file" }); return; }
+
+          // Try Axis Bank format (has "Transaction Details" + "Debit/Credit" headers)
+          const result = parseAxisCCXLSX(rows);
+          if (result.transactions.length > 0) {
+            resolve({ transactions: result.transactions, meta: result.meta });
+            return;
+          }
+
+          // Generic: try to detect format from headers and use parseCCRows
+          resolve({ transactions: [], error: "Could not detect CC format in Excel file." });
+        } catch (err) {
+          resolve({ transactions: [], error: `Excel parse error: ${err instanceof Error ? err.message : "Unknown error"}` });
+        }
+      };
+      reader.onerror = () => resolve({ transactions: [], error: "Failed to read file" });
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
+  // Handle CSV files
   return new Promise((resolve) => {
     Papa.parse(file, {
       header: false,
