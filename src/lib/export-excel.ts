@@ -313,53 +313,89 @@ export async function exportExpensesToExcel(entries: (ExpenseEntry & { subcatego
   dash.getRow(4).height = 18;
   dash.getRow(5).height = 32;
 
-  // Category Breakdown
-  dash.getCell("A7").value = "SPEND BY CATEGORY";
+  // Category → Subcategory Hierarchical Breakdown
+  dash.getCell("A7").value = "SPEND BY CATEGORY & SUBCATEGORY";
   dash.getCell("A7").font = { name: "Helvetica", bold: true, size: 12, color: { argb: SLATE } };
-  ["Category", "Transactions", "Amount", "% of Total"].forEach((h, i) => {
+  dash.getRow(7).height = 28;
+
+  ["Category / Subcategory", "Transactions", "Amount", "% of Total", "% of Category"].forEach((h, i) => {
     const cell = dash.getCell(8, i + 1);
     cell.value = h; cell.font = { ...headerFont, size: 10 };
     cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: ROSE } };
     cell.border = allBorders;
     cell.alignment = { horizontal: i >= 2 ? "right" : "left" };
   });
-  catSorted.forEach(([cat, data], i) => {
-    const row = 9 + i;
-    const bg = i % 2 === 0 ? WHITE : GRAY_BG;
-    [cat, data.count, fmt(data.amount), totalAmount > 0 ? `${Math.round((data.amount / totalAmount) * 100)}%` : "0%"].forEach((v, ci) => {
-      const cell = dash.getCell(row, ci + 1);
-      cell.value = v; cell.font = bodyFont;
-      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bg } };
-      cell.border = allBorders;
-      if (ci >= 2) cell.alignment = { horizontal: "right" };
-      if (ci === 2 && typeof v === "number") cell.numFmt = "#,##0.00";
-    });
-  });
+  dash.getRow(8).height = 24;
 
-  // Subcategory Breakdown
-  const subStartRow = 9 + catSorted.length + 2;
-  dash.getCell(subStartRow, 1).value = "TOP SUBCATEGORIES";
-  dash.getCell(subStartRow, 1).font = { name: "Helvetica", bold: true, size: 12, color: { argb: SLATE } };
-  ["Subcategory", "Transactions", "Amount", "% of Total"].forEach((h, i) => {
-    const cell = dash.getCell(subStartRow + 1, i + 1);
-    cell.value = h; cell.font = { ...headerFont, size: 10 };
-    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: AMBER } };
-    cell.border = allBorders;
-  });
-  subSorted.forEach(([sub, data], i) => {
-    const row = subStartRow + 2 + i;
-    const bg = i % 2 === 0 ? WHITE : GRAY_BG;
-    [sub, data.count, fmt(data.amount), totalAmount > 0 ? `${Math.round((data.amount / totalAmount) * 100)}%` : "0%"].forEach((v, ci) => {
-      const cell = dash.getCell(row, ci + 1);
-      cell.value = v; cell.font = bodyFont;
-      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bg } };
-      cell.border = allBorders;
-      if (ci >= 2) cell.alignment = { horizontal: "right" };
+  // Build hierarchical data: Category → [Subcategories]
+  const catSubMap = new Map<string, Map<string, { amount: number; count: number }>>();
+  for (const e of entries) {
+    const catLabel = expenseCategoryLabel(e.category);
+    const sub = e.subcategory || "";
+    if (!catSubMap.has(catLabel)) catSubMap.set(catLabel, new Map());
+    const subMap2 = catSubMap.get(catLabel)!;
+    const cur = subMap2.get(sub) || { amount: 0, count: 0 };
+    cur.amount += e.amount; cur.count++;
+    subMap2.set(sub, cur);
+  }
+
+  // Sort categories by total amount
+  const catTotals = Array.from(catSubMap.entries()).map(([cat, subs]) => {
+    let total = 0, count = 0;
+    for (const [, data] of Array.from(subs.entries())) { total += data.amount; count += data.count; }
+    return { cat, total, count, subs };
+  }).sort((a, b) => b.total - a.total);
+
+  let currentRow = 9;
+  catTotals.forEach((catData) => {
+    // Category header row (bold, colored background)
+    const catBg = "FEF2F2"; // light rose
+    dash.getCell(currentRow, 1).value = catData.cat;
+    dash.getCell(currentRow, 1).font = { ...bodyFont, bold: true, size: 11 };
+    dash.getCell(currentRow, 2).value = catData.count;
+    dash.getCell(currentRow, 2).alignment = { horizontal: "right" };
+    dash.getCell(currentRow, 3).value = fmt(catData.total);
+    dash.getCell(currentRow, 3).numFmt = "#,##0.00";
+    dash.getCell(currentRow, 3).alignment = { horizontal: "right" };
+    dash.getCell(currentRow, 3).font = { ...bodyFont, bold: true };
+    dash.getCell(currentRow, 4).value = totalAmount > 0 ? `${Math.round((catData.total / totalAmount) * 100)}%` : "0%";
+    dash.getCell(currentRow, 4).alignment = { horizontal: "right" };
+    dash.getCell(currentRow, 5).value = "";
+    for (let c = 1; c <= 5; c++) {
+      dash.getCell(currentRow, c).fill = { type: "pattern", pattern: "solid", fgColor: { argb: catBg } };
+      dash.getCell(currentRow, c).border = allBorders;
+    }
+    currentRow++;
+
+    // Subcategory rows (indented, lighter)
+    const subsSorted = Array.from(catData.subs.entries())
+      .filter(([name]) => name !== "") // skip "(no subcategory)" entries
+      .sort((a, b) => b[1].amount - a[1].amount);
+
+    subsSorted.forEach(([subName, subData], si) => {
+      const subBg = si % 2 === 0 ? WHITE : GRAY_BG;
+      dash.getCell(currentRow, 1).value = `    ${subName}`;
+      dash.getCell(currentRow, 1).font = { ...bodyFont, color: { argb: "64748B" } };
+      dash.getCell(currentRow, 2).value = subData.count;
+      dash.getCell(currentRow, 2).alignment = { horizontal: "right" };
+      dash.getCell(currentRow, 3).value = fmt(subData.amount);
+      dash.getCell(currentRow, 3).numFmt = "#,##0.00";
+      dash.getCell(currentRow, 3).alignment = { horizontal: "right" };
+      dash.getCell(currentRow, 4).value = totalAmount > 0 ? `${Math.round((subData.amount / totalAmount) * 100)}%` : "0%";
+      dash.getCell(currentRow, 4).alignment = { horizontal: "right" };
+      dash.getCell(currentRow, 5).value = catData.total > 0 ? `${Math.round((subData.amount / catData.total) * 100)}%` : "0%";
+      dash.getCell(currentRow, 5).alignment = { horizontal: "right" };
+      for (let c = 1; c <= 5; c++) {
+        dash.getCell(currentRow, c).fill = { type: "pattern", pattern: "solid", fgColor: { argb: subBg } };
+        dash.getCell(currentRow, c).border = allBorders;
+        if (!dash.getCell(currentRow, c).font) dash.getCell(currentRow, c).font = bodyFont;
+      }
+      currentRow++;
     });
   });
 
   // Bank Breakdown
-  const bankStartRow = subStartRow + 2 + subSorted.length + 2;
+  const bankStartRow = currentRow + 2;
   dash.getCell(bankStartRow, 1).value = "SPEND BY BANK";
   dash.getCell(bankStartRow, 1).font = { name: "Helvetica", bold: true, size: 12, color: { argb: SLATE } };
   ["Bank", "Transactions", "Amount", "% of Total"].forEach((h, i) => {
