@@ -485,6 +485,12 @@ export default function CreditCardsPage() {
       setImportDialogOpen(false);
       setParsedTransactions([]);
       setCardFilter(importCardId);
+      // Switch FY to match imported data so transactions are visible
+      if (importMonth) {
+        const [year, month] = importMonth.split("-").map(Number);
+        const fy = month >= 4 ? `${year}-${(year + 1).toString().slice(-2)}` : `${year - 1}-${year.toString().slice(-2)}`;
+        setSelectedFY(fy);
+      }
     } catch (error) {
       console.error("Import failed:", error);
     } finally {
