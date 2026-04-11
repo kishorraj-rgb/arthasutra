@@ -15,6 +15,21 @@ export interface CCTransaction {
   selected: boolean;
 }
 
+export interface CCStatementMeta {
+  paymentDueDate?: string;
+  statementDate?: string;
+  totalAmountDue?: number;
+  minimumDue?: number;
+  creditLimit?: number;
+  availableLimit?: number;
+  openingBalance?: number;
+  totalPayments?: number;
+  totalPurchases?: number;
+  financeCharges?: number;
+  rewardPoints?: number;
+  cardLast4?: string;
+}
+
 interface CCFormat {
   id: string;
   name: string;
@@ -212,12 +227,55 @@ function getCCFormatById(id: string): CCFormat | null {
 
 // HDFC CC statement format: ~|~ delimited (or ~,~ after PapaParse comma-split)
 // Headers: Transaction type~|~Primary / Addon Customer Name~|~DATE~|~Description~|~AMT~|~Debit /Credit~|~
-function parseHDFCPipeCC(rawRows: string[][]): CCTransaction[] {
+function parseHDFCPipeCC(rawRows: string[][]): { transactions: CCTransaction[]; meta: CCStatementMeta } {
   // Re-join rows — PapaParse may have split on commas inside ~|~
   const lines = rawRows.map((r) => r.join(","));
 
   // Detect the actual delimiter used
   const delim = lines.some((l) => l.includes("~|~")) ? "~|~" : "~,~";
+
+  // Extract metadata from header rows
+  const meta: CCStatementMeta = {};
+  const parseMetaAmt = (s: string) => { const n = parseFloat(s.replace(/[,\s]/g, "")); return isNaN(n) ? undefined : n; };
+
+  for (const line of lines.slice(0, 25)) {
+    const parts = line.split(delim).map((s) => s.trim());
+    if (parts.length < 2) continue;
+    const key = parts[0].toLowerCase();
+    const val = parts[1];
+    if (key.includes("payment due date")) meta.paymentDueDate = val;
+    else if (key.includes("statement date")) meta.statementDate = val;
+    else if (key.includes("total amount due")) meta.totalAmountDue = parseMetaAmt(val);
+    else if (key.includes("minimum amount due")) meta.minimumDue = parseMetaAmt(val);
+    else if (key.includes("credit limit")) meta.creditLimit = parseMetaAmt(val);
+    else if (key.includes("available limit")) meta.availableLimit = parseMetaAmt(val);
+    else if (key.startsWith("card no")) meta.cardLast4 = val.replace(/[X\s]/g, "").slice(-4);
+  }
+
+  // Extract account summary: Opening Bal - Payment/Credit + Purchases/Debits + Finance Charges = Total
+  for (let i = 0; i < Math.min(lines.length, 20); i++) {
+    if (lines[i].includes("Opening Bal") && lines[i + 1]) {
+      const sumParts = lines[i + 1].split(delim).map((s) => s.trim()).filter((s) => s && s !== "-" && s !== "+" && s !== "=");
+      if (sumParts.length >= 4) {
+        meta.openingBalance = parseMetaAmt(sumParts[0]);
+        meta.totalPayments = parseMetaAmt(sumParts[1]);
+        meta.totalPurchases = parseMetaAmt(sumParts[2]);
+        meta.financeCharges = parseMetaAmt(sumParts[3]);
+      }
+      break;
+    }
+  }
+
+  // Extract reward points closing balance
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].includes("Opening Balance") && lines[i].includes("Closing Balance") && lines[i + 1]) {
+      const rpParts = lines[i + 1].split(delim).map((s) => s.trim());
+      if (rpParts.length >= 5) {
+        meta.rewardPoints = parseInt(rpParts[4]?.replace(/[,\s]/g, "")) || undefined;
+      }
+      break;
+    }
+  }
 
   // Find the transaction header row
   let headerIdx = -1;
@@ -235,7 +293,7 @@ function parseHDFCPipeCC(rawRows: string[][]): CCTransaction[] {
     }
   }
 
-  if (headerIdx === -1) return [];
+  if (headerIdx === -1) return { transactions: [], meta };
 
   const transactions: CCTransaction[] = [];
 
@@ -300,13 +358,13 @@ function parseHDFCPipeCC(rawRows: string[][]): CCTransaction[] {
     });
   }
 
-  return transactions;
+  return { transactions, meta };
 }
 
 export function parseCCStatement(
   file: File,
   ccFormatId?: string
-): Promise<{ transactions: CCTransaction[]; error?: string }> {
+): Promise<{ transactions: CCTransaction[]; error?: string; meta?: CCStatementMeta }> {
   return new Promise((resolve) => {
     Papa.parse(file, {
       header: false,
@@ -326,9 +384,9 @@ export function parseCCStatement(
             (line.includes("DATE") || line.includes("Description") || line.includes("AMT"))
         );
         if (isHdfcPipeFormat) {
-          const transactions = parseHDFCPipeCC(allRows);
-          if (transactions.length > 0) {
-            resolve({ transactions });
+          const result = parseHDFCPipeCC(allRows);
+          if (result.transactions.length > 0) {
+            resolve({ transactions: result.transactions, meta: result.meta });
             return;
           }
         }
