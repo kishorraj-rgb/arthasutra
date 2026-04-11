@@ -384,6 +384,45 @@ export const ignoreCCTransaction = mutation({
   },
 });
 
+// Find CC bill payment transactions from bank accounts (reconciliation)
+export const findCCPayments = query({
+  args: { userId: v.id("users") },
+  handler: async (ctx, args) => {
+    const expenses = await ctx.db
+      .query("expense_entries")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
+
+    // Look for CC bill payment patterns in bank expense descriptions
+    const ccPaymentPatterns = [
+      /cc\s*payment/i, /credit\s*card\s*payment/i, /billpay/i,
+      /bill\s*pay/i, /card\s*payment/i, /ib\s*billpay/i,
+      /creditcard\s*payment/i, /autopay/i, /auto\s*debit.*card/i,
+    ];
+
+    return expenses
+      .filter((e) => {
+        const desc = e.description.toLowerCase();
+        return ccPaymentPatterns.some((p) => p.test(desc)) ||
+          desc.includes("credit card") ||
+          (e.category === "credit_card_bill");
+      })
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, 50);
+  },
+});
+
+// Get all CC transactions across all cards for unified table view
+export const getAllCCTransactions = query({
+  args: { userId: v.id("users") },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("cc_transactions")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
+  },
+});
+
 // Get potential expense matches for a CC transaction (for manual matching UI)
 export const getExpenseCandidates = query({
   args: {

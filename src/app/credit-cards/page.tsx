@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { useAuth } from "@/lib/auth-context";
@@ -12,7 +12,6 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -20,7 +19,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, EXPENSE_CATEGORIES, getCurrentFinancialYear, getFinancialYearDates } from "@/lib/utils";
 import { CreditCardVisual } from "@/components/credit-card-visual";
 import { parseCCStatement, CC_FORMAT_OPTIONS } from "@/lib/bank-statement/cc-parser";
 import type { CCTransaction } from "@/lib/bank-statement/cc-parser";
@@ -31,22 +30,31 @@ import {
   Wallet,
   Hash,
   Upload,
-  FileSpreadsheet,
   Trash2,
   Edit3,
   Loader2,
   Check,
   X,
-  Eye,
   EyeOff,
-  Link2,
-  Unlink,
-  ArrowRight,
   AlertCircle,
   Wand2,
+  Search,
+  SlidersHorizontal,
+  ArrowUpDown,
+  TrendingDown,
+  TrendingUp,
 } from "lucide-react";
 
 // ─── Constants ──────────────────────────────────────────────────────────
+
+const PAGE_SIZE = 25;
+
+const FY_MONTHS = [
+  { label: "Apr", month: 3 }, { label: "May", month: 4 }, { label: "Jun", month: 5 },
+  { label: "Jul", month: 6 }, { label: "Aug", month: 7 }, { label: "Sep", month: 8 },
+  { label: "Oct", month: 9 }, { label: "Nov", month: 10 }, { label: "Dec", month: 11 },
+  { label: "Jan", month: 0 }, { label: "Feb", month: 1 }, { label: "Mar", month: 2 },
+];
 
 const NETWORK_OPTIONS = [
   { value: "visa", label: "Visa" },
@@ -116,9 +124,13 @@ function MatchBadge({ status }: { status: string }) {
 export default function CreditCardsPage() {
   const { user } = useAuth();
 
-  // Convex queries
+  // ── Convex Queries ────────────────────────────────────────────────────
   const creditCards = useQuery(
     api.creditCards.getCreditCards,
+    user ? { userId: user.userId } : "skip"
+  );
+  const allTransactions = useQuery(
+    api.creditCards.getAllCCTransactions,
     user ? { userId: user.userId } : "skip"
   );
   const summary = useQuery(
@@ -126,76 +138,211 @@ export default function CreditCardsPage() {
     user ? { userId: user.userId } : "skip"
   );
 
-  // Convex mutations
+  // ── Convex Mutations ──────────────────────────────────────────────────
   const addCreditCard = useMutation(api.creditCards.addCreditCard);
   const updateCreditCard = useMutation(api.creditCards.updateCreditCard);
   const deleteCreditCard = useMutation(api.creditCards.deleteCreditCard);
   const importCCTransactions = useMutation(api.creditCards.importCCTransactions);
   const autoMatchTransactions = useMutation(api.creditCards.autoMatchTransactions);
-  const matchCCTransaction = useMutation(api.creditCards.matchCCTransaction);
-  const unmatchCCTransaction = useMutation(api.creditCards.unmatchCCTransaction);
-  const ignoreCCTransaction = useMutation(api.creditCards.ignoreCCTransaction);
   const updateCCTx = useMutation(api.creditCards.updateCCTransaction);
 
-  // AI Categorize state
-  const [aiCategorizing, setAiCategorizing] = useState(false);
-  const [aiProgress, setAiProgress] = useState({ done: 0, total: 0 });
-  const [aiSummary, setAiSummary] = useState<{ changed: number; errors: string[] } | null>(null);
+  // ── Filter State ──────────────────────────────────────────────────────
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedFY, setSelectedFY] = useState("");
+  const [cardFilter, setCardFilter] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [matchStatusFilter, setMatchStatusFilter] = useState("");
+  const [selectedMonth, setSelectedMonth] = useState("");
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
-  // State
+  // ── Sort State ────────────────────────────────────────────────────────
+  const [sortField, setSortField] = useState<"date" | "amount" | "category" | "merchant">("date");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const toggleSort = (field: typeof sortField) => {
+    if (sortField === field) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortField(field); setSortDir("desc"); }
+  };
+
+  // ── Pagination ────────────────────────────────────────────────────────
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // ── Bulk Selection ────────────────────────────────────────────────────
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkCategory, setBulkCategory] = useState("");
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  // ── Card Dialog State ─────────────────────────────────────────────────
   const [cardDialogOpen, setCardDialogOpen] = useState(false);
   const [editingCardId, setEditingCardId] = useState<string | null>(null);
   const [cardForm, setCardForm] = useState(emptyCardForm);
   const [submitting, setSubmitting] = useState(false);
 
-  // Import state
-  const [importCardId, setImportCardId] = useState<string | null>(null);
-  const [importMonth, setImportMonth] = useState(
-    new Date().toISOString().slice(0, 7)
-  );
+  // ── Import Dialog State ───────────────────────────────────────────────
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [importCardId, setImportCardId] = useState<string>("");
+  const [importMonth, setImportMonth] = useState(new Date().toISOString().slice(0, 7));
   const [importFormat, setImportFormat] = useState("");
   const [parsedTransactions, setParsedTransactions] = useState<CCTransaction[]>([]);
   const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState<{
-    autoMatched: number;
-    needReview: number;
-    unmatched: number;
-  } | null>(null);
+  const [importResult, setImportResult] = useState<{ autoMatched: number; needReview: number; unmatched: number } | null>(null);
   const [parseError, setParseError] = useState("");
   const [dragOver, setDragOver] = useState(false);
 
-  // Transaction view state
-  const [viewCardId, setViewCardId] = useState<string | null>(null);
-  const [viewMonth, setViewMonth] = useState<string>("all");
+  // ── AI Categorize State ───────────────────────────────────────────────
+  const [aiCategorizing, setAiCategorizing] = useState(false);
+  const [aiProgress, setAiProgress] = useState({ done: 0, total: 0 });
+  const [aiSummary, setAiSummary] = useState<{ changed: number; errors: string[] } | null>(null);
 
-  // Manual match state
-  const [matchingTxId, setMatchingTxId] = useState<string | null>(null);
+  // ── Derived Data ──────────────────────────────────────────────────────
+  const allTxns = useMemo(() => allTransactions ?? [], [allTransactions]);
+  const cards = useMemo(() => creditCards ?? [], [creditCards]);
 
-  // Dynamic queries based on state
-  const ccTransactions = useQuery(
-    api.creditCards.getCCTransactions,
-    viewCardId
-      ? {
-          creditCardId: viewCardId as never,
-          statementMonth: viewMonth !== "all" ? viewMonth : undefined,
-        }
-      : "skip"
-  );
+  // Available FYs from data
+  const availableFYs = useMemo(() => {
+    const fySet = new Set<string>();
+    for (const t of allTxns) {
+      const d = new Date(t.date);
+      const year = d.getMonth() >= 3 ? d.getFullYear() : d.getFullYear() - 1;
+      fySet.add(`${year}-${(year + 1).toString().slice(-2)}`);
+    }
+    const sorted = Array.from(fySet).sort().reverse();
+    if (sorted.length === 0) sorted.push(getCurrentFinancialYear());
+    return sorted;
+  }, [allTxns]);
 
-  const ccStatements = useQuery(
-    api.creditCards.getCCStatements,
-    viewCardId ? { creditCardId: viewCardId as never } : "skip"
-  );
+  // Auto-select FY
+  useEffect(() => {
+    if (availableFYs.length > 0) {
+      if (!selectedFY || !availableFYs.includes(selectedFY)) {
+        setSelectedFY(availableFYs[0]);
+      }
+    }
+  }, [availableFYs, selectedFY]);
 
-  const expenseCandidates = useQuery(
-    api.creditCards.getExpenseCandidates,
-    user && matchingTxId
-      ? { userId: user.userId, ccTransactionId: matchingTxId as never }
-      : "skip"
-  );
+  // ── Filtering ─────────────────────────────────────────────────────────
+  const filtered = useMemo(() => {
+    const fyDates = selectedFY ? getFinancialYearDates(selectedFY) : null;
+    const query = searchQuery.toLowerCase().trim();
 
-  // ─── Handlers ─────────────────────────────────────────────────────────
+    return allTxns.filter((t) => {
+      // FY date range
+      if (fyDates && (t.date < fyDates.start || t.date > fyDates.end)) return false;
+      // Month filter
+      if (selectedMonth && selectedFY) {
+        const monthObj = FY_MONTHS.find((m) => m.label === selectedMonth);
+        if (monthObj && new Date(t.date).getMonth() !== monthObj.month) return false;
+      }
+      // Card filter
+      if (cardFilter && t.credit_card_id !== cardFilter) return false;
+      // Category filter
+      if (categoryFilter && t.category !== categoryFilter) return false;
+      // Match status filter
+      if (matchStatusFilter) {
+        if (matchStatusFilter === "matched" && t.match_status !== "matched" && t.match_status !== "manual_match") return false;
+        if (matchStatusFilter === "unmatched" && t.match_status !== "unmatched") return false;
+        if (matchStatusFilter === "ignored" && t.match_status !== "ignored") return false;
+      }
+      // Search
+      if (query) {
+        const haystack = `${t.description} ${t.merchant_name || ""} ${t.category || ""}`.toLowerCase();
+        if (!haystack.includes(query)) return false;
+      }
+      return true;
+    });
+  }, [allTxns, selectedFY, selectedMonth, cardFilter, categoryFilter, matchStatusFilter, searchQuery]);
 
+  // ── Sorting ───────────────────────────────────────────────────────────
+  const sorted = useMemo(() => {
+    const arr = [...filtered];
+    arr.sort((a, b) => {
+      let cmp = 0;
+      if (sortField === "date") cmp = a.date.localeCompare(b.date);
+      else if (sortField === "amount") cmp = a.amount - b.amount;
+      else if (sortField === "category") cmp = (a.category || "").localeCompare(b.category || "");
+      else if (sortField === "merchant") cmp = (a.merchant_name || a.description).localeCompare(b.merchant_name || b.description);
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+    return arr;
+  }, [filtered, sortField, sortDir]);
+
+  // ── Pagination ────────────────────────────────────────────────────────
+  const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
+  const paginated = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return sorted.slice(start, start + PAGE_SIZE);
+  }, [sorted, currentPage]);
+
+  // Reset page when filters change
+  useEffect(() => { setCurrentPage(1); }, [categoryFilter, searchQuery, selectedFY, selectedMonth, cardFilter, matchStatusFilter]);
+
+  // ── KPI Stats ─────────────────────────────────────────────────────────
+  const stats = useMemo(() => {
+    const debits = filtered.filter((t) => t.type === "debit");
+    const credits = filtered.filter((t) => t.type === "credit");
+    const totalSpends = debits.reduce((s, t) => s + t.amount, 0);
+    const totalPayments = credits.reduce((s, t) => s + t.amount, 0);
+    const matched = filtered.filter((t) => t.match_status === "matched" || t.match_status === "manual_match").length;
+    const unmatched = filtered.filter((t) => t.match_status === "unmatched").length;
+    return {
+      totalSpends,
+      totalPayments,
+      outstanding: totalSpends - totalPayments,
+      count: filtered.length,
+      matched,
+      unmatched,
+      matchedPct: filtered.length > 0 ? Math.round((matched / filtered.length) * 100) : 0,
+    };
+  }, [filtered]);
+
+  const hasActiveFilters = !!(categoryFilter || searchQuery || selectedMonth || cardFilter || matchStatusFilter);
+
+  function clearAllFilters() {
+    setCategoryFilter("");
+    setSearchQuery("");
+    setSelectedMonth("");
+    setCardFilter("");
+    setMatchStatusFilter("");
+  }
+
+  // ── Toggle Select All (current page) ──────────────────────────────────
+  const toggleSelectAll = () => {
+    const pageIds = paginated.map((t) => t._id);
+    const allPageSelected = pageIds.every((id) => selectedIds.has(id));
+    if (allPageSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(pageIds));
+    }
+  };
+
+  // ── Bulk Category Change ──────────────────────────────────────────────
+  const handleBulkCategoryChange = async (cat: string) => {
+    for (const id of Array.from(selectedIds)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await updateCCTx({ id: id as any, category: cat });
+    }
+    setSelectedIds(new Set());
+    setBulkCategory("");
+  };
+
+  const handleBulkDelete = async () => {
+    if (!confirm(`This will remove the category from ${selectedIds.size} transactions. Continue?`)) return;
+    for (const id of Array.from(selectedIds)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await updateCCTx({ id: id as any, category: "" });
+    }
+    setSelectedIds(new Set());
+  };
+
+  // ── Card Dialog Handlers ──────────────────────────────────────────────
   function handleCardFormChange(field: string, value: string) {
     setCardForm((prev) => ({ ...prev, [field]: value }));
   }
@@ -235,7 +382,6 @@ export default function CreditCardsPage() {
         payment_due_date: cardForm.payment_due_date ? parseInt(cardForm.payment_due_date) : undefined,
         color: cardForm.color || undefined,
       };
-
       if (editingCardId) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         await updateCreditCard({ id: editingCardId as any, ...data });
@@ -253,13 +399,25 @@ export default function CreditCardsPage() {
   }
 
   async function handleDeleteCard(id: string) {
+    if (!confirm("Delete this card and all its transactions?")) return;
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await deleteCreditCard({ id: id as any });
-      if (viewCardId === id) setViewCardId(null);
+      if (cardFilter === id) setCardFilter("");
     } catch (error) {
       console.error("Failed to delete credit card:", error);
     }
+  }
+
+  // ── Import Dialog Handlers ────────────────────────────────────────────
+  function openImportDialog() {
+    setImportDialogOpen(true);
+    setImportCardId(cards.length > 0 ? cards[0]._id : "");
+    setImportMonth(new Date().toISOString().slice(0, 7));
+    setImportFormat("");
+    setParsedTransactions([]);
+    setParseError("");
+    setImportResult(null);
   }
 
   const handleFileDrop = useCallback(
@@ -269,11 +427,7 @@ export default function CreditCardsPage() {
       setParseError("");
       setParsedTransactions([]);
       setImportResult(null);
-
-      const result = await parseCCStatement(
-        file,
-        importFormat || undefined
-      );
+      const result = await parseCCStatement(file, importFormat || undefined);
       if (result.error) {
         setParseError(result.error);
       } else {
@@ -282,6 +436,12 @@ export default function CreditCardsPage() {
     },
     [importFormat]
   );
+
+  function toggleTransactionSelection(id: string) {
+    setParsedTransactions((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, selected: !t.selected } : t))
+    );
+  }
 
   async function handleImport() {
     if (!user || !importCardId || parsedTransactions.length === 0) return;
@@ -302,21 +462,16 @@ export default function CreditCardsPage() {
           category: t.category,
         })),
       });
-
       // Auto-match
-      const matchResult = await autoMatchTransactions({
+      await autoMatchTransactions({
         userId: user.userId,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         creditCardId: importCardId as any,
         statementMonth: importMonth,
       });
-
-      setImportResult(matchResult);
+      setImportDialogOpen(false);
       setParsedTransactions([]);
-
-      // Switch to view the imported transactions
-      setViewCardId(importCardId);
-      setViewMonth(importMonth);
+      setCardFilter(importCardId);
     } catch (error) {
       console.error("Import failed:", error);
     } finally {
@@ -324,60 +479,24 @@ export default function CreditCardsPage() {
     }
   }
 
-  async function handleManualMatch(expenseId: string) {
-    if (!matchingTxId) return;
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await matchCCTransaction({ ccTransactionId: matchingTxId as any, expenseEntryId: expenseId as any });
-      setMatchingTxId(null);
-    } catch (error) {
-      console.error("Match failed:", error);
+  // ── AI Categorize ─────────────────────────────────────────────────────
+  async function handleAiCategorize() {
+    const entriesToProcess =
+      selectedIds.size > 0
+        ? filtered.filter((t) => selectedIds.has(t._id) && t.type === "debit")
+        : filtered.filter((t) => t.type === "debit" && t.match_status === "unmatched");
+
+    if (entriesToProcess.length === 0) return;
+
+    if (selectedIds.size === 0) {
+      if (!confirm(`AI Categorize ${entriesToProcess.length} unmatched debit transaction(s)? This uses API quota.`)) return;
     }
-  }
-
-  async function handleUnmatch(txId: string) {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await unmatchCCTransaction({ ccTransactionId: txId as any });
-    } catch (error) {
-      console.error("Unmatch failed:", error);
-    }
-  }
-
-  async function handleIgnore(txId: string) {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await ignoreCCTransaction({ ccTransactionId: txId as any });
-    } catch (error) {
-      console.error("Ignore failed:", error);
-    }
-  }
-
-  function toggleTransactionSelection(id: string) {
-    setParsedTransactions((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, selected: !t.selected } : t))
-    );
-  }
-
-  async function handleAiCategorizeCCTxns() {
-    if (!ccTransactions || ccTransactions.length === 0) return;
-
-    const unmatched = ccTransactions.filter(
-      (t) => t.type === "debit" && t.match_status === "unmatched"
-    );
-
-    if (unmatched.length === 0) {
-      alert("No unmatched debit transactions to categorize.");
-      return;
-    }
-
-    if (!confirm(`AI Categorize ${unmatched.length} unmatched transaction(s)? This uses API quota.`)) return;
 
     setAiCategorizing(true);
-    setAiProgress({ done: 0, total: unmatched.length });
+    setAiProgress({ done: 0, total: entriesToProcess.length });
     setAiSummary(null);
 
-    const transactions = unmatched.map((t) => ({
+    const transactions = entriesToProcess.map((t) => ({
       id: t._id,
       description: t.description,
       amount: t.amount,
@@ -404,13 +523,13 @@ export default function CreditCardsPage() {
 
       for (let i = 0; i < results.length; i++) {
         const r = results[i];
-        const original = unmatched.find((t) => t._id === r.id);
+        const original = entriesToProcess.find((t) => t._id === r.id);
         if (original && (original.category !== r.category || (original as Record<string, unknown>).subcategory !== r.subcategory)) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           await updateCCTx({ id: r.id as any, category: r.category, subcategory: r.subcategory });
           changed++;
         }
-        setAiProgress({ done: i + 1, total: unmatched.length });
+        setAiProgress({ done: i + 1, total: entriesToProcess.length });
       }
 
       setAiSummary({ changed, errors: data.errors || [] });
@@ -418,767 +537,918 @@ export default function CreditCardsPage() {
       setAiSummary({ changed: 0, errors: [err instanceof Error ? err.message : "Unknown error"] });
     } finally {
       setAiCategorizing(false);
+      setSelectedIds(new Set());
     }
   }
 
-  // ─── Render ───────────────────────────────────────────────────────────
+  // ── Card lookup helper ────────────────────────────────────────────────
+  const cardMap = useMemo(() => {
+    const map = new Map<string, NonNullable<typeof creditCards>[number]>();
+    for (const c of cards) map.set(c._id, c);
+    return map;
+  }, [cards]);
 
-  if (!user) {
+  function getCardLabel(cardId: string) {
+    const c = cardMap.get(cardId);
+    if (!c) return "???";
+    return `${c.issuer.charAt(0)}..${c.card_last4}`;
+  }
+
+  // ── Loading State ─────────────────────────────────────────────────────
+  if (!user || creditCards === undefined || allTransactions === undefined) {
     return (
       <AppLayout>
-        <div className="flex items-center justify-center h-96">
-          <p className="text-text-secondary">Loading...</p>
+        <div className="flex h-[60vh] items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-text-tertiary" />
         </div>
       </AppLayout>
     );
   }
 
-  const isLoading = creditCards === undefined;
+  // ── Filter Panel Content (shared desktop sidebar + mobile overlay) ───
+  const filterPanelContent = (
+    <div className="space-y-5">
+      {/* Search */}
+      <div className="space-y-1.5">
+        <label className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">Search</label>
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-text-tertiary" />
+          <input
+            type="text"
+            placeholder="Merchant, description..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full h-8 pl-8 pr-3 rounded-lg border border-gray-200 bg-white text-xs placeholder:text-text-tertiary transition-all duration-200 focus:border-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-400/10"
+          />
+        </div>
+      </div>
 
+      {/* FY selector */}
+      <div className="space-y-1.5">
+        <label className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">Financial Year</label>
+        <Select
+          options={availableFYs.map((fy) => ({ value: fy, label: `FY ${fy}` }))}
+          value={selectedFY}
+          onChange={(e) => { setSelectedFY(e.target.value); setSelectedMonth(""); }}
+          className="w-full"
+        />
+      </div>
+
+      {/* Card filter chips */}
+      {cards.length > 0 && (
+        <div className="space-y-1.5">
+          <label className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">Card</label>
+          <div className="flex flex-col gap-1.5">
+            <button
+              onClick={() => setCardFilter("")}
+              className={`flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium transition-all border ${
+                !cardFilter
+                  ? "bg-rose-50 border-rose-200 text-rose-600 shadow-sm"
+                  : "border-gray-200 bg-white text-text-secondary hover:border-gray-300 hover:bg-gray-50"
+              }`}
+            >
+              All Cards
+            </button>
+            {cards.map((card) => (
+              <button
+                key={card._id}
+                onClick={() => setCardFilter(cardFilter === card._id ? "" : card._id)}
+                className={`flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium transition-all border ${
+                  cardFilter === card._id
+                    ? "bg-rose-50 border-rose-200 text-rose-600 shadow-sm"
+                    : "border-gray-200 bg-white text-text-secondary hover:border-gray-300 hover:bg-gray-50"
+                }`}
+              >
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-rose-100 text-[10px] font-bold text-rose-600">
+                  {card.issuer.charAt(0)}
+                </span>
+                <span className="truncate">{card.issuer}</span>
+                <span className="ml-auto font-mono text-[10px] text-text-tertiary">{card.card_last4}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Category filter */}
+      <div className="space-y-1.5">
+        <label className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">Category</label>
+        <Select
+          options={[{ value: "", label: "All Categories" }, ...EXPENSE_CATEGORIES]}
+          value={categoryFilter}
+          onChange={(e) => setCategoryFilter(e.target.value)}
+          className="w-full"
+        />
+      </div>
+
+      {/* Match status chips */}
+      <div className="space-y-1.5">
+        <label className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">Match Status</label>
+        <div className="flex flex-wrap gap-1.5">
+          {[
+            { value: "", label: "All" },
+            { value: "matched", label: "Matched" },
+            { value: "unmatched", label: "Unmatched" },
+            { value: "ignored", label: "Ignored" },
+          ].map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => setMatchStatusFilter(matchStatusFilter === opt.value ? "" : opt.value)}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all border ${
+                matchStatusFilter === opt.value
+                  ? "bg-rose-50 border-rose-200 text-rose-600 shadow-sm"
+                  : "border-gray-200 bg-white text-text-secondary hover:border-gray-300 hover:bg-gray-50"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Month chips */}
+      {selectedFY && (
+        <div className="space-y-1.5">
+          <label className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">Month</label>
+          <div className="grid grid-cols-3 gap-1.5">
+            <button
+              onClick={() => setSelectedMonth("")}
+              className={`px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                !selectedMonth ? "bg-rose-500 text-white" : "bg-white border border-gray-200 text-text-secondary hover:bg-gray-100"
+              }`}
+            >
+              All
+            </button>
+            {FY_MONTHS.map((m) => (
+              <button
+                key={m.label}
+                onClick={() => setSelectedMonth(selectedMonth === m.label ? "" : m.label)}
+                className={`px-2 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+                  selectedMonth === m.label ? "bg-rose-500 text-white" : "bg-white border border-gray-200 text-text-secondary hover:bg-gray-100"
+                }`}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Clear All */}
+      {hasActiveFilters && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={clearAllFilters}
+          className="w-full text-xs text-text-secondary hover:text-text-primary"
+        >
+          Clear All Filters
+        </Button>
+      )}
+    </div>
+  );
+
+  // ── Render ────────────────────────────────────────────────────────────
   return (
     <AppLayout>
-      <div className="space-y-6 animate-enter">
-        {/* Header */}
-        <div className="flex items-center justify-between">
+      <div className="space-y-4 animate-page-enter">
+        {/* ── Page Header ── */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="font-display text-2xl font-bold text-text-primary">Credit Cards</h1>
-            <p className="text-text-secondary text-sm mt-1">
-              Manage cards, import statements & match expenses
+            <p className="mt-1 text-sm text-text-secondary">
+              Import statements, categorise &amp; reconcile CC spends
             </p>
           </div>
-          <Button onClick={openAddCard}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Card
-          </Button>
+          <div className="flex items-center gap-2">
+            {/* Mobile filter toggle */}
+            <Button
+              variant="outline"
+              className="lg:hidden gap-2"
+              onClick={() => setFiltersOpen(!filtersOpen)}
+            >
+              <SlidersHorizontal className="h-4 w-4" />
+              Filters
+              {hasActiveFilters && (
+                <span className="ml-1 flex h-5 w-5 items-center justify-center rounded-full bg-rose-500 text-[10px] text-white font-semibold">
+                  !
+                </span>
+              )}
+            </Button>
+            <Button
+              onClick={handleAiCategorize}
+              variant="outline"
+              className="gap-2"
+              disabled={aiCategorizing || filtered.length === 0}
+            >
+              {aiCategorizing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Wand2 className="h-4 w-4" />
+              )}
+              <span className="hidden sm:inline">
+                {aiCategorizing
+                  ? `${aiProgress.done}/${aiProgress.total}`
+                  : selectedIds.size > 0
+                    ? `AI Categorize (${selectedIds.size})`
+                    : "AI Categorize"}
+              </span>
+            </Button>
+            <Button
+              variant="outline"
+              className="gap-2"
+              onClick={openImportDialog}
+              disabled={cards.length === 0}
+            >
+              <Upload className="h-4 w-4" />
+              <span className="hidden sm:inline">Import Statement</span>
+            </Button>
+            <Button
+              onClick={openAddCard}
+              className="bg-rose-500 text-white hover:bg-rose-600 gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline">Add Card</span>
+            </Button>
+          </div>
         </div>
 
-        {isLoading ? (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="h-24 rounded-xl bg-gray-100 animate-pulse" />
+        {/* AI Categorize summary banner */}
+        {aiSummary && (
+          <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 flex items-center justify-between animate-page-enter">
+            <p className="text-sm text-text-primary">
+              AI Categorization complete: <strong>{aiSummary.changed}</strong> entries updated.
+              {aiSummary.errors.length > 0 && (
+                <span className="text-rose-500 ml-2">{aiSummary.errors.length} batch error(s).</span>
+              )}
+            </p>
+            <button onClick={() => setAiSummary(null)} className="p-1 rounded hover:bg-gray-200">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+
+        {/* ── Visual Cards Row ── */}
+        {cards.length > 0 && (
+          <div className="overflow-x-auto pb-2">
+            <div className="flex gap-4 min-w-0">
+              {/* All Cards indicator */}
+              <button
+                onClick={() => setCardFilter("")}
+                className={`flex-shrink-0 w-48 h-28 rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-1 transition-all ${
+                  !cardFilter
+                    ? "border-rose-400 bg-rose-50 ring-2 ring-rose-400"
+                    : "border-gray-300 bg-gray-50 opacity-60 hover:opacity-100"
+                }`}
+              >
+                <CreditCard className="h-6 w-6 text-rose-400" />
+                <span className="text-xs font-semibold text-rose-600">All Cards</span>
+                <span className="text-[10px] text-text-tertiary">{cards.length} cards</span>
+              </button>
+              {cards.map((card) => (
+                <button
+                  key={card._id}
+                  onClick={() => setCardFilter(cardFilter === card._id ? "" : card._id)}
+                  className={`flex-shrink-0 transition-all rounded-xl ${
+                    cardFilter === card._id
+                      ? "ring-2 ring-rose-400"
+                      : cardFilter && cardFilter !== card._id
+                        ? "opacity-60 hover:opacity-100"
+                        : ""
+                  }`}
+                >
+                  <CreditCardVisual
+                    cardName={card.card_name}
+                    last4={card.card_last4}
+                    network={card.card_network}
+                    issuer={card.issuer}
+                    color={card.color ?? undefined}
+                    className="w-52"
+                  />
+                </button>
               ))}
             </div>
           </div>
-        ) : (
-          <>
-            {/* Summary Cards */}
-            {summary && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <Card>
-                  <CardContent className="p-5">
-                    <div className="flex items-center gap-2 mb-2">
-                      <IndianRupee className="h-4 w-4 text-rose-400" />
-                      <p className="text-text-secondary text-xs uppercase">Total Outstanding</p>
-                    </div>
-                    <p className="stat-number text-2xl font-bold text-rose-500">
-                      {formatCurrency(summary.totalOutstanding)}
-                    </p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="p-5">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Wallet className="h-4 w-4 text-blue-400" />
-                      <p className="text-text-secondary text-xs uppercase">Total Credit Limit</p>
-                    </div>
-                    <p className="stat-number text-2xl font-bold text-blue-500">
-                      {formatCurrency(summary.totalLimit)}
-                    </p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="p-5">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Check className="h-4 w-4 text-emerald-400" />
-                      <p className="text-text-secondary text-xs uppercase">Available Credit</p>
-                    </div>
-                    <p className="stat-number text-2xl font-bold text-emerald-500">
-                      {formatCurrency(summary.availableCredit)}
-                    </p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="p-5">
-                    <div className="flex items-center gap-2 mb-2">
-                      <CreditCard className="h-4 w-4 text-accent-light" />
-                      <p className="text-text-secondary text-xs uppercase">Cards</p>
-                    </div>
-                    <p className="stat-number text-2xl font-bold text-accent">{summary.cardCount}</p>
-                    <p className="text-text-tertiary text-xs mt-1">
-                      {summary.totalCards > summary.cardCount
-                        ? `${summary.totalCards - summary.cardCount} closed`
-                        : "active"}
-                    </p>
-                  </CardContent>
-                </Card>
-              </div>
-            )}
-
-            {/* Cards Grid */}
-            {creditCards.length === 0 ? (
-              <Card>
-                <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-accent/10 mb-4">
-                    <CreditCard className="h-8 w-8 text-accent-light" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-text-primary mb-2">No credit cards added</h3>
-                  <p className="text-text-secondary text-sm max-w-md mb-6">
-                    Add your credit cards to import statements and match transactions with your expenses.
-                  </p>
-                  <Button onClick={openAddCard}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Credit Card
-                  </Button>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                {creditCards.map((card) => {
-                  const limitUsed = card.credit_limit
-                    ? Math.min(100, ((summary?.totalOutstanding ?? 0) / card.credit_limit) * 100)
-                    : 0;
-
-                  return (
-                    <div key={card._id} className="space-y-3">
-                      <CreditCardVisual
-                        cardName={card.card_name}
-                        last4={card.card_last4}
-                        network={card.card_network}
-                        issuer={card.issuer}
-                        color={card.color ?? undefined}
-                      />
-                      {/* Info below card */}
-                      <div className="px-1 space-y-2">
-                        {card.credit_limit && (
-                          <div className="space-y-1">
-                            <div className="flex justify-between text-xs">
-                              <span className="text-text-tertiary">Limit Usage</span>
-                              <span className="font-mono text-text-secondary">
-                                {formatCurrency(card.credit_limit)}
-                              </span>
-                            </div>
-                            <Progress value={limitUsed} className="h-1.5" />
-                          </div>
-                        )}
-                        {card.payment_due_date && (
-                          <p className="text-xs text-text-tertiary">
-                            Payment due: {card.payment_due_date}th of each month
-                          </p>
-                        )}
-                        {/* Actions */}
-                        <div className="flex items-center gap-1.5 pt-1">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="text-xs h-7 px-2"
-                            onClick={() => {
-                              setImportCardId(card._id);
-                              setImportResult(null);
-                              setParsedTransactions([]);
-                              setParseError("");
-                            }}
-                          >
-                            <Upload className="h-3 w-3 mr-1" />
-                            Import
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="text-xs h-7 px-2"
-                            onClick={() => {
-                              setViewCardId(card._id);
-                              setViewMonth("all");
-                            }}
-                          >
-                            <Eye className="h-3 w-3 mr-1" />
-                            Transactions
-                          </Button>
-                          <button
-                            onClick={() => openEditCard(card)}
-                            className="rounded p-1.5 text-text-tertiary hover:text-accent hover:bg-accent/10 transition-colors"
-                            title="Edit"
-                          >
-                            <Edit3 className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteCard(card._id)}
-                            className="rounded p-1.5 text-text-tertiary hover:text-rose-400 hover:bg-rose-400/10 transition-colors"
-                            title="Delete"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* ─── Import Statement Section ────────────────────────────── */}
-            {importCardId && (
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="flex items-center gap-2 text-base">
-                      <FileSpreadsheet className="h-5 w-5 text-accent-light" />
-                      Import Statement
-                    </CardTitle>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => {
-                        setImportCardId(null);
-                        setParsedTransactions([]);
-                        setParseError("");
-                        setImportResult(null);
-                      }}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {/* Month + Format selection */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Statement Month</Label>
-                      <Input
-                        type="month"
-                        value={importMonth}
-                        onChange={(e) => setImportMonth(e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Format (optional)</Label>
-                      <Select
-                        options={[
-                          { value: "", label: "Auto-detect" },
-                          ...CC_FORMAT_OPTIONS,
-                        ]}
-                        value={importFormat}
-                        onChange={(e) => setImportFormat(e.target.value)}
-                      />
-                    </div>
-                  </div>
-
-                  {/* File Upload */}
-                  <div
-                    className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${
-                      dragOver
-                        ? "border-accent bg-accent/5"
-                        : "border-border-light hover:border-accent/50"
-                    }`}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      setDragOver(true);
-                    }}
-                    onDragLeave={() => setDragOver(false)}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      setDragOver(false);
-                      handleFileDrop(e.dataTransfer.files);
-                    }}
-                  >
-                    <Upload className="h-8 w-8 text-text-tertiary mx-auto mb-3" />
-                    <p className="text-sm text-text-secondary mb-2">
-                      Drag & drop your credit card statement CSV here
-                    </p>
-                    <label className="cursor-pointer">
-                      <span className="text-accent text-sm font-medium hover:underline">
-                        or click to browse
-                      </span>
-                      <input
-                        type="file"
-                        accept=".csv,.CSV"
-                        className="hidden"
-                        onChange={(e) => handleFileDrop(e.target.files)}
-                      />
-                    </label>
-                  </div>
-
-                  {parseError && (
-                    <div className="flex items-center gap-2 text-sm text-rose-500 bg-rose-50 rounded-lg p-3">
-                      <AlertCircle className="h-4 w-4 shrink-0" />
-                      {parseError}
-                    </div>
-                  )}
-
-                  {/* Import result */}
-                  {importResult && (
-                    <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 space-y-2">
-                      <p className="text-sm font-medium text-emerald-800">Import Complete!</p>
-                      <div className="flex gap-4 text-sm">
-                        <span className="text-emerald-700">
-                          <Check className="h-3.5 w-3.5 inline mr-1" />
-                          {importResult.autoMatched} auto-matched
-                        </span>
-                        <span className="text-amber-700">
-                          <AlertCircle className="h-3.5 w-3.5 inline mr-1" />
-                          {importResult.needReview} need review
-                        </span>
-                        <span className="text-gray-600">
-                          <X className="h-3.5 w-3.5 inline mr-1" />
-                          {importResult.unmatched} unmatched
-                        </span>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Parsed transactions preview */}
-                  {parsedTransactions.length > 0 && (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium text-text-primary">
-                          {parsedTransactions.length} transactions found
-                        </p>
-                        <Button onClick={handleImport} disabled={importing}>
-                          {importing && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                          Import & Auto-Match
-                        </Button>
-                      </div>
-                      <div className="max-h-72 overflow-y-auto rounded-lg border border-border-light">
-                        <table className="w-full text-sm">
-                          <thead className="bg-surface-tertiary/50 sticky top-0">
-                            <tr>
-                              <th className="text-left p-2 w-8"></th>
-                              <th className="text-left p-2">Date</th>
-                              <th className="text-left p-2">Merchant</th>
-                              <th className="text-left p-2">Category</th>
-                              <th className="text-right p-2">Amount</th>
-                              <th className="text-center p-2">Type</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {parsedTransactions.map((tx) => (
-                              <tr
-                                key={tx.id}
-                                className="border-t border-border-light hover:bg-surface-tertiary/30"
-                              >
-                                <td className="p-2">
-                                  <input
-                                    type="checkbox"
-                                    checked={tx.selected}
-                                    onChange={() => toggleTransactionSelection(tx.id)}
-                                    className="rounded"
-                                  />
-                                </td>
-                                <td className="p-2 font-mono text-xs">{tx.date}</td>
-                                <td className="p-2 truncate max-w-[200px]" title={tx.description}>
-                                  {tx.merchant_name}
-                                </td>
-                                <td className="p-2">
-                                  <span className="text-xs bg-gray-100 rounded px-1.5 py-0.5">
-                                    {tx.category}
-                                  </span>
-                                </td>
-                                <td className="p-2 text-right font-mono">
-                                  {formatCurrency(tx.amount)}
-                                </td>
-                                <td className="p-2 text-center">
-                                  <Badge
-                                    variant={tx.type === "credit" ? "success" : "secondary"}
-                                    className="text-[10px]"
-                                  >
-                                    {tx.type === "credit" ? "CR" : "DR"}
-                                  </Badge>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-
-            {/* AI Categorize summary banner */}
-            {aiSummary && (
-              <div className="rounded-lg border border-accent/20 bg-accent/5 px-4 py-3 flex items-center justify-between animate-page-enter">
-                <p className="text-sm text-text-primary">
-                  AI Categorization complete: <strong>{aiSummary.changed}</strong> transactions updated.
-                  {aiSummary.errors.length > 0 && (
-                    <span className="text-rose ml-2">{aiSummary.errors.length} batch error(s).</span>
-                  )}
-                </p>
-                <button onClick={() => setAiSummary(null)} className="p-1 rounded hover:bg-gray-200">
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            )}
-
-            {/* ─── Transactions View ────────────────────────────────────── */}
-            {viewCardId && (
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="flex items-center gap-2 text-base">
-                      <Hash className="h-5 w-5 text-accent-light" />
-                      Transactions
-                    </CardTitle>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="gap-1"
-                        onClick={handleAiCategorizeCCTxns}
-                        disabled={aiCategorizing || !ccTransactions || ccTransactions.length === 0}
-                      >
-                        {aiCategorizing ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Wand2 className="h-3.5 w-3.5" />
-                        )}
-                        {aiCategorizing ? `${aiProgress.done}/${aiProgress.total}` : "AI Categorize"}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setViewCardId(null)}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {/* Month tabs */}
-                  <Tabs
-                    value={viewMonth}
-                    onValueChange={setViewMonth}
-                    className="space-y-4"
-                  >
-                    <TabsList>
-                      <TabsTrigger value="all">All</TabsTrigger>
-                      {ccStatements?.map((stmt) => (
-                        <TabsTrigger key={stmt.statement_month} value={stmt.statement_month}>
-                          {stmt.statement_month}
-                        </TabsTrigger>
-                      ))}
-                    </TabsList>
-
-                    <TabsContent value={viewMonth} forceMount>
-                      {ccTransactions === undefined ? (
-                        <div className="flex items-center justify-center py-8">
-                          <Loader2 className="h-5 w-5 animate-spin text-accent-light" />
-                        </div>
-                      ) : ccTransactions.length === 0 ? (
-                        <div className="text-center py-8">
-                          <p className="text-text-secondary text-sm">
-                            No transactions found for this period.
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="overflow-x-auto rounded-lg border border-border-light">
-                          <table className="w-full text-sm">
-                            <thead className="bg-surface-tertiary/50">
-                              <tr>
-                                <th className="text-left p-3">Date</th>
-                                <th className="text-left p-3">Merchant</th>
-                                <th className="text-left p-3">Category</th>
-                                <th className="text-right p-3">Amount</th>
-                                <th className="text-center p-3">Status</th>
-                                <th className="text-center p-3">Actions</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {ccTransactions.map((tx) => (
-                                <tr
-                                  key={tx._id}
-                                  className="border-t border-border-light hover:bg-surface-tertiary/30"
-                                >
-                                  <td className="p-3 font-mono text-xs">{tx.date}</td>
-                                  <td className="p-3">
-                                    <div className="truncate max-w-[200px]" title={tx.description}>
-                                      {tx.merchant_name || tx.description}
-                                    </div>
-                                  </td>
-                                  <td className="p-3">
-                                    <span className="text-xs bg-gray-100 rounded px-1.5 py-0.5">
-                                      {tx.category}
-                                    </span>
-                                  </td>
-                                  <td className="p-3 text-right font-mono">
-                                    <span className={tx.type === "credit" ? "text-emerald-600" : ""}>
-                                      {tx.type === "credit" ? "+" : ""}
-                                      {formatCurrency(tx.amount)}
-                                    </span>
-                                  </td>
-                                  <td className="p-3 text-center">
-                                    <MatchBadge status={tx.match_status} />
-                                  </td>
-                                  <td className="p-3 text-center">
-                                    <div className="flex items-center justify-center gap-1">
-                                      {tx.match_status === "unmatched" && tx.type === "debit" && (
-                                        <>
-                                          <button
-                                            onClick={() => setMatchingTxId(tx._id)}
-                                            className="rounded p-1 text-text-tertiary hover:text-accent hover:bg-accent/10 transition-colors"
-                                            title="Find Match"
-                                          >
-                                            <Link2 className="h-3.5 w-3.5" />
-                                          </button>
-                                          <button
-                                            onClick={() => handleIgnore(tx._id)}
-                                            className="rounded p-1 text-text-tertiary hover:text-gray-600 hover:bg-gray-100 transition-colors"
-                                            title="Ignore"
-                                          >
-                                            <EyeOff className="h-3.5 w-3.5" />
-                                          </button>
-                                        </>
-                                      )}
-                                      {(tx.match_status === "matched" ||
-                                        tx.match_status === "manual_match") && (
-                                        <button
-                                          onClick={() => handleUnmatch(tx._id)}
-                                          className="rounded p-1 text-text-tertiary hover:text-rose-400 hover:bg-rose-400/10 transition-colors"
-                                          title="Unmatch"
-                                        >
-                                          <Unlink className="h-3.5 w-3.5" />
-                                        </button>
-                                      )}
-                                    </div>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                    </TabsContent>
-                  </Tabs>
-                </CardContent>
-              </Card>
-            )}
-          </>
         )}
 
-        {/* ─── Add/Edit Card Dialog ────────────────────────────────────── */}
-        <Dialog open={cardDialogOpen} onOpenChange={setCardDialogOpen}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        {/* ── KPI Stats Row ── */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-1.5">
+                <TrendingDown className="h-4 w-4 text-rose-400" />
+                <p className="text-text-secondary text-[10px] uppercase tracking-wider">Total Spends</p>
+              </div>
+              <p className="stat-number text-xl font-bold text-rose-500 tabular-nums">
+                {formatCurrency(stats.totalSpends)}
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-1.5">
+                <TrendingUp className="h-4 w-4 text-emerald-400" />
+                <p className="text-text-secondary text-[10px] uppercase tracking-wider">Total Payments</p>
+              </div>
+              <p className="stat-number text-xl font-bold text-emerald-500 tabular-nums">
+                {formatCurrency(stats.totalPayments)}
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-1.5">
+                <Wallet className="h-4 w-4 text-amber-400" />
+                <p className="text-text-secondary text-[10px] uppercase tracking-wider">Outstanding</p>
+              </div>
+              <p className="stat-number text-xl font-bold text-amber-500 tabular-nums">
+                {formatCurrency(stats.outstanding)}
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-1.5">
+                <Hash className="h-4 w-4 text-text-tertiary" />
+                <p className="text-text-secondary text-[10px] uppercase tracking-wider">Transactions</p>
+              </div>
+              <p className="stat-number text-xl font-bold text-text-primary tabular-nums">
+                {stats.count}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* ── Main Layout: Sidebar + Content ── */}
+        <div className="flex gap-6">
+          {/* Left Filter Panel (desktop) */}
+          <aside className="hidden lg:block w-64 flex-shrink-0">
+            <div className="sticky top-4 rounded-xl border border-gray-200 bg-gray-50/80 p-4">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-text-tertiary mb-4">Filters</h2>
+              {filterPanelContent}
+            </div>
+          </aside>
+
+          {/* Mobile Filter Overlay */}
+          {filtersOpen && (
+            <div className="fixed inset-0 z-50 lg:hidden">
+              <div className="absolute inset-0 bg-black/30" onClick={() => setFiltersOpen(false)} />
+              <div className="absolute left-0 top-0 bottom-0 w-72 bg-white shadow-xl overflow-y-auto animate-page-enter">
+                <div className="flex items-center justify-between p-4 border-b border-gray-200">
+                  <h2 className="text-sm font-bold text-text-primary">Filters</h2>
+                  <button onClick={() => setFiltersOpen(false)} className="p-1 rounded-lg hover:bg-gray-100">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="p-4">
+                  {filterPanelContent}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Right Content Area */}
+          <div className="flex-1 min-w-0 space-y-4">
+            {/* Summary Bar */}
+            <div className="rounded-xl border border-gray-200 bg-white px-5 py-3">
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+                <div className="flex items-baseline gap-2">
+                  <span className="font-display text-xl font-bold text-rose-400 stat-number tabular-nums">
+                    {formatCurrency(stats.totalSpends)}
+                  </span>
+                  <span className="text-xs text-text-tertiary">spends</span>
+                </div>
+                <div className="h-6 w-px bg-gray-200 hidden sm:block" />
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-sm font-semibold text-text-primary tabular-nums">{filtered.length}</span>
+                  <span className="text-xs text-text-tertiary">entries</span>
+                </div>
+                <div className="h-6 w-px bg-gray-200 hidden sm:block" />
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-sm font-semibold text-emerald-500 tabular-nums">{stats.matchedPct}%</span>
+                  <span className="text-xs text-text-tertiary">matched</span>
+                </div>
+                <div className="h-6 w-px bg-gray-200 hidden sm:block" />
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-sm font-semibold text-amber-500 tabular-nums">{stats.unmatched}</span>
+                  <span className="text-xs text-text-tertiary">unmatched</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Transactions Table */}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <CreditCard className="h-5 w-5 text-rose-400" />
+                  Transactions
+                </CardTitle>
+                {selectedIds.size > 0 && (
+                  <div className="flex items-center gap-2 text-sm animate-page-enter flex-wrap">
+                    <span className="text-text-secondary font-medium">{selectedIds.size} selected</span>
+                    <div className="flex items-center gap-1">
+                      <select
+                        value={bulkCategory}
+                        onChange={(e) => {
+                          setBulkCategory(e.target.value);
+                          if (e.target.value) handleBulkCategoryChange(e.target.value);
+                        }}
+                        className="text-xs rounded-lg border border-gray-200 px-2 py-1.5 bg-white focus:border-rose-400 focus:outline-none cursor-pointer"
+                      >
+                        <option value="">Category...</option>
+                        {EXPENSE_CATEGORIES.map((c) => (
+                          <option key={c.value} value={c.value}>{c.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <Button size="sm" variant="destructive" onClick={handleBulkDelete} className="text-xs h-7">
+                      <Trash2 className="h-3 w-3 mr-1" /> Clear Category
+                    </Button>
+                  </div>
+                )}
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-text-tertiary">
+                        <th className="px-3 py-3 w-10">
+                          <input
+                            type="checkbox"
+                            checked={paginated.length > 0 && paginated.every((t) => selectedIds.has(t._id))}
+                            onChange={toggleSelectAll}
+                            className="rounded border-gray-300 text-rose-500 focus:ring-rose-400/20"
+                          />
+                        </th>
+                        <th className="px-4 py-3 cursor-pointer select-none hover:text-text-primary transition-colors" onClick={() => toggleSort("date")}>
+                          Date {sortField === "date" && (sortDir === "asc" ? "\u2191" : "\u2193")}
+                        </th>
+                        <th className="px-4 py-3 cursor-pointer select-none hover:text-text-primary transition-colors" onClick={() => toggleSort("category")}>
+                          Category {sortField === "category" && (sortDir === "asc" ? "\u2191" : "\u2193")}
+                        </th>
+                        <th className="px-4 py-3 cursor-pointer select-none hover:text-text-primary transition-colors" onClick={() => toggleSort("merchant")}>
+                          Merchant / Description {sortField === "merchant" && (sortDir === "asc" ? "\u2191" : "\u2193")}
+                        </th>
+                        <th className="px-4 py-3">Card</th>
+                        <th className="px-4 py-3 text-right cursor-pointer select-none hover:text-text-primary transition-colors" onClick={() => toggleSort("amount")}>
+                          Amount {sortField === "amount" && (sortDir === "asc" ? "\u2191" : "\u2193")}
+                        </th>
+                        <th className="px-4 py-3 text-center">Match</th>
+                        <th className="px-4 py-3 text-center">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paginated.map((tx) => {
+                        const card = cardMap.get(tx.credit_card_id);
+                        return (
+                          <tr
+                            key={tx._id}
+                            className="border-b border-border-light transition-colors duration-150 hover:bg-rose-500/[0.02] hover:border-l-2 hover:border-l-rose-400"
+                          >
+                            <td className="px-3 py-3.5">
+                              <input
+                                type="checkbox"
+                                checked={selectedIds.has(tx._id)}
+                                onChange={() => toggleSelect(tx._id)}
+                                className="rounded border-gray-300 text-rose-500 focus:ring-rose-400/20"
+                              />
+                            </td>
+                            <td className="whitespace-nowrap px-4 py-3.5 text-text-secondary">
+                              {new Date(tx.date).toLocaleDateString("en-IN", {
+                                day: "2-digit",
+                                month: "short",
+                              })}
+                            </td>
+                            <td className="px-4 py-3.5">
+                              <select
+                                value={tx.category || ""}
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                onChange={(e) => updateCCTx({ id: tx._id as any, category: e.target.value })}
+                                className="text-xs rounded-lg border border-gray-200 px-2 py-1 bg-white focus:border-rose-400 focus:outline-none cursor-pointer"
+                              >
+                                <option value="">Uncategorized</option>
+                                {EXPENSE_CATEGORIES.map((c) => (
+                                  <option key={c.value} value={c.value}>{c.label}</option>
+                                ))}
+                              </select>
+                            </td>
+                            <td className="px-4 py-3.5" title={tx.description}>
+                              <div className="flex flex-col gap-0.5">
+                                <span className="text-text-primary font-medium truncate max-w-[200px]">
+                                  {tx.merchant_name || tx.description}
+                                </span>
+                                {tx.merchant_name && tx.description !== tx.merchant_name && (
+                                  <span className="text-[11px] text-text-tertiary truncate max-w-[200px]">
+                                    {tx.description}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3.5">
+                              {card && (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-text-secondary">
+                                  {card.issuer.charAt(0)}
+                                  <span className="font-mono">{card.card_last4}</span>
+                                </span>
+                              )}
+                            </td>
+                            <td className={`whitespace-nowrap px-4 py-3.5 text-right font-display font-semibold stat-number ${
+                              tx.type === "credit" ? "text-emerald-500" : "text-rose-400"
+                            }`}>
+                              {tx.type === "credit" ? "+" : "-"}{formatCurrency(tx.amount)}
+                            </td>
+                            <td className="px-4 py-3.5 text-center">
+                              <MatchBadge status={tx.match_status || "unmatched"} />
+                            </td>
+                            <td className="px-4 py-3.5">
+                              <div className="flex items-center justify-center gap-1">
+                                <button
+                                  onClick={() => {
+                                    const c = cardMap.get(tx.credit_card_id);
+                                    if (c) openEditCard(c);
+                                  }}
+                                  className="rounded-lg p-1.5 text-text-tertiary transition-colors hover:bg-surface-tertiary hover:text-text-secondary"
+                                  title="Edit card"
+                                >
+                                  <Edit3 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {allTxns.length === 0 && (
+                        <tr>
+                          <td colSpan={8} className="px-5 py-10 text-center text-text-tertiary">
+                            No transactions yet. Import a CC statement to get started.
+                          </td>
+                        </tr>
+                      )}
+                      {allTxns.length > 0 && filtered.length === 0 && (
+                        <tr>
+                          <td colSpan={8} className="px-5 py-10 text-center text-text-tertiary">
+                            No transactions match the current filters.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                {/* Pagination */}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100">
+                    <span className="text-xs text-text-tertiary">
+                      Showing {((currentPage - 1) * PAGE_SIZE) + 1}–{Math.min(currentPage * PAGE_SIZE, sorted.length)} of {sorted.length}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
+                        className="px-3 py-1 text-xs rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      >
+                        Previous
+                      </button>
+                      {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+                        let page: number;
+                        if (totalPages <= 7) page = i + 1;
+                        else if (currentPage <= 4) page = i + 1;
+                        else if (currentPage >= totalPages - 3) page = totalPages - 6 + i;
+                        else page = currentPage - 3 + i;
+                        return (
+                          <button
+                            key={page}
+                            onClick={() => setCurrentPage(page)}
+                            className={`w-8 h-8 text-xs rounded-lg transition-colors ${
+                              currentPage === page
+                                ? "bg-rose-500 text-white"
+                                : "hover:bg-gray-50 text-text-secondary"
+                            }`}
+                          >
+                            {page}
+                          </button>
+                        );
+                      })}
+                      <button
+                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                        disabled={currentPage === totalPages}
+                        className="px-3 py-1 text-xs rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+
+        {/* ── Import Statement Dialog ── */}
+        <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
+          <DialogContent className="max-w-lg">
             <DialogHeader>
-              <DialogTitle>
-                {editingCardId ? "Edit Credit Card" : "Add Credit Card"}
-              </DialogTitle>
+              <DialogTitle>Import CC Statement</DialogTitle>
             </DialogHeader>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-4">
+            <div className="grid gap-4 py-2">
+              {/* Card selector */}
               <div className="space-y-2">
-                <Label htmlFor="cc-name">Card Name</Label>
+                <Label>Credit Card</Label>
+                <Select
+                  options={cards.map((c) => ({
+                    value: c._id,
+                    label: `${c.card_name} (${c.issuer} ..${c.card_last4})`,
+                  }))}
+                  value={importCardId}
+                  onChange={(e) => setImportCardId(e.target.value)}
+                />
+              </div>
+
+              {/* Month */}
+              <div className="space-y-2">
+                <Label>Statement Month</Label>
                 <Input
-                  id="cc-name"
-                  placeholder="e.g. HDFC Millennia"
+                  type="month"
+                  value={importMonth}
+                  onChange={(e) => setImportMonth(e.target.value)}
+                />
+              </div>
+
+              {/* Format */}
+              <div className="space-y-2">
+                <Label>Format (optional)</Label>
+                <Select
+                  options={[{ value: "", label: "Auto-detect" }, ...CC_FORMAT_OPTIONS]}
+                  value={importFormat}
+                  onChange={(e) => setImportFormat(e.target.value)}
+                />
+              </div>
+
+              {/* File Upload Zone */}
+              <div
+                onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setDragOver(false);
+                  handleFileDrop(e.dataTransfer.files);
+                }}
+                className={`rounded-xl border-2 border-dashed px-6 py-8 text-center transition-colors ${
+                  dragOver
+                    ? "border-rose-400 bg-rose-50"
+                    : "border-gray-300 bg-gray-50 hover:border-gray-400"
+                }`}
+              >
+                <Upload className="h-8 w-8 mx-auto text-text-tertiary mb-2" />
+                <p className="text-sm text-text-secondary mb-1">
+                  Drag &amp; drop your statement here
+                </p>
+                <p className="text-xs text-text-tertiary mb-3">or</p>
+                <label className="inline-flex items-center gap-2 cursor-pointer rounded-lg bg-white border border-gray-200 px-4 py-2 text-xs font-medium text-text-secondary hover:bg-gray-50 transition-colors">
+                  <Upload className="h-3.5 w-3.5" />
+                  Browse Files
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept=".csv,.xlsx,.xls,.pdf"
+                    onChange={(e) => handleFileDrop(e.target.files)}
+                  />
+                </label>
+              </div>
+
+              {/* Parse Error */}
+              {parseError && (
+                <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-600">
+                  {parseError}
+                </div>
+              )}
+
+              {/* Parsed Preview */}
+              {parsedTransactions.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium text-text-primary">
+                      {parsedTransactions.filter((t) => t.selected).length} of {parsedTransactions.length} transactions selected
+                    </p>
+                    <button
+                      onClick={() =>
+                        setParsedTransactions((prev) => {
+                          const allSelected = prev.every((t) => t.selected);
+                          return prev.map((t) => ({ ...t, selected: !allSelected }));
+                        })
+                      }
+                      className="text-xs text-rose-500 hover:underline"
+                    >
+                      Toggle All
+                    </button>
+                  </div>
+                  <div className="max-h-48 overflow-y-auto rounded-lg border border-gray-200">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-gray-100 bg-gray-50 text-text-tertiary">
+                          <th className="px-2 py-1.5 w-8"></th>
+                          <th className="px-2 py-1.5 text-left">Date</th>
+                          <th className="px-2 py-1.5 text-left">Description</th>
+                          <th className="px-2 py-1.5 text-right">Amount</th>
+                          <th className="px-2 py-1.5 text-center">Type</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {parsedTransactions.map((tx) => (
+                          <tr key={tx.id} className="border-b border-gray-50">
+                            <td className="px-2 py-1.5">
+                              <input
+                                type="checkbox"
+                                checked={tx.selected}
+                                onChange={() => toggleTransactionSelection(tx.id)}
+                                className="rounded border-gray-300 text-rose-500"
+                              />
+                            </td>
+                            <td className="px-2 py-1.5 whitespace-nowrap">{tx.date}</td>
+                            <td className="px-2 py-1.5 truncate max-w-[200px]">{tx.description}</td>
+                            <td className="px-2 py-1.5 text-right font-mono">{formatCurrency(tx.amount)}</td>
+                            <td className="px-2 py-1.5 text-center">
+                              <Badge variant={tx.type === "credit" ? "success" : "destructive"} className="text-[9px]">
+                                {tx.type}
+                              </Badge>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Import Result */}
+              {importResult && (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+                  Import complete! Auto-matched: {importResult.autoMatched}, Unmatched: {importResult.unmatched}
+                </div>
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setImportDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleImport}
+                disabled={importing || parsedTransactions.filter((t) => t.selected).length === 0 || !importCardId}
+                className="bg-rose-500 text-white hover:bg-rose-600"
+              >
+                {importing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Importing...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-4 w-4 mr-2" />
+                    Import {parsedTransactions.filter((t) => t.selected).length} Transactions
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ── Add/Edit Card Dialog ── */}
+        <Dialog open={cardDialogOpen} onOpenChange={setCardDialogOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>{editingCardId ? "Edit Credit Card" : "Add Credit Card"}</DialogTitle>
+            </DialogHeader>
+
+            <div className="grid gap-4 py-2">
+              <div className="space-y-2">
+                <Label>Card Name</Label>
+                <Input
+                  placeholder="e.g. HDFC Regalia"
                   value={cardForm.card_name}
                   onChange={(e) => handleCardFormChange("card_name", e.target.value)}
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="cc-last4">Last 4 Digits</Label>
-                <Input
-                  id="cc-last4"
-                  placeholder="1234"
-                  maxLength={4}
-                  value={cardForm.card_last4}
-                  onChange={(e) =>
-                    handleCardFormChange("card_last4", e.target.value.replace(/\D/g, "").slice(0, 4))
-                  }
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>Last 4 Digits</Label>
+                  <Input
+                    placeholder="1234"
+                    maxLength={4}
+                    value={cardForm.card_last4}
+                    onChange={(e) => handleCardFormChange("card_last4", e.target.value.replace(/\D/g, "").slice(0, 4))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Network</Label>
+                  <Select
+                    options={NETWORK_OPTIONS}
+                    value={cardForm.card_network}
+                    onChange={(e) => handleCardFormChange("card_network", e.target.value)}
+                  />
+                </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="cc-network">Card Network</Label>
+                <Label>Issuer</Label>
                 <Select
-                  id="cc-network"
-                  options={NETWORK_OPTIONS}
-                  value={cardForm.card_network}
-                  onChange={(e) => handleCardFormChange("card_network", e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="cc-issuer">Issuer</Label>
-                <Select
-                  id="cc-issuer"
                   options={ISSUER_OPTIONS}
                   value={cardForm.issuer}
                   onChange={(e) => handleCardFormChange("issuer", e.target.value)}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="cc-limit">Credit Limit</Label>
+                <Label>Credit Limit (INR)</Label>
                 <Input
-                  id="cc-limit"
                   type="number"
-                  placeholder="e.g. 200000"
+                  placeholder="500000"
                   value={cardForm.credit_limit}
                   onChange={(e) => handleCardFormChange("credit_limit", e.target.value)}
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="cc-billing">Billing Cycle Date</Label>
-                <Input
-                  id="cc-billing"
-                  type="number"
-                  placeholder="1-31"
-                  min={1}
-                  max={31}
-                  value={cardForm.billing_cycle_date}
-                  onChange={(e) => handleCardFormChange("billing_cycle_date", e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="cc-due">Payment Due Date</Label>
-                <Input
-                  id="cc-due"
-                  type="number"
-                  placeholder="1-31"
-                  min={1}
-                  max={31}
-                  value={cardForm.payment_due_date}
-                  onChange={(e) => handleCardFormChange("payment_due_date", e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="cc-color">Custom Color (optional)</Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    id="cc-color"
-                    type="color"
-                    className="h-9 w-12 p-1"
-                    value={cardForm.color || "#1e293b"}
-                    onChange={(e) => handleCardFormChange("color", e.target.value)}
-                  />
-                  <Input
-                    placeholder="#1e293b"
-                    value={cardForm.color}
-                    onChange={(e) => handleCardFormChange("color", e.target.value)}
-                    className="flex-1"
-                  />
-                  {cardForm.color && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleCardFormChange("color", "")}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <DialogFooter>
-              <Button variant="ghost" onClick={() => setCardDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleCardSubmit} disabled={submitting}>
-                {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                {editingCardId ? "Update" : "Add"} Card
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* ─── Manual Match Dialog ──────────────────────────────────────── */}
-        <Dialog open={!!matchingTxId} onOpenChange={() => setMatchingTxId(null)}>
-          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Link2 className="h-5 w-5 text-accent-light" />
-                Find Matching Expense
-              </DialogTitle>
-            </DialogHeader>
-
-            <div className="py-4 space-y-4">
-              {/* CC Transaction details */}
-              {matchingTxId && ccTransactions && (
-                <div className="bg-surface-tertiary/50 rounded-lg p-4">
-                  {(() => {
-                    const tx = ccTransactions.find((t) => t._id === matchingTxId);
-                    if (!tx) return null;
-                    return (
-                      <div className="flex items-center justify-between text-sm">
-                        <div>
-                          <p className="font-medium text-text-primary">
-                            {tx.merchant_name || tx.description}
-                          </p>
-                          <p className="text-xs text-text-tertiary">{tx.date}</p>
-                        </div>
-                        <p className="font-mono font-semibold">{formatCurrency(tx.amount)}</p>
-                      </div>
-                    );
-                  })()}
-                </div>
-              )}
-
-              <div className="flex items-center gap-2 text-xs text-text-tertiary">
-                <ArrowRight className="h-4 w-4" />
-                <span>Select an expense entry to match with this transaction</span>
-              </div>
-
-              {/* Expense candidates */}
-              {expenseCandidates === undefined ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-5 w-5 animate-spin text-accent-light" />
-                  <span className="ml-2 text-text-secondary text-sm">Finding matches...</span>
-                </div>
-              ) : expenseCandidates.length === 0 ? (
-                <div className="text-center py-8">
-                  <p className="text-text-secondary text-sm">
-                    No matching expenses found. Try importing the expense first.
-                  </p>
-                </div>
-              ) : (
+              <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
-                  {expenseCandidates.map((candidate) => {
-                    if (!candidate) return null;
-                    return (
-                      <button
-                        key={candidate._id}
-                        onClick={() => handleManualMatch(candidate._id)}
-                        className="w-full flex items-center justify-between rounded-lg border border-border-light p-3 hover:bg-accent/5 hover:border-accent/30 transition-colors text-left"
-                      >
-                        <div className="space-y-0.5">
-                          <p className="text-sm font-medium text-text-primary">
-                            {candidate.description}
-                          </p>
-                          <div className="flex items-center gap-3 text-xs text-text-tertiary">
-                            <span>{candidate.date}</span>
-                            <span className="bg-gray-100 rounded px-1.5 py-0.5">
-                              {candidate.category}
-                            </span>
-                            <Badge
-                              variant={
-                                candidate.matchScore >= 80
-                                  ? "success"
-                                  : candidate.matchScore >= 50
-                                    ? "warning"
-                                    : "secondary"
-                              }
-                              className="text-[10px]"
-                            >
-                              {candidate.matchScore}% match
-                            </Badge>
-                          </div>
-                        </div>
-                        <p className="font-mono text-sm font-semibold text-text-primary">
-                          {formatCurrency(candidate.amount)}
-                        </p>
-                      </button>
-                    );
-                  })}
+                  <Label>Billing Cycle Date</Label>
+                  <Input
+                    type="number"
+                    placeholder="1-31"
+                    min={1}
+                    max={31}
+                    value={cardForm.billing_cycle_date}
+                    onChange={(e) => handleCardFormChange("billing_cycle_date", e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Payment Due Date</Label>
+                  <Input
+                    type="number"
+                    placeholder="1-31"
+                    min={1}
+                    max={31}
+                    value={cardForm.payment_due_date}
+                    onChange={(e) => handleCardFormChange("payment_due_date", e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Color (optional)</Label>
+                <Input
+                  placeholder="#1e3a5f or gradient class"
+                  value={cardForm.color}
+                  onChange={(e) => handleCardFormChange("color", e.target.value)}
+                />
+              </div>
+
+              {/* Preview */}
+              {cardForm.card_name && cardForm.card_last4 && (
+                <div>
+                  <Label className="mb-2 block">Preview</Label>
+                  <CreditCardVisual
+                    cardName={cardForm.card_name}
+                    last4={cardForm.card_last4}
+                    network={cardForm.card_network as "visa" | "mastercard" | "rupay" | "amex"}
+                    issuer={cardForm.issuer}
+                    color={cardForm.color || undefined}
+                  />
                 </div>
               )}
             </div>
 
             <DialogFooter>
-              <Button variant="ghost" onClick={() => setMatchingTxId(null)}>
+              <Button variant="outline" onClick={() => setCardDialogOpen(false)}>
                 Cancel
+              </Button>
+              <Button
+                onClick={handleCardSubmit}
+                disabled={submitting || !cardForm.card_name || !cardForm.card_last4}
+                className="bg-rose-500 text-white hover:bg-rose-600"
+              >
+                {submitting ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : null}
+                {editingCardId ? "Update Card" : "Add Card"}
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* ── Empty State ── */}
+        {cards.length === 0 && allTxns.length === 0 && (
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-rose-50 mb-4">
+                <CreditCard className="h-8 w-8 text-rose-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-text-primary mb-2">No credit cards added</h3>
+              <p className="text-text-secondary text-sm max-w-md mb-6">
+                Add your credit cards to import statements and track CC spends alongside your expenses.
+              </p>
+              <Button onClick={openAddCard} className="bg-rose-500 text-white hover:bg-rose-600">
+                <Plus className="h-4 w-4 mr-2" />
+                Add Credit Card
+              </Button>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </AppLayout>
   );
