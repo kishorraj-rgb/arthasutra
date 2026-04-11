@@ -892,11 +892,12 @@ export default function ExpensesPage() {
               </span>
             </Button>
             <Button
-              onClick={() => {
+              onClick={async () => {
                 const entriesToExport = selectedIds.size > 0
                   ? filtered.filter((e) => selectedIds.has(e._id))
                   : filtered;
-                exportExpensesToExcel(entriesToExport, selectedFY || "2025-26");
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                await exportExpensesToExcel(entriesToExport as any, selectedFY || "2025-26");
               }}
               variant="outline"
               className="gap-2"

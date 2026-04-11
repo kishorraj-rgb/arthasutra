@@ -199,54 +199,255 @@ export function exportIncomeToExcel(entries: IncomeEntry[], fyLabel: string): vo
 // Export Expenses to Excel
 // ---------------------------------------------------------------------------
 
-export function exportExpensesToExcel(entries: ExpenseEntry[], fyLabel: string): void {
-  const rows: ExpenseRow[] = entries.map((e) => {
-    const parsed = parseDescription(e.description);
-    return {
-      Date: formatDateForTally(e.date),
-      "Voucher Type": "Payment",
-      Particulars: parsed.payee,
-      "Expense Category": expenseCategoryLabel(e.category),
-      Subcategory: (e as ExpenseEntry & { subcategory?: string }).subcategory || "",
-      Debit: fmt(e.amount),
-      Credit: fmt(e.amount),
-      "Bank Name": parsed.bank || "",
-      "Payment Method": parsed.method,
-      "Reference Number": parsed.reference || "",
-      "GST Paid": fmt(e.gst_paid),
-      "Business Expense": e.is_business_expense ? "Yes" : "No",
-      Narration: parsed.rawDescription,
-    };
-  });
+export async function exportExpensesToExcel(entries: (ExpenseEntry & { subcategory?: string; source_bank?: string })[], fyLabel: string): Promise<void> {
+  const ExcelJS = (await import("exceljs")).default;
+  const wb = new ExcelJS.Workbook();
+  wb.creator = "ArthaSutra";
+  wb.created = new Date();
 
-  // Summary row
+  const ROSE = "F43F5E";
+  const ROSE_LIGHT = "FFF1F2";
+  const EMERALD = "10B981";
+  const EMERALD_LIGHT = "ECFDF5";
+  const AMBER = "F59E0B";
+  const AMBER_LIGHT = "FFFBEB";
+  const BLUE = "3B82F6";
+  const BLUE_LIGHT = "EFF6FF";
+  const SLATE = "1E293B";
+  const GRAY_BG = "F8FAFC";
+  const WHITE = "FFFFFF";
+
+  const headerFont = { name: "Helvetica", bold: true, size: 11, color: { argb: WHITE } };
+  const bodyFont = { name: "Helvetica", size: 10 };
+  const titleFont = { name: "Helvetica", bold: true, size: 20, color: { argb: SLATE } };
+  const kpiValueFont = { name: "Helvetica", bold: true, size: 18 };
+  const kpiLabelFont = { name: "Helvetica", size: 9, color: { argb: "94A3B8" } };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const thinBorder: any = { style: "thin", color: { argb: "E2E8F0" } };
+  const allBorders = { top: thinBorder, bottom: thinBorder, left: thinBorder, right: thinBorder };
+
   const totalAmount = entries.reduce((s, e) => s + e.amount, 0);
   const totalGst = entries.reduce((s, e) => s + e.gst_paid, 0);
+  const businessAmt = entries.filter((e) => e.is_business_expense).reduce((s, e) => s + e.amount, 0);
+  const personalAmt = totalAmount - businessAmt;
 
-  rows.push({
-    Date: "",
-    "Voucher Type": "",
-    Particulars: "TOTAL",
-    "Expense Category": "",
-    Subcategory: "",
-    Debit: fmt(totalAmount),
-    Credit: fmt(totalAmount),
-    "Bank Name": "",
-    "Payment Method": "",
-    "Reference Number": "",
-    "GST Paid": fmt(totalGst),
-    "Business Expense": "",
-    Narration: "",
+  // Category breakdown
+  const catMap = new Map<string, { amount: number; count: number }>();
+  for (const e of entries) {
+    const label = expenseCategoryLabel(e.category);
+    const cur = catMap.get(label) || { amount: 0, count: 0 };
+    cur.amount += e.amount; cur.count++;
+    catMap.set(label, cur);
+  }
+  const catSorted = Array.from(catMap.entries()).sort((a, b) => b[1].amount - a[1].amount);
+
+  // Subcategory breakdown
+  const subMap = new Map<string, { amount: number; count: number }>();
+  for (const e of entries) {
+    const sub = e.subcategory || "(None)";
+    const cur = subMap.get(sub) || { amount: 0, count: 0 };
+    cur.amount += e.amount; cur.count++;
+    subMap.set(sub, cur);
+  }
+  const subSorted = Array.from(subMap.entries())
+    .filter(([name]) => name !== "(None)")
+    .sort((a, b) => b[1].amount - a[1].amount)
+    .slice(0, 20);
+
+  // Bank breakdown
+  const bankMap = new Map<string, { amount: number; count: number }>();
+  for (const e of entries) {
+    const parsed = parseDescription(e.description);
+    const bank = e.source_bank || parsed.bank || "Unknown";
+    const cur = bankMap.get(bank) || { amount: 0, count: 0 };
+    cur.amount += e.amount; cur.count++;
+    bankMap.set(bank, cur);
+  }
+  const bankSorted = Array.from(bankMap.entries()).sort((a, b) => b[1].amount - a[1].amount);
+
+  // ═══════════════════════════════════════════════════════════════════
+  // SHEET 1: Dashboard
+  // ═══════════════════════════════════════════════════════════════════
+  const dash = wb.addWorksheet("Dashboard", { properties: { tabColor: { argb: ROSE } } });
+  dash.properties.defaultColWidth = 16;
+
+  dash.mergeCells("A1:F1");
+  dash.getCell("A1").value = "Expense Report";
+  dash.getCell("A1").font = titleFont;
+  dash.getRow(1).height = 40;
+
+  dash.mergeCells("A2:F2");
+  dash.getCell("A2").value = `FY ${fyLabel} | ${entries.length} entries | Generated ${new Date().toLocaleDateString("en-IN")} | ArthaSutra`;
+  dash.getCell("A2").font = { name: "Helvetica", size: 10, color: { argb: "64748B" } };
+
+  // KPI Row
+  const kpis = [
+    { label: "TOTAL EXPENSES", value: fmt(totalAmount), color: ROSE, bg: ROSE_LIGHT },
+    { label: "BUSINESS", value: fmt(businessAmt), color: BLUE, bg: BLUE_LIGHT },
+    { label: "PERSONAL", value: fmt(personalAmt), color: AMBER, bg: AMBER_LIGHT },
+    { label: "GST CREDIT", value: fmt(totalGst), color: EMERALD, bg: EMERALD_LIGHT },
+    { label: "ENTRIES", value: entries.length, color: SLATE, bg: GRAY_BG },
+  ];
+
+  kpis.forEach((kpi, i) => {
+    const col = i + 1;
+    dash.getCell(4, col).value = kpi.label;
+    dash.getCell(4, col).font = kpiLabelFont;
+    dash.getCell(4, col).fill = { type: "pattern", pattern: "solid", fgColor: { argb: kpi.bg } };
+    dash.getCell(4, col).border = allBorders;
+    dash.getCell(4, col).alignment = { horizontal: "center" };
+    dash.getCell(5, col).value = kpi.value;
+    dash.getCell(5, col).font = { ...kpiValueFont, color: { argb: kpi.color } };
+    dash.getCell(5, col).fill = { type: "pattern", pattern: "solid", fgColor: { argb: kpi.bg } };
+    dash.getCell(5, col).border = allBorders;
+    dash.getCell(5, col).alignment = { horizontal: "center" };
+    if (typeof kpi.value === "number" && kpi.label !== "ENTRIES") dash.getCell(5, col).numFmt = "#,##0.00";
+  });
+  dash.getRow(4).height = 18;
+  dash.getRow(5).height = 32;
+
+  // Category Breakdown
+  dash.getCell("A7").value = "SPEND BY CATEGORY";
+  dash.getCell("A7").font = { name: "Helvetica", bold: true, size: 12, color: { argb: SLATE } };
+  ["Category", "Transactions", "Amount", "% of Total"].forEach((h, i) => {
+    const cell = dash.getCell(8, i + 1);
+    cell.value = h; cell.font = { ...headerFont, size: 10 };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: ROSE } };
+    cell.border = allBorders;
+    cell.alignment = { horizontal: i >= 2 ? "right" : "left" };
+  });
+  catSorted.forEach(([cat, data], i) => {
+    const row = 9 + i;
+    const bg = i % 2 === 0 ? WHITE : GRAY_BG;
+    [cat, data.count, fmt(data.amount), totalAmount > 0 ? `${Math.round((data.amount / totalAmount) * 100)}%` : "0%"].forEach((v, ci) => {
+      const cell = dash.getCell(row, ci + 1);
+      cell.value = v; cell.font = bodyFont;
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bg } };
+      cell.border = allBorders;
+      if (ci >= 2) cell.alignment = { horizontal: "right" };
+      if (ci === 2 && typeof v === "number") cell.numFmt = "#,##0.00";
+    });
   });
 
-  const sheetName = `Expenses FY ${fyLabel}`;
-  const ws = XLSX.utils.json_to_sheet(rows);
-  autoSizeColumns(ws);
+  // Subcategory Breakdown
+  const subStartRow = 9 + catSorted.length + 2;
+  dash.getCell(subStartRow, 1).value = "TOP SUBCATEGORIES";
+  dash.getCell(subStartRow, 1).font = { name: "Helvetica", bold: true, size: 12, color: { argb: SLATE } };
+  ["Subcategory", "Transactions", "Amount", "% of Total"].forEach((h, i) => {
+    const cell = dash.getCell(subStartRow + 1, i + 1);
+    cell.value = h; cell.font = { ...headerFont, size: 10 };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: AMBER } };
+    cell.border = allBorders;
+  });
+  subSorted.forEach(([sub, data], i) => {
+    const row = subStartRow + 2 + i;
+    const bg = i % 2 === 0 ? WHITE : GRAY_BG;
+    [sub, data.count, fmt(data.amount), totalAmount > 0 ? `${Math.round((data.amount / totalAmount) * 100)}%` : "0%"].forEach((v, ci) => {
+      const cell = dash.getCell(row, ci + 1);
+      cell.value = v; cell.font = bodyFont;
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bg } };
+      cell.border = allBorders;
+      if (ci >= 2) cell.alignment = { horizontal: "right" };
+    });
+  });
 
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, sheetName.slice(0, 31));
+  // Bank Breakdown
+  const bankStartRow = subStartRow + 2 + subSorted.length + 2;
+  dash.getCell(bankStartRow, 1).value = "SPEND BY BANK";
+  dash.getCell(bankStartRow, 1).font = { name: "Helvetica", bold: true, size: 12, color: { argb: SLATE } };
+  ["Bank", "Transactions", "Amount", "% of Total"].forEach((h, i) => {
+    const cell = dash.getCell(bankStartRow + 1, i + 1);
+    cell.value = h; cell.font = { ...headerFont, size: 10 };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: SLATE } };
+    cell.border = allBorders;
+  });
+  bankSorted.forEach(([bank, data], i) => {
+    const row = bankStartRow + 2 + i;
+    const bg = i % 2 === 0 ? WHITE : GRAY_BG;
+    [bank, data.count, fmt(data.amount), totalAmount > 0 ? `${Math.round((data.amount / totalAmount) * 100)}%` : "0%"].forEach((v, ci) => {
+      const cell = dash.getCell(row, ci + 1);
+      cell.value = v; cell.font = bodyFont;
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bg } };
+      cell.border = allBorders;
+      if (ci >= 2) cell.alignment = { horizontal: "right" };
+    });
+  });
 
-  downloadWorkbook(wb, `Expenses_FY_${fyLabel.replace(/\//g, "-")}.xlsx`);
+  // ═══════════════════════════════════════════════════════════════════
+  // SHEET 2: Transactions
+  // ═══════════════════════════════════════════════════════════════════
+  const txnSheet = wb.addWorksheet("Transactions", { properties: { tabColor: { argb: SLATE } } });
+
+  const txnHeaders = ["Date", "Voucher Type", "Particulars", "Category", "Subcategory", "Amount", "Bank Account", "Bank Name", "Payment Method", "Reference", "GST Paid", "Business", "Narration"];
+  const txnWidths = [12, 10, 25, 18, 20, 14, 18, 16, 14, 20, 12, 10, 40];
+
+  txnHeaders.forEach((h, i) => {
+    const cell = txnSheet.getCell(1, i + 1);
+    cell.value = h; cell.font = headerFont;
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: ROSE } };
+    cell.border = allBorders;
+    cell.alignment = { horizontal: i === 5 || i === 10 ? "right" : "left", vertical: "middle" };
+  });
+  txnSheet.getRow(1).height = 28;
+  txnWidths.forEach((w, i) => { txnSheet.getColumn(i + 1).width = w; });
+
+  entries.forEach((e, i) => {
+    const row = i + 2;
+    const parsed = parseDescription(e.description);
+    const bg = i % 2 === 0 ? WHITE : GRAY_BG;
+
+    const values = [
+      formatDateForTally(e.date),
+      "Payment",
+      parsed.payee,
+      expenseCategoryLabel(e.category),
+      e.subcategory || "",
+      fmt(e.amount),
+      e.source_bank || "",
+      parsed.bank || "",
+      parsed.method,
+      parsed.reference || "",
+      fmt(e.gst_paid),
+      e.is_business_expense ? "Yes" : "No",
+      parsed.rawDescription,
+    ];
+
+    values.forEach((v, ci) => {
+      const cell = txnSheet.getCell(row, ci + 1);
+      cell.value = v; cell.font = bodyFont;
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bg } };
+      cell.border = allBorders;
+      if (ci === 5 || ci === 10) { cell.numFmt = "#,##0.00"; cell.alignment = { horizontal: "right" }; }
+    });
+  });
+
+  // Summary
+  const sumRow = entries.length + 2;
+  txnSheet.getCell(sumRow, 3).value = "TOTAL";
+  txnSheet.getCell(sumRow, 3).font = { ...bodyFont, bold: true };
+  txnSheet.getCell(sumRow, 6).value = fmt(totalAmount);
+  txnSheet.getCell(sumRow, 6).numFmt = "#,##0.00";
+  txnSheet.getCell(sumRow, 6).font = { ...bodyFont, bold: true, color: { argb: ROSE } };
+  txnSheet.getCell(sumRow, 11).value = fmt(totalGst);
+  txnSheet.getCell(sumRow, 11).font = { ...bodyFont, bold: true };
+  for (let c = 1; c <= 13; c++) {
+    txnSheet.getCell(sumRow, c).fill = { type: "pattern", pattern: "solid", fgColor: { argb: ROSE_LIGHT } };
+    txnSheet.getCell(sumRow, c).border = allBorders;
+  }
+
+  txnSheet.autoFilter = { from: { row: 1, column: 1 }, to: { row: entries.length + 1, column: 13 } };
+  txnSheet.views = [{ state: "frozen", ySplit: 1 }];
+
+  const buffer = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `Expenses_FY_${fyLabel.replace(/\//g, "-")}.xlsx`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 // ---------------------------------------------------------------------------
