@@ -1302,7 +1302,7 @@ export default function CreditCardsPage() {
                                   className="text-xs rounded-lg border border-gray-200 px-2 py-1 bg-white focus:border-rose-400 focus:outline-none cursor-pointer"
                                 >
                                   <option value="">Uncategorized</option>
-                                  {EXPENSE_CATEGORIES.map((c) => (
+                                  {allCategories.map((c) => (
                                     <option key={c.value} value={c.value}>{c.label}</option>
                                   ))}
                                 </select>
