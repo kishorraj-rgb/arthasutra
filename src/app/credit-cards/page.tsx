@@ -210,6 +210,7 @@ export default function CreditCardsPage() {
   // ── Bulk Selection ────────────────────────────────────────────────────
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkCategory, setBulkCategory] = useState("");
+  const [bulkSubcategory, setBulkSubcategory] = useState("");
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
@@ -384,21 +385,31 @@ export default function CreditCardsPage() {
     }
   };
 
-  // ── Bulk Category Change ──────────────────────────────────────────────
-  const handleBulkCategoryChange = async (cat: string) => {
+  // ── Bulk Category / Subcategory Change ─────────────────────────────────
+  const handleBulkCategoryChange = async (cat: string, sub?: string) => {
     for (const id of Array.from(selectedIds)) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await updateCCTx({ id: id as any, category: cat });
+      await updateCCTx({ id: id as any, category: cat, subcategory: sub || "" });
     }
     setSelectedIds(new Set());
     setBulkCategory("");
+    setBulkSubcategory("");
+  };
+
+  const handleBulkSubcategoryChange = async (sub: string) => {
+    for (const id of Array.from(selectedIds)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await updateCCTx({ id: id as any, subcategory: sub });
+    }
+    setSelectedIds(new Set());
+    setBulkSubcategory("");
   };
 
   const handleBulkDelete = async () => {
     if (!confirm(`This will remove the category from ${selectedIds.size} transactions. Continue?`)) return;
     for (const id of Array.from(selectedIds)) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await updateCCTx({ id: id as any, category: "" });
+      await updateCCTx({ id: id as any, category: "", subcategory: "" });
     }
     setSelectedIds(new Set());
   };
@@ -1086,12 +1097,16 @@ export default function CreditCardsPage() {
                 {selectedIds.size > 0 && (
                   <div className="flex items-center gap-2 text-sm animate-page-enter flex-wrap">
                     <span className="text-text-secondary font-medium">{selectedIds.size} selected</span>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1.5">
                       <select
                         value={bulkCategory}
                         onChange={(e) => {
                           setBulkCategory(e.target.value);
-                          if (e.target.value) handleBulkCategoryChange(e.target.value);
+                          setBulkSubcategory("");
+                          // If no subcategories for this category, apply immediately
+                          if (e.target.value && (!subcategoryMap[e.target.value] || subcategoryMap[e.target.value].length === 0)) {
+                            handleBulkCategoryChange(e.target.value);
+                          }
                         }}
                         className="text-xs rounded-lg border border-gray-200 px-2 py-1.5 bg-white focus:border-rose-400 focus:outline-none cursor-pointer"
                       >
@@ -1100,9 +1115,56 @@ export default function CreditCardsPage() {
                           <option key={c.value} value={c.value}>{c.label}</option>
                         ))}
                       </select>
+                      {/* Dependent subcategory dropdown when category has subcategories */}
+                      {bulkCategory && subcategoryMap[bulkCategory]?.length > 0 && (
+                        <>
+                          <select
+                            value={bulkSubcategory}
+                            onChange={(e) => setBulkSubcategory(e.target.value)}
+                            className="text-xs rounded-lg border border-dashed border-gray-200 px-2 py-1.5 bg-gray-50 focus:border-rose-400 focus:outline-none cursor-pointer"
+                          >
+                            <option value="">Subcategory...</option>
+                            {subcategoryMap[bulkCategory].map((sub) => (
+                              <option key={sub} value={sub}>{sub}</option>
+                            ))}
+                          </select>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-xs h-7"
+                            onClick={() => handleBulkCategoryChange(bulkCategory, bulkSubcategory)}
+                          >
+                            Apply
+                          </Button>
+                        </>
+                      )}
                     </div>
+                    {/* Subcategory-only change when all selected share same category */}
+                    {!bulkCategory && (() => {
+                      const selectedTxns = filtered.filter((t) => selectedIds.has(t._id));
+                      const cats = new Set(selectedTxns.map((t) => t.category));
+                      if (cats.size === 1) {
+                        const sharedCat = Array.from(cats)[0];
+                        const subs = subcategoryMap[sharedCat];
+                        if (subs?.length > 0) {
+                          return (
+                            <select
+                              value={bulkSubcategory}
+                              onChange={(e) => { if (e.target.value) handleBulkSubcategoryChange(e.target.value); }}
+                              className="text-xs rounded-lg border border-dashed border-rose-300 px-2 py-1.5 bg-rose-50 focus:border-rose-400 focus:outline-none cursor-pointer text-rose-600"
+                            >
+                              <option value="">Subcategory...</option>
+                              {subs.map((sub) => (
+                                <option key={sub} value={sub}>{sub}</option>
+                              ))}
+                            </select>
+                          );
+                        }
+                      }
+                      return null;
+                    })()}
                     <Button size="sm" variant="destructive" onClick={handleBulkDelete} className="text-xs h-7">
-                      <Trash2 className="h-3 w-3 mr-1" /> Clear Category
+                      <Trash2 className="h-3 w-3 mr-1" /> Clear
                     </Button>
                   </div>
                 )}
