@@ -29,6 +29,7 @@ import {
   parseCSV, parseXLSX, parsePDF, categorizeAll, markDuplicates,
   ALL_BANK_FORMATS,
 } from "@/lib/bank-statement";
+import { parseXLSXWithPassword } from "@/lib/bank-statement/parser-xlsx";
 import type { ParsedTransaction } from "@/lib/bank-statement";
 import { BankLogo, BankChip, resolveBankPresetId, BANK_PRESETS, BANK_PRESET_IDS } from "@/components/bank-logo";
 
@@ -46,6 +47,8 @@ export default function ImportPage() {
   const [importProgress, setImportProgress] = useState(0);
   const [importResult, setImportResult] = useState<{ income: number; expenses: number } | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [needsPassword, setNeedsPassword] = useState(false);
+  const [filePassword, setFilePassword] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const batchImport = useMutation(api.importData.batchImportTransactions);
@@ -110,16 +113,34 @@ export default function ImportPage() {
     if (!file) return;
     setParsing(true);
     setError("");
+    setNeedsPassword(false);
 
     const ext = file.name.split(".").pop()?.toLowerCase();
     const selectedBank = bankId || undefined;
 
-    let result: { transactions: ParsedTransaction[]; bankName: string; error?: string };
+    let result: { transactions: ParsedTransaction[]; bankName: string; error?: string; needsPassword?: boolean };
 
     if (ext === "csv") {
       result = await parseCSV(file, selectedBank);
     } else if (ext === "xlsx" || ext === "xls") {
-      result = await parseXLSX(file, selectedBank);
+      // If user has entered a password, use server-side decryption
+      if (filePassword) {
+        result = await parseXLSXWithPassword(file, filePassword, selectedBank);
+      } else {
+        result = await parseXLSX(file, selectedBank);
+      }
+
+      // If file needs a password, show the password input
+      if (result.needsPassword) {
+        setNeedsPassword(true);
+        setParsing(false);
+        if (!filePassword) {
+          setError("This file is password-protected. Please enter the password below.");
+        } else {
+          setError("Incorrect password. Please try again.");
+        }
+        return;
+      }
     } else if (ext === "pdf") {
       result = await parsePDF(file, selectedBank);
     } else {
@@ -391,9 +412,29 @@ export default function ImportPage() {
                 </div>
               )}
 
+              {/* Password input for encrypted files (e.g. SBI) */}
+              {needsPassword && (
+                <div className="flex items-center gap-3">
+                  <div className="relative flex-1 max-w-xs">
+                    <input
+                      type="password"
+                      placeholder="File password"
+                      value={filePassword}
+                      onChange={(e) => setFilePassword(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter" && filePassword) handleParse(); }}
+                      className="w-full h-9 px-3 rounded-lg border border-gray-200 bg-white text-sm placeholder:text-text-tertiary focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/10"
+                      autoFocus
+                    />
+                  </div>
+                  <span className="text-xs text-text-tertiary">
+                    SBI uses first 5 chars of name (caps) + DOB (DDMMYYYY)
+                  </span>
+                </div>
+              )}
+
               <Button
                 onClick={handleParse}
-                disabled={!file || parsing}
+                disabled={!file || parsing || (needsPassword && !filePassword)}
                 className="bg-accent text-white hover:bg-accent/90"
               >
                 {parsing ? (
