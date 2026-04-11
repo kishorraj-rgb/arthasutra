@@ -1,6 +1,10 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "../../../convex/_generated/api";
+import { Id } from "../../../convex/_generated/dataModel";
+import { useAuth } from "@/lib/auth-context";
 import { AppLayout } from "@/components/layout/app-layout";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -10,7 +14,11 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
-import { formatCurrency } from "@/lib/utils";
+import {
+  formatCurrency,
+  getCurrentFinancialYear,
+  getFinancialYearDates,
+} from "@/lib/utils";
 import {
   Calculator,
   Receipt,
@@ -138,10 +146,36 @@ function calculateOldRegimeTax(taxableIncome: number): {
 }
 
 // ---------------------------------------------------------------------------
+// FY month helpers: Apr(index 0) = calendar month 3, ..., Mar(index 11) = calendar month 2
+// ---------------------------------------------------------------------------
+
+const FY_MONTHS = [
+  { label: "Apr", calMonth: 3 },
+  { label: "May", calMonth: 4 },
+  { label: "Jun", calMonth: 5 },
+  { label: "Jul", calMonth: 6 },
+  { label: "Aug", calMonth: 7 },
+  { label: "Sep", calMonth: 8 },
+  { label: "Oct", calMonth: 9 },
+  { label: "Nov", calMonth: 10 },
+  { label: "Dec", calMonth: 11 },
+  { label: "Jan", calMonth: 0 },
+  { label: "Feb", calMonth: 1 },
+  { label: "Mar", calMonth: 2 },
+];
+
+
+// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
 export default function TaxPage() {
+  const { user } = useAuth();
+  const fy = getCurrentFinancialYear();
+  const [startYearStr] = fy.split("-");
+  const startYear = parseInt(startYearStr);
+  const ayYear = `${startYear + 1}-${String(startYear + 2).slice(-2)}`;
+
   return (
     <AppLayout>
       <div className="space-y-6">
@@ -151,7 +185,7 @@ export default function TaxPage() {
             Tax Planning & Compliance
           </h1>
           <p className="text-text-secondary mt-1">
-            FY 2024-25 (AY 2025-26) &mdash; Comprehensive tax management
+            FY {fy} (AY {ayYear}) &mdash; Comprehensive tax management
           </p>
         </div>
 
@@ -183,35 +217,35 @@ export default function TaxPage() {
               TAB 1 - Income Tax Calculator
           ================================================================ */}
           <TabsContent value="calculator">
-            <IncomeTaxCalculator />
+            {user ? <IncomeTaxCalculator userId={user.userId} fy={fy} /> : null}
           </TabsContent>
 
           {/* ================================================================
               TAB 2 - Advance Tax Planner
           ================================================================ */}
           <TabsContent value="advance">
-            <AdvanceTaxPlanner />
+            {user ? <AdvanceTaxPlanner userId={user.userId} fy={fy} /> : null}
           </TabsContent>
 
           {/* ================================================================
               TAB 3 - GST Calculator & Tracker
           ================================================================ */}
           <TabsContent value="gst">
-            <GSTTracker />
+            {user ? <GSTTracker userId={user.userId} fy={fy} /> : null}
           </TabsContent>
 
           {/* ================================================================
               TAB 4 - HRA Calculator
           ================================================================ */}
           <TabsContent value="hra">
-            <HRACalculator />
+            <HRACalculator monthlySalary={user?.monthly_salary} />
           </TabsContent>
 
           {/* ================================================================
               TAB 5 - TDS Reconciliation
           ================================================================ */}
           <TabsContent value="tds">
-            <TDSReconciliation />
+            {user ? <TDSReconciliation userId={user.userId} fy={fy} /> : null}
           </TabsContent>
         </Tabs>
       </div>
@@ -223,8 +257,76 @@ export default function TaxPage() {
 // TAB 1 : Income Tax Calculator
 // ===========================================================================
 
-function IncomeTaxCalculator() {
-  const [grossIncome, setGrossIncome] = useState(1500000);
+function IncomeTaxCalculator({
+  userId,
+  fy,
+}: {
+  userId: Id<"users">;
+  fy: string;
+}) {
+  // Fetch real data
+  const incomeEntries = useQuery(api.income.getAnnualIncome, {
+    userId,
+    financialYear: fy,
+  });
+  const investments = useQuery(api.investments.getInvestments, { userId });
+  const insurancePolicies = useQuery(api.insurance.getInsurancePolicies, {
+    userId,
+  });
+  const loans = useQuery(api.loans.getLoans, { userId });
+
+  // Compute auto-fill values from real data
+  const autoValues = useMemo(() => {
+    const totalIncome =
+      incomeEntries?.reduce((sum, e) => sum + e.amount, 0) ?? 0;
+
+    const sec80C = Math.min(
+      (investments ?? [])
+        .filter((i) => i.section === "80C")
+        .reduce((sum, i) => sum + i.invested_amount, 0),
+      150000
+    );
+
+    const healthPolicies = (insurancePolicies ?? []).filter(
+      (p) => p.type === "health"
+    );
+    // Simplified: total health premiums capped at 25k self + 25k parents = 50k total
+    const totalHealthPremium = healthPolicies.reduce(
+      (sum, p) => sum + p.annual_premium,
+      0
+    );
+    const sec80D_self = Math.min(totalHealthPremium, 25000);
+    const sec80D_parents = Math.min(
+      Math.max(totalHealthPremium - 25000, 0),
+      25000
+    );
+
+    const sec80CCD1B = Math.min(
+      (investments ?? [])
+        .filter((i) => i.section === "80CCD")
+        .reduce((sum, i) => sum + i.invested_amount, 0),
+      50000
+    );
+
+    const homeLoans = (loans ?? []).filter((l) => l.type === "home");
+    const annualHomeLoanInterest = homeLoans.reduce(
+      (sum, l) => sum + Math.round((l.outstanding * l.interest_rate) / 100),
+      0
+    );
+    const homeLoanInterest = Math.min(annualHomeLoanInterest, 200000);
+
+    return {
+      totalIncome,
+      sec80C,
+      sec80D_self,
+      sec80D_parents,
+      sec80CCD1B,
+      homeLoanInterest,
+    };
+  }, [incomeEntries, investments, insurancePolicies, loans]);
+
+  // Editable state - seeded from autoValues
+  const [grossIncome, setGrossIncome] = useState(0);
   const [hraClaimed, setHraClaimed] = useState(0);
   const [sec80C, setSec80C] = useState(0);
   const [sec80D_self, setSec80D_self] = useState(0);
@@ -232,6 +334,20 @@ function IncomeTaxCalculator() {
   const [sec80CCD1B, setSec80CCD1B] = useState(0);
   const [homeLoanInterest, setHomeLoanInterest] = useState(0);
   const [otherDeductions, setOtherDeductions] = useState(0);
+  const [seeded, setSeeded] = useState(false);
+
+  // Seed once when data arrives
+  useEffect(() => {
+    if (!seeded && incomeEntries !== undefined) {
+      setGrossIncome(autoValues.totalIncome);
+      setSec80C(autoValues.sec80C);
+      setSec80D_self(autoValues.sec80D_self);
+      setSec80D_parents(autoValues.sec80D_parents);
+      setSec80CCD1B(autoValues.sec80CCD1B);
+      setHomeLoanInterest(autoValues.homeLoanInterest);
+      setSeeded(true);
+    }
+  }, [seeded, incomeEntries, autoValues]);
 
   const taxComparison = useMemo(() => {
     // --- New Regime ---
@@ -296,6 +412,16 @@ function IncomeTaxCalculator() {
   const oldEffective =
     grossIncome > 0 ? ((oldResult.totalTax / grossIncome) * 100).toFixed(2) : "0.00";
 
+  if (incomeEntries === undefined) {
+    return (
+      <Card>
+        <CardContent className="p-12 text-center text-text-secondary">
+          Loading tax data...
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Recommendation Box */}
@@ -358,6 +484,11 @@ function IncomeTaxCalculator() {
                 onChange={(e) => setGrossIncome(Number(e.target.value) || 0)}
                 placeholder="e.g. 1500000"
               />
+              {autoValues.totalIncome > 0 && (
+                <p className="text-xs text-accent-light/70">
+                  Auto-filled from {(incomeEntries ?? []).length} income entries
+                </p>
+              )}
             </div>
 
             <div className="border-t border-border pt-4">
@@ -387,6 +518,8 @@ function IncomeTaxCalculator() {
               />
               <p className="text-xs text-text-tertiary">
                 Max {formatCurrency(150000)}
+                {autoValues.sec80C > 0 &&
+                  ` | Auto: ${formatCurrency(autoValues.sec80C)} from investments`}
               </p>
             </div>
 
@@ -420,6 +553,8 @@ function IncomeTaxCalculator() {
               />
               <p className="text-xs text-text-tertiary">
                 Max {formatCurrency(50000)}
+                {autoValues.sec80CCD1B > 0 &&
+                  ` | Auto: ${formatCurrency(autoValues.sec80CCD1B)} from NPS`}
               </p>
             </div>
 
@@ -433,6 +568,8 @@ function IncomeTaxCalculator() {
               />
               <p className="text-xs text-text-tertiary">
                 Max {formatCurrency(200000)}
+                {autoValues.homeLoanInterest > 0 &&
+                  ` | Auto: ${formatCurrency(autoValues.homeLoanInterest)} estimated from loans`}
               </p>
             </div>
 
@@ -460,7 +597,7 @@ function IncomeTaxCalculator() {
                     {savings <= 0 ? "Recommended" : ""}
                   </Badge>
                 </div>
-                <p className="text-xs text-text-tertiary">FY 2024-25 slabs</p>
+                <p className="text-xs text-text-tertiary">FY {fy} slabs</p>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-1 text-sm">
@@ -697,52 +834,143 @@ function IncomeTaxCalculator() {
 // TAB 2 : Advance Tax Planner
 // ===========================================================================
 
-function AdvanceTaxPlanner() {
-  const annualTaxLiability = 234000;
+function AdvanceTaxPlanner({
+  userId,
+  fy,
+}: {
+  userId: Id<"users">;
+  fy: string;
+}) {
+  // Derive annual tax from income data
+  const incomeEntries = useQuery(api.income.getAnnualIncome, {
+    userId,
+    financialYear: fy,
+  });
+  const advanceTaxPayments = useQuery(api.tax.getAdvanceTaxPayments, {
+    userId,
+    financial_year: fy,
+  });
+  const markPaid = useMutation(api.tax.markAdvanceTaxPaid);
+  const addPayment = useMutation(api.tax.addAdvanceTaxPayment);
 
-  const [quarters, setQuarters] = useState([
-    {
-      quarter: "Q1",
-      dueDate: "15 June 2024",
-      cumulativePercent: 15,
-      amountDue: Math.round(annualTaxLiability * 0.15),
-      amountPaid: Math.round(annualTaxLiability * 0.15),
-      status: "paid" as "paid" | "pending" | "overdue",
-    },
-    {
-      quarter: "Q2",
-      dueDate: "15 September 2024",
-      cumulativePercent: 45,
-      amountDue: Math.round(annualTaxLiability * 0.3),
-      amountPaid: Math.round(annualTaxLiability * 0.3),
-      status: "paid" as "paid" | "pending" | "overdue",
-    },
-    {
-      quarter: "Q3",
-      dueDate: "15 December 2024",
-      cumulativePercent: 75,
-      amountDue: Math.round(annualTaxLiability * 0.3),
-      amountPaid: 0,
-      status: "overdue" as "paid" | "pending" | "overdue",
-    },
-    {
-      quarter: "Q4",
-      dueDate: "15 March 2025",
-      cumulativePercent: 100,
-      amountDue: Math.round(annualTaxLiability * 0.25),
-      amountPaid: 0,
-      status: "pending" as "paid" | "pending" | "overdue",
-    },
-  ]);
+  const [startYearStr] = fy.split("-");
+  const startYear = parseInt(startYearStr);
+
+  // Calculate annual tax liability from income (new regime as default estimate)
+  const annualTaxLiability = useMemo(() => {
+    if (!incomeEntries) return 0;
+    const grossIncome = incomeEntries.reduce((sum, e) => sum + e.amount, 0);
+    const newStdDeduction = 75000;
+    const newTaxableIncome = Math.max(grossIncome - newStdDeduction, 0);
+    const result = calculateNewRegimeTax(newTaxableIncome);
+
+    // Subtract TDS already deducted
+    const totalTDS = incomeEntries.reduce(
+      (sum, e) => sum + (e.tds_deducted ?? 0),
+      0
+    );
+    return Math.max(result.totalTax - totalTDS, 0);
+  }, [incomeEntries]);
+
+  // Build quarter data from real payments or compute defaults
+  const quarterDefs = useMemo(() => {
+    const defs = [
+      {
+        quarter: "Q1" as const,
+        dueDate: `15 June ${startYear}`,
+        cumulativePercent: 15,
+        percentThisQ: 0.15,
+      },
+      {
+        quarter: "Q2" as const,
+        dueDate: `15 September ${startYear}`,
+        cumulativePercent: 45,
+        percentThisQ: 0.30,
+      },
+      {
+        quarter: "Q3" as const,
+        dueDate: `15 December ${startYear}`,
+        cumulativePercent: 75,
+        percentThisQ: 0.30,
+      },
+      {
+        quarter: "Q4" as const,
+        dueDate: `15 March ${startYear + 1}`,
+        cumulativePercent: 100,
+        percentThisQ: 0.25,
+      },
+    ];
+    return defs;
+  }, [startYear]);
+
+  const quarters = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+
+    return quarterDefs.map((qd) => {
+      const payment = (advanceTaxPayments ?? []).find(
+        (p) => p.quarter === qd.quarter
+      );
+      const amountDue = Math.round(annualTaxLiability * qd.percentThisQ);
+      const amountPaid = payment?.amount_paid ?? 0;
+
+      // Derive due date as ISO for comparison
+      const dueDateMap: Record<string, string> = {
+        Q1: `${startYear}-06-15`,
+        Q2: `${startYear}-09-15`,
+        Q3: `${startYear}-12-15`,
+        Q4: `${startYear + 1}-03-15`,
+      };
+      const dueDateISO = dueDateMap[qd.quarter];
+
+      const status: "paid" | "pending" | "overdue" =
+        payment?.status === "paid"
+          ? "paid"
+          : today > dueDateISO
+          ? "overdue"
+          : "pending";
+
+      return {
+        ...qd,
+        amountDue,
+        amountPaid,
+        status,
+        paymentId: payment?._id,
+      };
+    });
+  }, [quarterDefs, advanceTaxPayments, annualTaxLiability, startYear]);
 
   const totalPaid = quarters.reduce((s, q) => s + q.amountPaid, 0);
   const totalDue = quarters.reduce((s, q) => s + q.amountDue, 0);
 
-  function markAsPaid(index: number) {
-    setQuarters((prev) =>
-      prev.map((q, i) =>
-        i === index ? { ...q, amountPaid: q.amountDue, status: "paid" as const } : q
-      )
+  async function handleMarkPaid(q: (typeof quarters)[number]) {
+    const today = new Date().toISOString().slice(0, 10);
+    if (q.paymentId) {
+      await markPaid({
+        id: q.paymentId,
+        amount_paid: q.amountDue,
+        paid_date: today,
+      });
+    } else {
+      await addPayment({
+        userId,
+        financial_year: fy,
+        quarter: q.quarter,
+        due_date: q.dueDate,
+        amount_due: q.amountDue,
+        amount_paid: q.amountDue,
+        paid_date: today,
+        status: "paid",
+      });
+    }
+  }
+
+  if (incomeEntries === undefined || advanceTaxPayments === undefined) {
+    return (
+      <Card>
+        <CardContent className="p-12 text-center text-text-secondary">
+          Loading advance tax data...
+        </CardContent>
+      </Card>
     );
   }
 
@@ -756,6 +984,9 @@ function AdvanceTaxPlanner() {
             <p className="text-2xl font-bold font-mono text-text-primary mt-1">
               {formatCurrency(annualTaxLiability)}
             </p>
+            <p className="text-xs text-text-tertiary mt-1">
+              After TDS (new regime estimate)
+            </p>
           </CardContent>
         </Card>
         <Card>
@@ -765,7 +996,7 @@ function AdvanceTaxPlanner() {
               {formatCurrency(totalPaid)}
             </p>
             <Progress
-              value={(totalPaid / annualTaxLiability) * 100}
+              value={annualTaxLiability > 0 ? (totalPaid / annualTaxLiability) * 100 : 0}
               className="mt-3"
               indicatorClassName="bg-emerald-500"
             />
@@ -775,7 +1006,7 @@ function AdvanceTaxPlanner() {
           <CardContent className="p-6">
             <p className="text-sm text-text-secondary">Balance Due</p>
             <p className="text-2xl font-bold font-mono text-amber-400 mt-1">
-              {formatCurrency(totalDue - totalPaid)}
+              {formatCurrency(Math.max(totalDue - totalPaid, 0))}
             </p>
           </CardContent>
         </Card>
@@ -844,7 +1075,7 @@ function AdvanceTaxPlanner() {
                 <Button
                   size="sm"
                   className="w-full mt-2"
-                  onClick={() => markAsPaid(i)}
+                  onClick={() => handleMarkPaid(q)}
                 >
                   <CheckCircle className="h-4 w-4 mr-1" />
                   Mark as Paid
@@ -888,70 +1119,114 @@ function AdvanceTaxPlanner() {
 // TAB 3 : GST Calculator & Tracker
 // ===========================================================================
 
-function GSTTracker() {
-  const [gstRate, setGstRate] = useState(18);
+function GSTTracker({
+  userId,
+  fy,
+}: {
+  userId: Id<"users">;
+  fy: string;
+}) {
+  const incomeEntries = useQuery(api.income.getAnnualIncome, {
+    userId,
+    financialYear: fy,
+  });
+  const expenseEntries = useQuery(api.expenses.getExpenseEntries, { userId });
+  const gstFilings = useQuery(api.tax.getGSTFilings, { userId });
+  const markFiled = useMutation(api.tax.markGSTFiled);
 
-  const gstData = [
-    {
-      month: "Oct 2024",
-      revenue: 850000,
-      outputGST: 153000,
-      inputGST: 98000,
-      netLiability: 55000,
-      gstr1Filed: true,
-      gstr3bFiled: true,
-    },
-    {
-      month: "Nov 2024",
-      revenue: 920000,
-      outputGST: 165600,
-      inputGST: 112000,
-      netLiability: 53600,
-      gstr1Filed: true,
-      gstr3bFiled: true,
-    },
-    {
-      month: "Dec 2024",
-      revenue: 1050000,
-      outputGST: 189000,
-      inputGST: 125000,
-      netLiability: 64000,
-      gstr1Filed: true,
-      gstr3bFiled: true,
-    },
-    {
-      month: "Jan 2025",
-      revenue: 980000,
-      outputGST: 176400,
-      inputGST: 108000,
-      netLiability: 68400,
-      gstr1Filed: true,
-      gstr3bFiled: false,
-    },
-    {
-      month: "Feb 2025",
-      revenue: 1100000,
-      outputGST: 198000,
-      inputGST: 132000,
-      netLiability: 66000,
-      gstr1Filed: false,
-      gstr3bFiled: false,
-    },
-    {
-      month: "Mar 2025",
-      revenue: 1200000,
-      outputGST: 216000,
-      inputGST: 140000,
-      netLiability: 76000,
-      gstr1Filed: false,
-      gstr3bFiled: false,
-    },
-  ];
+  const [startYearStr] = fy.split("-");
+  const startYear = parseInt(startYearStr);
+  const { start: fyStart, end: fyEnd } = getFinancialYearDates(fy);
+
+  // Filter expenses to FY
+  const fyExpenses = useMemo(() => {
+    if (!expenseEntries) return [];
+    return expenseEntries.filter((e) => e.date >= fyStart && e.date <= fyEnd);
+  }, [expenseEntries, fyStart, fyEnd]);
+
+  // Build monthly GST data from real entries
+  const gstData = useMemo(() => {
+    if (!incomeEntries) return [];
+
+    const months: {
+      month: string;
+      revenue: number;
+      outputGST: number;
+      inputGST: number;
+      netLiability: number;
+      gstr1Filed: boolean;
+      gstr3bFiled: boolean;
+      filingId?: Id<"gst_filings">;
+    }[] = [];
+
+    for (const fm of FY_MONTHS) {
+      const calYear = fm.calMonth >= 3 ? startYear : startYear + 1;
+      const monthStr = `${calYear}-${String(fm.calMonth + 1).padStart(2, "0")}`;
+      const label = `${fm.label} ${calYear}`;
+
+      // Income entries for this month
+      const monthIncome = incomeEntries.filter((e) =>
+        e.date.startsWith(monthStr)
+      );
+      const revenue = monthIncome.reduce((sum, e) => sum + e.amount, 0);
+      const outputGST = monthIncome.reduce(
+        (sum, e) => sum + (e.gst_collected ?? 0),
+        0
+      );
+
+      // Expense entries for this month
+      const monthExpenses = fyExpenses.filter((e) =>
+        e.date.startsWith(monthStr)
+      );
+      const inputGST = monthExpenses.reduce(
+        (sum, e) => sum + (e.gst_paid ?? 0),
+        0
+      );
+
+      const netLiability = Math.max(outputGST - inputGST, 0);
+
+      // Filing status from GST filings
+      const filing = (gstFilings ?? []).find((f) => f.period === label);
+
+      months.push({
+        month: label,
+        revenue,
+        outputGST,
+        inputGST,
+        netLiability,
+        gstr1Filed: filing?.status === "filed",
+        gstr3bFiled: filing?.status === "filed",
+        filingId: filing?._id,
+      });
+    }
+
+    return months;
+  }, [incomeEntries, fyExpenses, gstFilings, startYear]);
 
   const totalRevenue = gstData.reduce((s, d) => s + d.revenue, 0);
   const totalOutput = gstData.reduce((s, d) => s + d.outputGST, 0);
   const totalInput = gstData.reduce((s, d) => s + d.inputGST, 0);
   const totalNet = gstData.reduce((s, d) => s + d.netLiability, 0);
+
+  async function handleMarkFiled(row: (typeof gstData)[number]) {
+    const today = new Date().toISOString().slice(0, 10);
+    if (row.filingId) {
+      await markFiled({
+        id: row.filingId,
+        filing_date: today,
+      });
+    }
+  }
+
+  if (incomeEntries === undefined || expenseEntries === undefined) {
+    return (
+      <Card>
+        <CardContent className="p-12 text-center text-text-secondary">
+          Loading GST data...
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -1002,13 +1277,10 @@ function GSTTracker() {
         </Card>
         <Card>
           <CardContent className="p-6">
-            <Label className="mb-2 block">GST Rate (%)</Label>
-            <Input
-              type="number"
-              value={gstRate}
-              onChange={(e) => setGstRate(Number(e.target.value) || 18)}
-              className="font-mono"
-            />
+            <p className="text-sm text-text-secondary">FY Revenue</p>
+            <p className="text-2xl font-bold font-mono text-text-primary mt-1">
+              {formatCurrency(totalRevenue)}
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -1094,6 +1366,15 @@ function GSTTracker() {
                     <td className="p-3 text-center">
                       {row.gstr3bFiled ? (
                         <CheckCircle className="h-4 w-4 text-emerald-400 mx-auto" />
+                      ) : row.filingId ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2 text-xs"
+                          onClick={() => handleMarkFiled(row)}
+                        >
+                          Mark Filed
+                        </Button>
                       ) : (
                         <AlertTriangle className="h-4 w-4 text-amber-400 mx-auto" />
                       )}
@@ -1132,11 +1413,21 @@ function GSTTracker() {
 // TAB 4 : HRA Calculator
 // ===========================================================================
 
-function HRACalculator() {
-  const [basicSalary, setBasicSalary] = useState(60000);
-  const [hraReceived, setHraReceived] = useState(24000);
+function HRACalculator({ monthlySalary }: { monthlySalary?: number }) {
+  const [basicSalary, setBasicSalary] = useState(monthlySalary ?? 60000);
+  const [hraReceived, setHraReceived] = useState(
+    Math.round((monthlySalary ?? 60000) * 0.4)
+  );
   const [rentPaid, setRentPaid] = useState(30000);
   const [isMetro, setIsMetro] = useState(true);
+
+  // Update when user profile loads
+  useEffect(() => {
+    if (monthlySalary && monthlySalary > 0) {
+      setBasicSalary(monthlySalary);
+      setHraReceived(Math.round(monthlySalary * 0.4));
+    }
+  }, [monthlySalary]);
 
   const hraCalc = useMemo(() => {
     const annualBasic = basicSalary * 12;
@@ -1194,6 +1485,11 @@ function HRACalculator() {
                 value={basicSalary}
                 onChange={(e) => setBasicSalary(Number(e.target.value) || 0)}
               />
+              {monthlySalary && monthlySalary > 0 && (
+                <p className="text-xs text-accent-light/70">
+                  Pre-filled from your profile
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label>HRA Received (per month)</Label>
@@ -1343,64 +1639,121 @@ function HRACalculator() {
 // TAB 5 : TDS Reconciliation
 // ===========================================================================
 
-function TDSReconciliation() {
-  const tdsEntries = [
-    {
-      source: "ABC Technologies Pvt. Ltd.",
-      type: "Salary",
-      tan: "DELA12345F",
-      amountCredited: 180000,
-      amountIn26AS: 180000,
-      match: true,
-    },
-    {
-      source: "XYZ Consulting LLP",
-      type: "Professional Fees",
-      tan: "MUMX67890G",
-      amountCredited: 45000,
-      amountIn26AS: 45000,
-      match: true,
-    },
-    {
-      source: "State Bank of India",
-      type: "Interest (10% TDS)",
-      tan: "SBID11111A",
-      amountCredited: 8500,
-      amountIn26AS: 8500,
-      match: true,
-    },
-    {
-      source: "Reliance Digital Services",
-      type: "Contract Payment",
-      tan: "RELH22222B",
-      amountCredited: 32000,
-      amountIn26AS: 28000,
-      match: false,
-    },
-    {
-      source: "HDFC Bank Ltd.",
-      type: "FD Interest",
-      tan: "HDFC33333C",
-      amountCredited: 12000,
-      amountIn26AS: 12000,
-      match: true,
-    },
-    {
-      source: "Infoway Solutions",
-      type: "Freelance",
-      tan: "INFW44444D",
-      amountCredited: 25000,
-      amountIn26AS: 20000,
-      match: false,
-    },
-  ];
+function TDSReconciliation({
+  userId,
+  fy,
+}: {
+  userId: Id<"users">;
+  fy: string;
+}) {
+  const incomeEntries = useQuery(api.income.getAnnualIncome, {
+    userId,
+    financialYear: fy,
+  });
 
-  const totalCredited = tdsEntries.reduce((s, e) => s + e.amountCredited, 0);
+  // Build TDS entries from income entries with tds_deducted > 0
+  const tdsEntriesRaw = useMemo(() => {
+    if (!incomeEntries) return [];
+    return incomeEntries
+      .filter((e) => (e.tds_deducted ?? 0) > 0)
+      .map((e) => ({
+        id: e._id,
+        source: e.description || "Unknown",
+        type: e.type.charAt(0).toUpperCase() + e.type.slice(1),
+        amountCredited: e.tds_deducted ?? 0,
+        date: e.date,
+        incomeAmount: e.amount,
+      }));
+  }, [incomeEntries]);
+
+  // Group by source (description) and sum TDS
+  const groupedTDS = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        source: string;
+        type: string;
+        totalTDS: number;
+        entryCount: number;
+      }
+    >();
+
+    for (const entry of tdsEntriesRaw) {
+      const existing = map.get(entry.source);
+      if (existing) {
+        existing.totalTDS += entry.amountCredited;
+        existing.entryCount += 1;
+      } else {
+        map.set(entry.source, {
+          source: entry.source,
+          type: entry.type,
+          totalTDS: entry.amountCredited,
+          entryCount: 1,
+        });
+      }
+    }
+
+    return Array.from(map.values()).sort((a, b) => b.totalTDS - a.totalTDS);
+  }, [tdsEntriesRaw]);
+
+  // Editable 26AS amounts
+  const [amountsIn26AS, setAmountsIn26AS] = useState<Record<string, number>>(
+    {}
+  );
+
+  // Seed 26AS amounts once data arrives (default to matching)
+  useEffect(() => {
+    if (groupedTDS.length > 0 && Object.keys(amountsIn26AS).length === 0) {
+      const initial: Record<string, number> = {};
+      for (const entry of groupedTDS) {
+        initial[entry.source] = entry.totalTDS;
+      }
+      setAmountsIn26AS(initial);
+    }
+  }, [groupedTDS, amountsIn26AS]);
+
+  const tdsEntries = useMemo(() => {
+    return groupedTDS.map((entry) => {
+      const in26AS = amountsIn26AS[entry.source] ?? entry.totalTDS;
+      return {
+        ...entry,
+        amountIn26AS: in26AS,
+        match: Math.abs(entry.totalTDS - in26AS) < 1,
+      };
+    });
+  }, [groupedTDS, amountsIn26AS]);
+
+  const totalCredited = tdsEntries.reduce((s, e) => s + e.totalTDS, 0);
   const totalIn26AS = tdsEntries.reduce((s, e) => s + e.amountIn26AS, 0);
   const mismatchCount = tdsEntries.filter((e) => !e.match).length;
   const mismatchAmount = tdsEntries
     .filter((e) => !e.match)
-    .reduce((s, e) => s + (e.amountCredited - e.amountIn26AS), 0);
+    .reduce((s, e) => s + (e.totalTDS - e.amountIn26AS), 0);
+
+  if (incomeEntries === undefined) {
+    return (
+      <Card>
+        <CardContent className="p-12 text-center text-text-secondary">
+          Loading TDS data...
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (tdsEntries.length === 0) {
+    return (
+      <Card>
+        <CardContent className="p-12 text-center text-text-secondary">
+          <FileText className="h-10 w-10 text-text-tertiary mx-auto mb-3" />
+          <p className="text-lg font-semibold text-text-primary">No TDS Entries</p>
+          <p className="text-sm mt-1">
+            No income entries with TDS deducted found for FY {fy}. TDS entries
+            will appear here once you add income with TDS.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -1434,7 +1787,7 @@ function TDSReconciliation() {
           <CardContent className="p-6">
             <p className="text-sm text-text-secondary">Difference Amount</p>
             <p className="text-2xl font-bold font-mono text-amber-400 mt-1">
-              {formatCurrency(mismatchAmount)}
+              {formatCurrency(Math.abs(mismatchAmount))}
             </p>
           </CardContent>
         </Card>
@@ -1447,6 +1800,9 @@ function TDSReconciliation() {
             <FileText className="h-5 w-5 text-accent-light" />
             TDS Entries
           </CardTitle>
+          <p className="text-xs text-text-tertiary">
+            Edit the &quot;In 26AS&quot; column to match your Form 26AS/AIS
+          </p>
         </CardHeader>
         <CardContent>
           <div className="rounded-lg border border-border overflow-hidden">
@@ -1455,7 +1811,7 @@ function TDSReconciliation() {
                 <tr className="bg-surface-tertiary">
                   <th className="text-left p-3 text-text-secondary font-medium">Source</th>
                   <th className="text-left p-3 text-text-secondary font-medium">Type</th>
-                  <th className="text-left p-3 text-text-secondary font-medium">TAN</th>
+                  <th className="text-center p-3 text-text-secondary font-medium">Entries</th>
                   <th className="text-right p-3 text-text-secondary font-medium">
                     TDS Credited
                   </th>
@@ -1475,18 +1831,24 @@ function TDSReconciliation() {
                   >
                     <td className="p-3 text-text-primary">{entry.source}</td>
                     <td className="p-3 text-text-secondary">{entry.type}</td>
-                    <td className="p-3 text-text-secondary font-mono text-xs">
-                      {entry.tan}
+                    <td className="p-3 text-center text-text-secondary">
+                      {entry.entryCount}
                     </td>
                     <td className="p-3 text-right text-text-primary font-mono">
-                      {formatCurrency(entry.amountCredited)}
+                      {formatCurrency(entry.totalTDS)}
                     </td>
-                    <td
-                      className={`p-3 text-right font-mono ${
-                        entry.match ? "text-text-primary" : "text-amber-400"
-                      }`}
-                    >
-                      {formatCurrency(entry.amountIn26AS)}
+                    <td className="p-3 text-right">
+                      <Input
+                        type="number"
+                        value={amountsIn26AS[entry.source] ?? entry.totalTDS}
+                        onChange={(e) =>
+                          setAmountsIn26AS((prev) => ({
+                            ...prev,
+                            [entry.source]: Number(e.target.value) || 0,
+                          }))
+                        }
+                        className="w-28 ml-auto text-right font-mono h-8 text-sm"
+                      />
                     </td>
                     <td className="p-3 text-center">
                       {entry.match ? (
@@ -1497,7 +1859,7 @@ function TDSReconciliation() {
                       ) : (
                         <Badge variant="warning" className="gap-1">
                           <AlertTriangle className="h-3 w-3" />
-                          Mismatch ({formatCurrency(entry.amountCredited - entry.amountIn26AS)})
+                          Mismatch ({formatCurrency(Math.abs(entry.totalTDS - entry.amountIn26AS))})
                         </Badge>
                       )}
                     </td>
@@ -1521,11 +1883,11 @@ function TDSReconciliation() {
                   {mismatchCount > 1 ? "es" : ""}
                 </h4>
                 <p className="text-text-secondary text-sm mt-1">
-                  A total of {formatCurrency(mismatchAmount)} is not reflected in
-                  Form 26AS/AIS. Contact the deductor(s) to ensure TDS is
-                  deposited with the government and the correct PAN is quoted.
-                  You can raise a grievance on the TRACES portal if the issue
-                  persists.
+                  A total of {formatCurrency(Math.abs(mismatchAmount))} is not
+                  reflected in Form 26AS/AIS. Contact the deductor(s) to ensure
+                  TDS is deposited with the government and the correct PAN is
+                  quoted. You can raise a grievance on the TRACES portal if the
+                  issue persists.
                 </p>
                 <div className="flex gap-3 mt-3">
                   <Button variant="outline" size="sm">
