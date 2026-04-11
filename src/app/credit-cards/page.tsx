@@ -597,27 +597,52 @@ export default function CreditCardsPage() {
   const handleFileDrop = useCallback(
     async (files: FileList | null) => {
       if (!files || files.length === 0) return;
-      const file = files[0];
       setParseError("");
       setParsedTransactions([]);
       setImportResult(null);
-      const result = await parseCCStatement(file, importFormat || undefined);
-      if (result.error) {
-        setParseError(result.error);
+
+      const allTxns: CCTransaction[] = [];
+      const errors: string[] = [];
+
+      for (let f = 0; f < files.length; f++) {
+        const file = files[f];
+        const result = await parseCCStatement(file, importFormat || undefined);
+        if (result.error) {
+          errors.push(`${file.name}: ${result.error}`);
+        } else {
+          allTxns.push(...result.transactions);
+        }
+      }
+
+      if (errors.length > 0 && allTxns.length === 0) {
+        setParseError(errors.join("\n"));
       } else {
-        setParsedTransactions(result.transactions);
-        // Auto-detect statement month from transaction dates
-        if (result.transactions.length > 0 && !importMonth) {
-          const dates = result.transactions.map((t) => t.date).filter(Boolean).sort();
+        if (errors.length > 0) {
+          setParseError(`${errors.length} file(s) had errors. ${allTxns.length} transactions parsed from ${files.length - errors.length} file(s).`);
+        }
+
+        // Dedup across files: same date + description prefix + amount
+        const seen = new Set<string>();
+        const deduped = allTxns.filter((t) => {
+          const key = `${t.date}|${t.description.substring(0, 40)}|${t.amount}|${t.type}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+
+        setParsedTransactions(deduped);
+
+        // Auto-detect statement month from latest transaction date
+        if (deduped.length > 0 && !importMonth) {
+          const dates = deduped.map((t) => t.date).filter(Boolean).sort();
           if (dates.length > 0) {
-            // Use the most common month, or the latest date's month
-            const latest = dates[dates.length - 1]; // YYYY-MM-DD
-            setImportMonth(latest.substring(0, 7)); // YYYY-MM
+            const latest = dates[dates.length - 1];
+            setImportMonth(latest.substring(0, 7));
           }
         }
       }
     },
-    [importFormat]
+    [importFormat, importMonth]
   );
 
   function toggleTransactionSelection(id: string) {
@@ -1713,9 +1738,9 @@ export default function CreditCardsPage() {
               >
                 <Upload className="h-8 w-8 mx-auto text-text-tertiary mb-2" />
                 <p className="text-sm text-text-secondary mb-1">
-                  Drag &amp; drop your statement here
+                  Drag &amp; drop your statements here
                 </p>
-                <p className="text-xs text-text-tertiary mb-3">or</p>
+                <p className="text-xs text-text-tertiary mb-3">Multiple files supported — or</p>
                 <label className="inline-flex items-center gap-2 cursor-pointer rounded-lg bg-white border border-gray-200 px-4 py-2 text-xs font-medium text-text-secondary hover:bg-gray-50 transition-colors">
                   <Upload className="h-3.5 w-3.5" />
                   Browse Files
@@ -1723,6 +1748,7 @@ export default function CreditCardsPage() {
                     type="file"
                     className="hidden"
                     accept=".csv,.xlsx,.xls,.pdf"
+                    multiple
                     onChange={(e) => handleFileDrop(e.target.files)}
                   />
                 </label>
