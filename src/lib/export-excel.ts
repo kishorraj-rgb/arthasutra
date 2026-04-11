@@ -248,3 +248,101 @@ export function exportExpensesToExcel(entries: ExpenseEntry[], fyLabel: string):
 
   downloadWorkbook(wb, `Expenses_FY_${fyLabel.replace(/\//g, "-")}.xlsx`);
 }
+
+// ---------------------------------------------------------------------------
+// Credit Card Transactions Export
+// ---------------------------------------------------------------------------
+
+interface CCEntry {
+  date: string;
+  amount: number;
+  type: "debit" | "credit";
+  description: string;
+  merchant_name?: string;
+  category: string;
+  credit_card_id: string;
+  match_status: string;
+  statement_month: string;
+}
+
+interface CCRow {
+  Date: string;
+  Merchant: string;
+  Description: string;
+  Category: string;
+  Subcategory: string;
+  Card: string;
+  Type: string;
+  Amount: string | number;
+  "Match Status": string;
+  "Statement Month": string;
+}
+
+export function exportCCToExcel(
+  entries: (CCEntry & { subcategory?: string })[],
+  cardMap: Map<string, { card_name: string; card_last4: string; issuer: string }>,
+  label: string
+): void {
+  const rows: CCRow[] = entries.map((e) => ({
+    Date: formatDateForTally(e.date),
+    Merchant: e.merchant_name || "",
+    Description: e.description,
+    Category: expenseCategoryLabel(e.category),
+    Subcategory: e.subcategory || "",
+    Card: (() => {
+      const card = cardMap.get(e.credit_card_id);
+      return card ? `${card.issuer} ..${card.card_last4}` : "";
+    })(),
+    Type: e.type === "credit" ? "Payment/Credit" : "Spend/Debit",
+    Amount: e.type === "credit" ? fmt(e.amount) : `-${fmt(e.amount)}`,
+    "Match Status": e.match_status === "matched" || e.match_status === "manual_match" ? "Matched" : e.match_status === "ignored" ? "Ignored" : "Unmatched",
+    "Statement Month": e.statement_month,
+  }));
+
+  // Summary
+  const totalSpends = entries.filter((e) => e.type === "debit").reduce((s, e) => s + e.amount, 0);
+  const totalPayments = entries.filter((e) => e.type === "credit").reduce((s, e) => s + e.amount, 0);
+
+  rows.push({
+    Date: "",
+    Merchant: "TOTAL",
+    Description: "",
+    Category: "",
+    Subcategory: "",
+    Card: "",
+    Type: "Spends",
+    Amount: fmt(totalSpends),
+    "Match Status": "",
+    "Statement Month": "",
+  });
+  rows.push({
+    Date: "",
+    Merchant: "",
+    Description: "",
+    Category: "",
+    Subcategory: "",
+    Card: "",
+    Type: "Payments",
+    Amount: fmt(totalPayments),
+    "Match Status": "",
+    "Statement Month": "",
+  });
+  rows.push({
+    Date: "",
+    Merchant: "",
+    Description: "",
+    Category: "",
+    Subcategory: "",
+    Card: "",
+    Type: "Outstanding",
+    Amount: fmt(totalSpends - totalPayments),
+    "Match Status": "",
+    "Statement Month": "",
+  });
+
+  const ws = XLSX.utils.json_to_sheet(rows);
+  autoSizeColumns(ws);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, `CC ${label}`.slice(0, 31));
+  downloadWorkbook(wb, `CreditCard_${label.replace(/[\s\/]/g, "_")}.xlsx`);
+}

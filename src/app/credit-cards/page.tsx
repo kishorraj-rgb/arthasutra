@@ -22,6 +22,7 @@ import {
 import { formatCurrency, EXPENSE_CATEGORIES, getCurrentFinancialYear, getFinancialYearDates } from "@/lib/utils";
 import { CreditCardVisual } from "@/components/credit-card-visual";
 import { parseCCStatement, CC_FORMAT_OPTIONS } from "@/lib/bank-statement/cc-parser";
+import { exportCCToExcel } from "@/lib/export-excel";
 import type { CCTransaction } from "@/lib/bank-statement/cc-parser";
 import {
   Plus,
@@ -45,6 +46,7 @@ import {
   TrendingUp,
   ChevronDown,
   ChevronUp,
+  Download,
 } from "lucide-react";
 
 // ─── Constants ──────────────────────────────────────────────────────────
@@ -908,6 +910,22 @@ export default function CreditCardsPage() {
                     ? `AI Categorize (${selectedIds.size})`
                     : "AI Categorize"}
               </span>
+            </Button>
+            <Button
+              variant="outline"
+              className="gap-2"
+              onClick={() => {
+                const entriesToExport = selectedIds.size > 0
+                  ? filtered.filter((t) => selectedIds.has(t._id))
+                  : filtered;
+                if (entriesToExport.length === 0) return;
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                exportCCToExcel(entriesToExport as any, cardMap, Array.from(selectedFYs).join(", "));
+              }}
+              disabled={filtered.length === 0}
+            >
+              <Download className="h-4 w-4" />
+              <span className="hidden sm:inline">Export Excel</span>
             </Button>
             <Button
               variant="outline"
