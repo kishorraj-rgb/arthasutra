@@ -179,8 +179,29 @@ export const importCCTransactions = mutation({
     ),
   },
   handler: async (ctx, args) => {
-    // Insert all transactions
+    // Fetch existing transactions for this card to dedup
+    const existing = await ctx.db
+      .query("cc_transactions")
+      .withIndex("by_card", (q) => q.eq("credit_card_id", args.creditCardId))
+      .collect();
+
+    // Build dedup key set: date + description_prefix + amount + type
+    const existingKeys = new Set(
+      existing.map((t) =>
+        `${t.date}|${t.description.substring(0, 40)}|${t.amount}|${t.type}`
+      )
+    );
+
+    let inserted = 0;
+    let skipped = 0;
+
     for (const tx of args.transactions) {
+      const key = `${tx.date}|${tx.description.substring(0, 40)}|${tx.amount}|${tx.type}`;
+      if (existingKeys.has(key)) {
+        skipped++;
+        continue;
+      }
+
       await ctx.db.insert("cc_transactions", {
         userId: args.userId,
         credit_card_id: args.creditCardId,
@@ -193,6 +214,8 @@ export const importCCTransactions = mutation({
         match_status: "unmatched",
         statement_month: args.statementMonth,
       });
+      existingKeys.add(key); // Prevent intra-batch dupes
+      inserted++;
     }
 
     // Create or update statement
@@ -226,7 +249,36 @@ export const importCCTransactions = mutation({
       });
     }
 
-    return { imported: args.transactions.length };
+    return { imported: inserted, skipped };
+  },
+});
+
+// Dedup existing CC transactions — removes duplicates keeping the first occurrence
+export const dedupCCTransactions = mutation({
+  args: { userId: v.id("users") },
+  handler: async (ctx, args) => {
+    const all = await ctx.db
+      .query("cc_transactions")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
+
+    const seen = new Set<string>();
+    let removed = 0;
+
+    // Sort by creation time so we keep the oldest
+    const sorted = all.sort((a, b) => a._creationTime - b._creationTime);
+
+    for (const t of sorted) {
+      const key = `${t.credit_card_id}|${t.date}|${t.description.substring(0, 40)}|${t.amount}|${t.type}`;
+      if (seen.has(key)) {
+        await ctx.db.delete(t._id);
+        removed++;
+      } else {
+        seen.add(key);
+      }
+    }
+
+    return { removed, kept: all.length - removed };
   },
 });
 

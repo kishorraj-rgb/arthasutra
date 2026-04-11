@@ -185,6 +185,7 @@ export default function CreditCardsPage() {
   const autoMatchTransactions = useMutation(api.creditCards.autoMatchTransactions);
   const updateCCTx = useMutation(api.creditCards.updateCCTransaction);
   const purgeTxns = useMutation(api.creditCards.purgeCCTransactions);
+  const dedupTxns = useMutation(api.creditCards.dedupCCTransactions);
 
   // ── Filter State ──────────────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState("");
@@ -913,17 +914,30 @@ export default function CreditCardsPage() {
               <span className="hidden sm:inline">Import Statement</span>
             </Button>
             {allTxns && allTxns.length > 0 && (
-              <Button
-                variant="outline"
-                className="gap-2 text-rose-400 border-rose-200 hover:bg-rose-50"
-                onClick={async () => {
-                  if (!user || !confirm(`Purge all ${allTxns.length} CC transactions? This cannot be undone.`)) return;
-                  await purgeTxns({ userId: user.userId });
-                }}
-              >
-                <Trash2 className="h-4 w-4" />
-                <span className="hidden sm:inline">Purge All</span>
-              </Button>
+              <>
+                <Button
+                  variant="outline"
+                  className="gap-2 text-amber-500 border-amber-200 hover:bg-amber-50"
+                  onClick={async () => {
+                    if (!user) return;
+                    const result = await dedupTxns({ userId: user.userId });
+                    alert(`Dedup complete: ${result.removed} duplicates removed, ${result.kept} kept.`);
+                  }}
+                >
+                  <span className="hidden sm:inline">Dedup</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  className="gap-2 text-rose-400 border-rose-200 hover:bg-rose-50"
+                  onClick={async () => {
+                    if (!user || !confirm(`Purge all ${allTxns.length} CC transactions? This cannot be undone.`)) return;
+                    await purgeTxns({ userId: user.userId });
+                  }}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  <span className="hidden sm:inline">Purge All</span>
+                </Button>
+              </>
             )}
             <Button
               onClick={openAddCard}
