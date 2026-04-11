@@ -282,6 +282,116 @@ export const dedupCCTransactions = mutation({
   },
 });
 
+// Delete specific CC transactions by ID
+export const deleteCCTransactions = mutation({
+  args: {
+    transactionIds: v.array(v.id("cc_transactions")),
+  },
+  handler: async (ctx, args) => {
+    for (const id of args.transactionIds) {
+      await ctx.db.delete(id);
+    }
+    return { deleted: args.transactionIds.length };
+  },
+});
+
+// Cross-card dedup: find transactions that exist on multiple cards
+export const findCrossCardDupes = query({
+  args: { userId: v.id("users") },
+  handler: async (ctx, args) => {
+    const all = await ctx.db
+      .query("cc_transactions")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
+
+    // Group by dedup key (without card ID)
+    const groups = new Map<string, typeof all>();
+    for (const t of all) {
+      const key = `${t.date}|${t.description.substring(0, 40)}|${t.amount}|${t.type}`;
+      const group = groups.get(key) || [];
+      group.push(t);
+      groups.set(key, group);
+    }
+
+    // Filter to only groups that span multiple cards
+    const dupes: Array<{
+      key: string;
+      date: string;
+      description: string;
+      amount: number;
+      type: string;
+      transactions: Array<{ _id: string; credit_card_id: string; _creationTime: number }>;
+    }> = [];
+
+    const entries = Array.from(groups.entries());
+    for (const [key, group] of entries) {
+      const cardIds = new Set(group.map((t: (typeof all)[0]) => t.credit_card_id));
+      if (cardIds.size > 1) {
+        dupes.push({
+          key,
+          date: group[0].date,
+          description: group[0].description,
+          amount: group[0].amount,
+          type: group[0].type,
+          transactions: group.map((t: (typeof all)[0]) => ({
+            _id: t._id,
+            credit_card_id: t.credit_card_id,
+            _creationTime: t._creationTime,
+          })),
+        });
+      }
+    }
+
+    return dupes.sort((a, b) => b.date.localeCompare(a.date));
+  },
+});
+
+// Reassign transactions from one card to another
+export const reassignCCTransactions = mutation({
+  args: {
+    userId: v.id("users"),
+    fromCardId: v.id("credit_cards"),
+    toCardId: v.id("credit_cards"),
+  },
+  handler: async (ctx, args) => {
+    if (args.fromCardId === args.toCardId) return { moved: 0 };
+
+    const txns = await ctx.db
+      .query("cc_transactions")
+      .withIndex("by_card", (q) => q.eq("credit_card_id", args.fromCardId))
+      .collect();
+
+    // Get existing transactions on the target card for dedup
+    const targetTxns = await ctx.db
+      .query("cc_transactions")
+      .withIndex("by_card", (q) => q.eq("credit_card_id", args.toCardId))
+      .collect();
+
+    const targetKeys = new Set(
+      targetTxns.map((t) => `${t.date}|${t.description.substring(0, 40)}|${t.amount}|${t.type}`)
+    );
+
+    let moved = 0;
+    let dupes = 0;
+
+    for (const t of txns) {
+      const key = `${t.date}|${t.description.substring(0, 40)}|${t.amount}|${t.type}`;
+      if (targetKeys.has(key)) {
+        // Already exists on target card — delete the duplicate from source
+        await ctx.db.delete(t._id);
+        dupes++;
+      } else {
+        // Move to target card
+        await ctx.db.patch(t._id, { credit_card_id: args.toCardId });
+        targetKeys.add(key);
+        moved++;
+      }
+    }
+
+    return { moved, dupes, total: txns.length };
+  },
+});
+
 // Purge all CC transactions for a card (for re-import after parsing fix)
 export const purgeCCTransactions = mutation({
   args: {

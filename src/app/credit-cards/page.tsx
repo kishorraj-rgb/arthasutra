@@ -188,6 +188,7 @@ export default function CreditCardsPage() {
   const updateCCTx = useMutation(api.creditCards.updateCCTransaction);
   const purgeTxns = useMutation(api.creditCards.purgeCCTransactions);
   const dedupTxns = useMutation(api.creditCards.dedupCCTransactions);
+  const crossCardDupes = useQuery(api.creditCards.findCrossCardDupes, user ? { userId: user.userId } : "skip");
 
   // ── Filter State ──────────────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState("");
@@ -507,13 +508,18 @@ export default function CreditCardsPage() {
     setBulkSubcategory("");
   };
 
+  const deleteCCTxns = useMutation(api.creditCards.deleteCCTransactions);
+
   const handleBulkDelete = async () => {
-    if (!confirm(`This will remove the category from ${selectedIds.size} transactions. Continue?`)) return;
-    for (const id of Array.from(selectedIds)) {
+    if (!confirm(`Permanently delete ${selectedIds.size} transaction(s)? This cannot be undone.`)) return;
+    setBulkUpdating(true);
+    try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await updateCCTx({ id: id as any, category: "", subcategory: "" });
+      await deleteCCTxns({ transactionIds: Array.from(selectedIds) as any });
+    } finally {
+      setBulkUpdating(false);
+      setSelectedIds(new Set());
     }
-    setSelectedIds(new Set());
   };
 
   // ── Card Dialog Handlers ──────────────────────────────────────────────
@@ -1063,11 +1069,48 @@ export default function CreditCardsPage() {
                   className="gap-2 text-amber-500 border-amber-200 hover:bg-amber-50"
                   onClick={async () => {
                     if (!user) return;
+                    // First do same-card dedup
                     const result = await dedupTxns({ userId: user.userId });
-                    alert(`Dedup complete: ${result.removed} duplicates removed, ${result.kept} kept.`);
+                    const crossCount = crossCardDupes?.length || 0;
+
+                    if (crossCount > 0) {
+                      // Cross-card dupes found — ask user which card to keep
+                      const toDelete: string[] = [];
+                      for (const dupe of crossCardDupes!) {
+                        const cardNames = dupe.transactions.map((t) => {
+                          const c = cardMap.get(t.credit_card_id);
+                          return c ? `${c.issuer} ..${c.card_last4}` : t.credit_card_id;
+                        });
+                        const keepIdx = prompt(
+                          `"${dupe.description.substring(0, 50)}" (₹${dupe.amount}) on ${dupe.date}\n` +
+                          `Found on ${dupe.transactions.length} cards:\n` +
+                          dupe.transactions.map((t, i) => `  ${i + 1}. ${cardNames[i]}`).join("\n") +
+                          `\n\nEnter number to KEEP (others will be deleted):`,
+                          "1"
+                        );
+                        if (keepIdx) {
+                          const keep = parseInt(keepIdx) - 1;
+                          dupe.transactions.forEach((t, i) => {
+                            if (i !== keep) toDelete.push(t._id);
+                          });
+                        }
+                      }
+
+                      if (toDelete.length > 0 && confirm(`Delete ${toDelete.length} cross-card duplicate(s)?`)) {
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        await deleteCCTxns({ transactionIds: toDelete as any });
+                        alert(`Done! Same-card: ${result.removed} removed. Cross-card: ${toDelete.length} removed.`);
+                      } else {
+                        alert(`Same-card dedup: ${result.removed} removed, ${result.kept} kept. ${crossCount} cross-card dupes skipped.`);
+                      }
+                    } else {
+                      alert(`Dedup complete: ${result.removed} duplicates removed, ${result.kept} kept. No cross-card dupes found.`);
+                    }
                   }}
                 >
-                  <span className="hidden sm:inline">Dedup</span>
+                  <span className="hidden sm:inline">
+                    Dedup{crossCardDupes && crossCardDupes.length > 0 ? ` (${crossCardDupes.length})` : ""}
+                  </span>
                 </Button>
                 <Button
                   variant="outline"
@@ -1162,7 +1205,7 @@ export default function CreditCardsPage() {
                           compact
                         />
                       </button>
-                      {/* Edit + Delete overlay */}
+                      {/* Edit + Purge + Delete overlay */}
                       <div className="absolute top-1 right-1 flex gap-0.5 opacity-0 group-hover/card:opacity-100 transition-opacity z-10">
                         <button
                           onClick={(e) => { e.stopPropagation(); openEditCard(card); }}
@@ -1172,14 +1215,27 @@ export default function CreditCardsPage() {
                           <Edit3 className="h-3 w-3" />
                         </button>
                         <button
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            if (!user) return;
+                            const count = (allTxns || []).filter((t) => t.credit_card_id === card._id).length;
+                            if (!confirm(`Purge all ${count} transactions for ${card.card_name} (..${card.card_last4})? The card itself will be kept.`)) return;
+                            await purgeTxns({ userId: user.userId, creditCardId: card._id });
+                          }}
+                          className="p-1 rounded bg-black/40 text-white hover:bg-amber-500/80 transition-colors"
+                          title="Purge transactions (keep card)"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                        <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (confirm(`Delete ${card.card_name}? All transactions will be removed.`)) {
+                            if (confirm(`Delete ${card.card_name}? Card + all transactions will be removed.`)) {
                               deleteCreditCard({ id: card._id });
                             }
                           }}
                           className="p-1 rounded bg-black/40 text-white hover:bg-red-500/80 transition-colors"
-                          title="Delete card"
+                          title="Delete card + transactions"
                         >
                           <Trash2 className="h-3 w-3" />
                         </button>
@@ -1494,8 +1550,9 @@ export default function CreditCardsPage() {
                       }
                       return null;
                     })()}
-                    <Button size="sm" variant="destructive" onClick={handleBulkDelete} className="text-xs h-7">
-                      <Trash2 className="h-3 w-3 mr-1" /> Clear
+                    <Button size="sm" variant="destructive" onClick={handleBulkDelete} disabled={bulkUpdating} className="text-xs h-7">
+                      {bulkUpdating ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Trash2 className="h-3 w-3 mr-1" />}
+                      Delete
                     </Button>
                   </div>
                 )}
