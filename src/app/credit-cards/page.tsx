@@ -758,9 +758,8 @@ export default function CreditCardsPage() {
           <div className="grid grid-cols-3 gap-1.5">
             <button
               onClick={() => setSelectedMonth("")}
-              className={`px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                !selectedMonth ? "bg-rose-500 text-white" : "bg-white border border-gray-200 text-text-secondary hover:bg-gray-100"
-              }`}
+              className="px-2 py-1.5 rounded-lg text-xs font-medium transition-colors"
+              style={!selectedMonth ? { backgroundColor: "#f43f5e", color: "white" } : undefined}
             >
               All
             </button>
@@ -769,8 +768,9 @@ export default function CreditCardsPage() {
                 key={m.label}
                 onClick={() => setSelectedMonth(selectedMonth === m.label ? "" : m.label)}
                 className={`px-2 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
-                  selectedMonth === m.label ? "bg-rose-500 text-white" : "bg-white border border-gray-200 text-text-secondary hover:bg-gray-100"
+                  selectedMonth !== m.label ? "bg-white border border-gray-200 text-text-secondary hover:bg-gray-100" : ""
                 }`}
+                style={selectedMonth === m.label ? { backgroundColor: "#f43f5e", color: "white" } : undefined}
               >
                 {m.label}
               </button>
@@ -1276,10 +1276,9 @@ export default function CreditCardsPage() {
                             key={page}
                             onClick={() => setCurrentPage(page)}
                             className={`w-8 h-8 text-xs rounded-lg transition-colors ${
-                              currentPage === page
-                                ? "bg-rose-500 text-white"
-                                : "hover:bg-gray-50 text-text-secondary"
+                              currentPage !== page ? "hover:bg-gray-50 text-text-secondary" : ""
                             }`}
+                            style={currentPage === page ? { backgroundColor: "#f43f5e", color: "white" } : undefined}
                           >
                             {page}
                           </button>
