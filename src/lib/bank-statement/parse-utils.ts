@@ -6,13 +6,30 @@ export function generateId(): string {
 
 export function findColumn(headers: string[], candidates: string[]): string | null {
   const normalizedHeaders = headers.map((h) => h.toLowerCase().trim());
+  // Pass 1: exact match (highest priority)
   for (const candidate of candidates) {
     const idx = normalizedHeaders.findIndex((h) => h === candidate.toLowerCase());
     if (idx !== -1) return headers[idx];
   }
-  // Partial match fallback
+  // Pass 2: partial match — candidate is a major part of the header
+  // Use word-boundary-aware matching to avoid "amount" → "intl.amount"
   for (const candidate of candidates) {
-    const idx = normalizedHeaders.findIndex((h) => h.includes(candidate.toLowerCase()) || candidate.toLowerCase().includes(h));
+    const c = candidate.toLowerCase();
+    const idx = normalizedHeaders.findIndex((h) => {
+      if (h === c) return true;
+      // Header starts with candidate (e.g. "amount(in rs)" starts with "amount")
+      // BUT reject if preceded by a letter (e.g. "intl.amount" — "amount" is mid-word-ish)
+      if (h.includes(c)) {
+        const pos = h.indexOf(c);
+        // Only match if candidate is at the start of the header
+        // or preceded by a clear separator (space, paren, slash, comma)
+        // Rejects: "intl.amount" for candidate "amount" (dot is not a clear separator)
+        if (pos === 0 || /[\s(/,_\-]/.test(h[pos - 1])) return true;
+      }
+      // Candidate contains header fully (e.g. "withdrawal amt." contains "withdrawal")
+      if (c.includes(h) && h.length >= 3) return true;
+      return false;
+    });
     if (idx !== -1) return headers[idx];
   }
   return null;
