@@ -695,11 +695,12 @@ export default function CreditCardsPage() {
             <button
               key={fy}
               onClick={() => toggleFY(fy)}
-              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all border ${
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                 selectedFYs.has(fy)
-                  ? "bg-rose-500/10 border-rose-400/30 text-rose-600 shadow-sm"
-                  : "border-gray-200 bg-white text-text-secondary hover:border-gray-300"
+                  ? "border-0 text-white shadow-sm"
+                  : "border border-gray-200 bg-white text-text-secondary hover:border-gray-300"
               }`}
+              style={selectedFYs.has(fy) ? { backgroundColor: "#f43f5e" } : undefined}
             >
               FY {fy}
             </button>
@@ -726,13 +727,16 @@ export default function CreditCardsPage() {
               <button
                 key={card._id}
                 onClick={() => setCardFilter(cardFilter === card._id ? "" : card._id)}
-                className={`flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium transition-all border ${
+                className={`flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition-all ${
                   cardFilter === card._id
-                    ? "bg-rose-50 border-rose-200 text-rose-600 shadow-sm"
-                    : "border-gray-200 bg-white text-text-secondary hover:border-gray-300 hover:bg-gray-50"
+                    ? "border-0 text-white shadow-sm"
+                    : "border border-gray-200 bg-white text-text-secondary hover:border-gray-300 hover:bg-gray-50"
                 }`}
+                style={cardFilter === card._id ? { backgroundColor: "#f43f5e" } : undefined}
               >
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-rose-100 text-[10px] font-bold text-rose-600">
+                <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${
+                  cardFilter === card._id ? "bg-white/30 text-white" : "bg-rose-100 text-rose-600"
+                }`}>
                   {card.issuer.charAt(0)}
                 </span>
                 <span className="truncate">{card.issuer}</span>
@@ -804,11 +808,12 @@ export default function CreditCardsPage() {
             <button
               key={opt.value}
               onClick={() => setMatchStatusFilter(matchStatusFilter === opt.value ? "" : opt.value)}
-              className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all border ${
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                 matchStatusFilter === opt.value
-                  ? "bg-rose-50 border-rose-200 text-rose-600 shadow-sm"
-                  : "border-gray-200 bg-white text-text-secondary hover:border-gray-300 hover:bg-gray-50"
+                  ? "border-0 text-white shadow-sm"
+                  : "border border-gray-200 bg-white text-text-secondary hover:border-gray-300 hover:bg-gray-50"
               }`}
+              style={matchStatusFilter === opt.value ? { backgroundColor: "#f43f5e" } : undefined}
             >
               {opt.label}
             </button>
