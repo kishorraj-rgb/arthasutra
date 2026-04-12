@@ -139,6 +139,32 @@ export default defineSchema({
     .index("by_user", ["userId"])
     .index("by_user_period", ["userId", "period"]),
 
+  gst_cash_ledger: defineTable({
+    userId: v.id("users"),
+    srNo: v.number(),
+    date: v.string(),
+    referenceNo: v.string(),
+    taxPeriod: v.string(),
+    description: v.string(),
+    txnType: v.string(),
+    // Tax amounts debited/credited
+    igst: v.number(),
+    cgst: v.number(),
+    sgst: v.number(),
+    cess: v.number(),
+    total: v.number(),
+    // Interest components
+    interestIgst: v.number(),
+    interestCgst: v.number(),
+    interestSgst: v.number(),
+    // Running balance after this txn
+    balanceIgst: v.number(),
+    balanceCgst: v.number(),
+    balanceSgst: v.number(),
+    balanceCess: v.number(),
+    balanceTotal: v.number(),
+  }).index("by_user", ["userId"]),
+
   reminders: defineTable({
     userId: v.id("users"),
     type: v.union(

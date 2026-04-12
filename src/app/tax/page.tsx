@@ -15,6 +15,12 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   formatCurrency,
   getCurrentFinancialYear,
   getFinancialYearDates,
@@ -29,6 +35,9 @@ import {
   IndianRupee,
   ArrowRight,
   X,
+  Upload,
+  Loader2,
+  Download,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -1509,6 +1518,16 @@ function GSTTracker({
   const gstFilings = useQuery(api.tax.getGSTFilings, { userId });
   const markFiled = useMutation(api.tax.markGSTFiled);
 
+  // Cash Ledger from GST portal
+  const cashLedgerSummary = useQuery(api.gstLedger.getCashLedgerSummary, { userId });
+  const importCashLedger = useMutation(api.gstLedger.importCashLedger);
+  const clearCashLedger = useMutation(api.gstLedger.clearCashLedger);
+
+  // Import dialog state
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [importPreview, setImportPreview] = useState<any>(null);
+  const [importing, setImporting] = useState(false);
+
   const [startYearStr] = fy.split("-");
   const startYear = parseInt(startYearStr);
   const { start: fyStart, end: fyEnd } = getFinancialYearDates(fy);
@@ -1643,6 +1662,52 @@ function GSTTracker({
     }
   }
 
+  // Handle Cash Ledger CSV file
+  async function handleCashLedgerFile(file: File) {
+    const text = await file.text();
+    const { parseGSTCashLedger } = await import("@/lib/gst-cash-ledger-parser");
+    const result = parseGSTCashLedger(text);
+    setImportPreview(result);
+  }
+
+  async function handleImportCashLedger() {
+    if (!importPreview?.entries?.length) return;
+    setImporting(true);
+    try {
+      const result = await importCashLedger({
+        userId,
+        entries: importPreview.entries.map((e: any) => ({
+          srNo: e.srNo,
+          date: e.date,
+          referenceNo: e.referenceNo,
+          taxPeriod: e.taxPeriod,
+          description: e.description,
+          txnType: e.txnType,
+          igst: e.igst,
+          cgst: e.cgst,
+          sgst: e.sgst,
+          cess: e.cess,
+          total: e.total,
+          interestIgst: e.interestIgst,
+          interestCgst: e.interestCgst,
+          interestSgst: e.interestSgst,
+          balanceIgst: e.balanceIgst,
+          balanceCgst: e.balanceCgst,
+          balanceSgst: e.balanceSgst,
+          balanceCess: e.balanceCess,
+          balanceTotal: e.balanceTotal,
+        })),
+      });
+      setShowImportDialog(false);
+      setImportPreview(null);
+      console.log("Imported:", result);
+    } catch (err) {
+      console.error("Import failed:", err);
+    } finally {
+      setImporting(false);
+    }
+  }
+
   if (allInvoices === undefined || expenseEntries === undefined) {
     return (
       <Card>
@@ -1653,17 +1718,54 @@ function GSTTracker({
     );
   }
 
+  // Build reconciliation data if cash ledger is available
+  const reconciliation = useMemo(() => {
+    if (!cashLedgerSummary?.periodBreakdown) return null;
+    const pb = cashLedgerSummary.periodBreakdown;
+    // Map FY_MONTHS to check: for each month, what did ArthaSutra compute vs what the portal debited
+    return gstData
+      .filter((m) => m.invoiceCount > 0 || Object.keys(pb).some((p) => {
+        const iso = normalizeCashLedgerPeriod(p);
+        return iso === m.monthStr;
+      }))
+      .map((m) => {
+        // Find matching cash ledger period
+        const matchingPeriod = Object.entries(pb).find(([p]) => {
+          return normalizeCashLedgerPeriod(p) === m.monthStr;
+        });
+        const portalData = matchingPeriod ? matchingPeriod[1] : null;
+        return {
+          month: m.month,
+          monthStr: m.monthStr,
+          computed: m.totalGst,
+          portal: portalData ? (portalData as any).total : null,
+          interest: portalData ? (portalData as any).interest : 0,
+          filed: !!portalData,
+          match: portalData
+            ? Math.abs(m.totalGst - (portalData as any).total + ((portalData as any).interest || 0)) < 100
+            : false,
+        };
+      });
+  }, [gstData, cashLedgerSummary]);
+
   return (
     <div className="space-y-6">
-      {/* Source Info */}
+      {/* Source Info + Import Button */}
       <Card className="border-accent/20 bg-accent/5">
-        <CardContent className="p-4 flex items-center gap-3">
-          <ArrowRight className="h-4 w-4 text-accent-light shrink-0" />
-          <span className="text-text-secondary text-sm">
-            GST data sourced from <span className="font-semibold text-accent-light">{totalInvoiceCount} invoices</span> raised in FY {fy}.
-            Revenue &amp; Output GST come from your Invoice section.
-            {totalInput > 0 && <> Input GST (ITC) from expense entries with GST paid.</>}
-          </span>
+        <CardContent className="p-4 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <ArrowRight className="h-4 w-4 text-accent-light shrink-0" />
+            <span className="text-text-secondary text-sm">
+              GST from <span className="font-semibold text-accent-light">{totalInvoiceCount} invoices</span> in FY {fy}.
+              {cashLedgerSummary && (
+                <> | Cash Ledger: <span className="font-semibold text-emerald-500">{cashLedgerSummary.entryCount} entries</span>, Balance: <span className="font-mono font-semibold">{formatCurrency(cashLedgerSummary.currentBalance.total)}</span></>
+              )}
+            </span>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => setShowImportDialog(true)}>
+            <Upload className="h-3.5 w-3.5 mr-1.5" />
+            Import Cash Ledger
+          </Button>
         </CardContent>
       </Card>
 
@@ -1960,8 +2062,236 @@ function GSTTracker({
           </div>
         </CardContent>
       </Card>
+
+      {/* ── Cash Ledger Reconciliation ─────────────────────────────────── */}
+      {cashLedgerSummary && reconciliation && reconciliation.length > 0 && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <Download className="h-5 w-5 text-accent-light" />
+                GST Portal Reconciliation
+              </CardTitle>
+              <div className="flex items-center gap-3 text-xs">
+                <span className="text-text-tertiary">
+                  Interest paid: <span className="font-mono font-semibold text-rose-400">{formatCurrency(cashLedgerSummary.totalInterest)}</span>
+                </span>
+                <span className="text-text-tertiary">
+                  Balance: <span className="font-mono font-semibold text-emerald-400">{formatCurrency(cashLedgerSummary.currentBalance.total)}</span>
+                </span>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {/* Summary row */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+              <div className="rounded-lg bg-surface-tertiary/50 p-3 border border-border-light">
+                <p className="text-[10px] text-text-tertiary uppercase">Total Deposited</p>
+                <p className="font-mono font-semibold text-text-primary">{formatCurrency(cashLedgerSummary.totalDeposited)}</p>
+              </div>
+              <div className="rounded-lg bg-surface-tertiary/50 p-3 border border-border-light">
+                <p className="text-[10px] text-text-tertiary uppercase">Total Debited</p>
+                <p className="font-mono font-semibold text-rose-400">{formatCurrency(cashLedgerSummary.totalDebited)}</p>
+              </div>
+              <div className="rounded-lg bg-surface-tertiary/50 p-3 border border-border-light">
+                <p className="text-[10px] text-text-tertiary uppercase">Interest/Penalty</p>
+                <p className="font-mono font-semibold text-amber-400">{formatCurrency(cashLedgerSummary.totalInterest)}</p>
+              </div>
+              <div className="rounded-lg bg-emerald-500/5 p-3 border border-emerald-500/20">
+                <p className="text-[10px] text-text-tertiary uppercase">Cash Balance</p>
+                <p className="font-mono font-bold text-emerald-500">{formatCurrency(cashLedgerSummary.currentBalance.total)}</p>
+              </div>
+            </div>
+
+            {/* Per-month reconciliation table */}
+            <div className="rounded-lg border border-border overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-surface-tertiary">
+                    <th className="text-left p-3 text-text-secondary font-medium">Month</th>
+                    <th className="text-right p-3 text-text-secondary font-medium">ArthaSutra GST</th>
+                    <th className="text-right p-3 text-text-secondary font-medium">Portal Debited</th>
+                    <th className="text-right p-3 text-text-secondary font-medium">Interest</th>
+                    <th className="text-center p-3 text-text-secondary font-medium">Filed</th>
+                    <th className="text-center p-3 text-text-secondary font-medium">Match</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {reconciliation.map((r, i) => (
+                    <tr key={i} className="border-t border-border-light">
+                      <td className="p-3 text-text-primary">{r.month}</td>
+                      <td className="p-3 text-right font-mono text-text-primary">
+                        {r.computed > 0 ? formatCurrency(r.computed) : "-"}
+                      </td>
+                      <td className="p-3 text-right font-mono text-rose-400">
+                        {r.portal !== null ? formatCurrency(r.portal) : "-"}
+                      </td>
+                      <td className="p-3 text-right font-mono text-amber-400">
+                        {r.interest > 0 ? formatCurrency(r.interest) : "-"}
+                      </td>
+                      <td className="p-3 text-center">
+                        {r.filed ? (
+                          <CheckCircle className="h-4 w-4 text-emerald-400 mx-auto" />
+                        ) : (
+                          <AlertTriangle className="h-4 w-4 text-amber-400 mx-auto" />
+                        )}
+                      </td>
+                      <td className="p-3 text-center">
+                        {r.portal === null ? (
+                          <span className="text-text-tertiary text-xs">-</span>
+                        ) : r.match ? (
+                          <CheckCircle className="h-4 w-4 text-emerald-400 mx-auto" />
+                        ) : (
+                          <span className="text-xs font-mono text-rose-400">
+                            {formatCurrency(Math.abs(r.computed - (r.portal - r.interest)))}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── Import Cash Ledger Dialog ──────────────────────────────────── */}
+      <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Upload className="h-5 w-5 text-accent-light" />
+              Import GST Cash Ledger
+            </DialogTitle>
+          </DialogHeader>
+
+          {!importPreview ? (
+            <div className="py-8">
+              <div className="border-2 border-dashed border-border-light rounded-xl p-8 text-center">
+                <Download className="h-10 w-10 text-text-tertiary mx-auto mb-3" />
+                <p className="text-text-secondary text-sm mb-1">
+                  Upload your Electronic Cash Ledger CSV
+                </p>
+                <p className="text-text-tertiary text-xs mb-4">
+                  Download from GST Portal → Services → Ledgers → Electronic Cash Ledger → Save as Excel
+                </p>
+                <label className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-accent text-white text-sm font-medium cursor-pointer hover:bg-accent/90 transition-colors">
+                  <Upload className="h-4 w-4" />
+                  Choose CSV File
+                  <input
+                    type="file"
+                    accept=".csv,.xls,.xlsx"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) handleCashLedgerFile(f);
+                    }}
+                  />
+                </label>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Preview Info */}
+              <div className="flex items-center gap-4 text-sm">
+                <span className="text-text-tertiary">GSTIN: <span className="font-mono text-text-primary">{importPreview.gstin}</span></span>
+                <span className="text-text-tertiary">Entries: <span className="font-semibold text-text-primary">{importPreview.entries.length}</span></span>
+                <span className="text-text-tertiary">Period: {importPreview.fromDate} → {importPreview.toDate}</span>
+              </div>
+
+              {/* Preview Table */}
+              <div className="rounded-lg border border-border overflow-x-auto max-h-[400px]">
+                <table className="w-full text-xs">
+                  <thead className="sticky top-0">
+                    <tr className="bg-surface-tertiary">
+                      <th className="p-2 text-left text-text-secondary">#</th>
+                      <th className="p-2 text-left text-text-secondary">Date</th>
+                      <th className="p-2 text-left text-text-secondary">Type</th>
+                      <th className="p-2 text-left text-text-secondary">Period</th>
+                      <th className="p-2 text-left text-text-secondary">Description</th>
+                      <th className="p-2 text-right text-text-secondary">IGST</th>
+                      <th className="p-2 text-right text-text-secondary">CGST</th>
+                      <th className="p-2 text-right text-text-secondary">SGST</th>
+                      <th className="p-2 text-right text-text-secondary">Total</th>
+                      <th className="p-2 text-right text-text-secondary">Balance</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {importPreview.entries.map((e: any, i: number) => (
+                      <tr key={i} className="border-t border-border-light">
+                        <td className="p-2 text-text-tertiary">{e.srNo}</td>
+                        <td className="p-2 text-text-primary whitespace-nowrap">{e.date}</td>
+                        <td className="p-2">
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                            e.txnType === "Credit"
+                              ? "bg-emerald-50 text-emerald-600"
+                              : "bg-rose-50 text-rose-600"
+                          }`}>
+                            {e.txnType}
+                          </span>
+                        </td>
+                        <td className="p-2 text-text-secondary">{e.taxPeriod}</td>
+                        <td className="p-2 text-text-secondary truncate max-w-[150px]">{e.description}</td>
+                        <td className="p-2 text-right font-mono">{e.igst > 0 ? formatCurrency(e.igst) : "-"}</td>
+                        <td className="p-2 text-right font-mono">{e.cgst > 0 ? formatCurrency(e.cgst) : "-"}</td>
+                        <td className="p-2 text-right font-mono">{e.sgst > 0 ? formatCurrency(e.sgst) : "-"}</td>
+                        <td className="p-2 text-right font-mono font-semibold">{formatCurrency(e.total)}</td>
+                        <td className="p-2 text-right font-mono text-text-tertiary">{formatCurrency(e.balanceTotal)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Closing Balance */}
+              {importPreview.closingBalance && (
+                <div className="flex items-center gap-4 text-sm p-3 rounded-lg bg-surface-tertiary">
+                  <span className="text-text-secondary font-medium">Closing Balance:</span>
+                  <span className="font-mono font-bold text-text-primary">
+                    {formatCurrency(
+                      importPreview.closingBalance.igst +
+                      importPreview.closingBalance.cgst +
+                      importPreview.closingBalance.sgst +
+                      importPreview.closingBalance.cess
+                    )}
+                  </span>
+                  <span className="text-text-tertiary text-xs">
+                    (IGST: {formatCurrency(importPreview.closingBalance.igst)} | CGST: {formatCurrency(importPreview.closingBalance.cgst)} | SGST: {formatCurrency(importPreview.closingBalance.sgst)})
+                  </span>
+                </div>
+              )}
+
+              <div className="flex justify-between">
+                <Button variant="ghost" onClick={() => setImportPreview(null)}>
+                  ← Choose Different File
+                </Button>
+                <Button onClick={handleImportCashLedger} disabled={importing}>
+                  {importing && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  Import {importPreview.entries.length} Entries
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
+}
+
+/** Normalize cash ledger period "May-25" → "2025-05" */
+function normalizeCashLedgerPeriod(p: string): string {
+  const monthMap: Record<string, string> = {
+    jan: "01", feb: "02", mar: "03", apr: "04",
+    may: "05", jun: "06", jul: "07", aug: "08",
+    sep: "09", oct: "10", nov: "11", dec: "12",
+  };
+  const match = p.match(/^([A-Za-z]{3})-(\d{2})$/);
+  if (match) {
+    const month = monthMap[match[1].toLowerCase()];
+    if (month) return `20${match[2]}-${month}`;
+  }
+  return "";
 }
 
 // ===========================================================================
