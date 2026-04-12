@@ -366,20 +366,59 @@ function IncomeTaxCalculator({
     { type: "freelance", subcat: "" },
   ]);
 
-  // Compute income breakdown by type
+  // Fetch invoices for GST cross-reference
+  const allInvoices = useQuery(api.invoices.getInvoices, { userId });
+
+  // Compute income breakdown by type — including GST tracking
   const incomeByType = useMemo(() => {
-    const map: Record<string, { total: number; count: number; subcats: Record<string, number> }> = {};
+    const map: Record<string, {
+      total: number; gstCollected: number; netOfGst: number;
+      count: number; subcats: Record<string, number>;
+      subcatGst: Record<string, number>;
+    }> = {};
+
     for (const e of (incomeEntries ?? [])) {
       if (e.date < fyStart || e.date > fyEnd) continue;
       const t = e.type || "other";
-      if (!map[t]) map[t] = { total: 0, count: 0, subcats: {} };
+      if (!map[t]) map[t] = { total: 0, gstCollected: 0, netOfGst: 0, count: 0, subcats: {}, subcatGst: {} };
       map[t].total += e.amount;
+      map[t].gstCollected += e.gst_collected || 0;
       map[t].count++;
       const sub = (e as Record<string, unknown>).subcategory as string || "";
-      if (sub) map[t].subcats[sub] = (map[t].subcats[sub] || 0) + e.amount;
+      if (sub) {
+        map[t].subcats[sub] = (map[t].subcats[sub] || 0) + e.amount;
+        map[t].subcatGst[sub] = (map[t].subcatGst[sub] || 0) + (e.gst_collected || 0);
+      }
     }
+
+    // Cross-reference with invoices: for freelance/consulting income entries
+    // that are linked to invoices, use the invoice's GST amount
+    if (allInvoices) {
+      for (const inv of allInvoices) {
+        if (inv.status === "cancelled" || !inv.linkedIncomeId) continue;
+        if (inv.gstTotal > 0) {
+          // Find the income entry this invoice is linked to
+          const linkedEntry = (incomeEntries ?? []).find((e: any) => e._id === inv.linkedIncomeId);
+          if (linkedEntry && linkedEntry.date >= fyStart && linkedEntry.date <= fyEnd) {
+            const t = linkedEntry.type || "other";
+            if (map[t]) {
+              // If gst_collected wasn't set on the income entry, use invoice GST
+              if (!linkedEntry.gst_collected || linkedEntry.gst_collected === 0) {
+                map[t].gstCollected += inv.gstTotal;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Calculate net of GST for each type
+    for (const [, data] of Object.entries(map)) {
+      data.netOfGst = data.total - data.gstCollected;
+    }
+
     return map;
-  }, [incomeEntries, fyStart, fyEnd]);
+  }, [incomeEntries, allInvoices, fyStart, fyEnd]);
 
   const INCOME_TYPE_OPTIONS = [
     { value: "salary", label: "Salary" },
@@ -390,20 +429,28 @@ function IncomeTaxCalculator({
     { value: "other", label: "Other" },
   ];
 
+  const [excludeGst, setExcludeGst] = useState(true); // Default: exclude GST from taxable income
+
   // Calculate gross income from selected sources
-  const selectedGrossIncome = useMemo(() => {
+  const { selectedGrossIncome, totalGstInIncome } = useMemo(() => {
     let total = 0;
+    let gst = 0;
     for (const src of incomeSources) {
       const typeData = incomeByType[src.type];
       if (!typeData) continue;
       if (src.subcat) {
         total += typeData.subcats[src.subcat] || 0;
+        gst += typeData.subcatGst[src.subcat] || 0;
       } else {
         total += typeData.total;
+        gst += typeData.gstCollected;
       }
     }
-    return total;
-  }, [incomeSources, incomeByType]);
+    return {
+      selectedGrossIncome: excludeGst ? total - gst : total,
+      totalGstInIncome: gst,
+    };
+  }, [incomeSources, incomeByType, excludeGst]);
 
   // Editable state - seeded from autoValues
   const [grossIncome, setGrossIncome] = useState(0);
@@ -632,8 +679,35 @@ function IncomeTaxCalculator({
                 })}
               </div>
 
+              {/* GST Exclusion */}
+              {totalGstInIncome > 0 && (
+                <div className="rounded-lg border border-purple-200 bg-purple-50/50 p-3 space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={excludeGst}
+                      onChange={(e) => setExcludeGst(e.target.checked)}
+                      className="rounded border-gray-300 text-purple-600 focus:ring-purple-400/20"
+                      id="exclude-gst"
+                    />
+                    <label htmlFor="exclude-gst" className="text-xs font-medium text-purple-700 cursor-pointer">
+                      Exclude GST from taxable income
+                    </label>
+                  </div>
+                  <div className="flex justify-between text-[11px]">
+                    <span className="text-purple-500">GST collected (pass-through to govt)</span>
+                    <span className="text-purple-700 stat-number font-medium">{formatCurrency(totalGstInIncome)}</span>
+                  </div>
+                  {allInvoices && allInvoices.filter((i: any) => i.status === "paid" && i.gstTotal > 0).length > 0 && (
+                    <p className="text-[10px] text-purple-400">
+                      Cross-verified with {allInvoices.filter((i: any) => i.status === "paid" && i.gstTotal > 0).length} paid invoices
+                    </p>
+                  )}
+                </div>
+              )}
+
               <div className="flex items-center justify-between pt-2 border-t border-gray-100">
-                <span className="text-xs font-semibold text-text-primary">Gross Annual Income</span>
+                <span className="text-xs font-semibold text-text-primary">Gross Taxable Income</span>
                 <span className="text-sm font-bold text-accent-light stat-number">{formatCurrency(grossIncome)}</span>
               </div>
               <Input
