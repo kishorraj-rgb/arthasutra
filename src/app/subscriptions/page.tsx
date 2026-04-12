@@ -195,14 +195,27 @@ export default function SubscriptionsPage() {
   async function handleAddDetected(suggestion: any) {
     if (!user) return;
     try {
-      // Use the subcategory as name if available (user's manual categorization is more accurate)
       const displayName = suggestion.subcategory || suggestion.name;
+
+      // Map to valid subscription category enum
+      const validCategories = ["entertainment", "productivity", "cloud_storage", "insurance", "utility", "fitness", "education", "other"];
+      let category = "other";
+      const nameLower = displayName.toLowerCase();
+      if (/netflix|hotstar|spotify|zee5|sony|youtube|disney|prime/i.test(nameLower)) category = "entertainment";
+      else if (/adobe|microsoft|notion|figma|canva|cursor|github|openai|claude|vercel|slack/i.test(nameLower)) category = "productivity";
+      else if (/google.*cloud|aws|icloud|dropbox|onedrive/i.test(nameLower)) category = "cloud_storage";
+      else if (/insurance|lic|hdfc.*life/i.test(nameLower)) category = "insurance";
+      else if (/airtel|jio|vodafone|vi.*prepaid|electricity|water|gas/i.test(nameLower)) category = "utility";
+      else if (/gym|cult|fitness|yoga/i.test(nameLower)) category = "fitness";
+      else if (/linkedin|coursera|udemy|skillshare/i.test(nameLower)) category = "education";
+      if (!validCategories.includes(category)) category = "other";
+
       await addSubscription({
         userId: user.userId,
         name: displayName,
         amount: suggestion.amount,
         frequency: suggestion.frequency as "monthly" | "quarterly" | "half_yearly" | "yearly",
-        category: suggestion.category || "subscription",
+        category: category as any,
         next_renewal_date: suggestion.lastDate || new Date().toISOString().split("T")[0],
         auto_renew: true,
         payment_method: suggestion.source === "cc" ? "credit_card" : "upi",

@@ -964,9 +964,10 @@ export default function InvoicesPage() {
                         return (
                           <tr
                             key={inv._id}
-                            className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors"
+                            className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors cursor-pointer"
+                            onClick={() => setViewingInvoice(inv)}
                           >
-                            <td className="py-3 px-3 font-mono text-indigo-600 font-medium">
+                            <td className="py-3 px-3 font-mono text-indigo-600 font-medium hover:underline">
                               {inv.invoiceNumber}
                             </td>
                             <td className="py-3 px-3 text-gray-600">
@@ -1031,8 +1032,17 @@ export default function InvoicesPage() {
                               >
                                 {getStatusLabel(inv.status)}
                               </span>
+                              {/* Linked payment stub */}
+                              {inv.linkedIncomeId && (() => {
+                                const linked = (incomeEntries ?? []).find((e: any) => e._id === inv.linkedIncomeId);
+                                return linked ? (
+                                  <p className="text-[9px] text-emerald-500 mt-1 truncate max-w-[120px]" title={`${linked.date} — ${formatCurrency(linked.amount)} — ${linked.description?.substring(0, 30)}`}>
+                                    ✓ Linked: {new Date(linked.date).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })} — {formatCurrency(linked.amount)}
+                                  </p>
+                                ) : null;
+                              })()}
                             </td>
-                            <td className="py-3 px-3 text-right">
+                            <td className="py-3 px-3 text-right" onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center justify-end gap-1">
                                 {inv.status !== "paid" && inv.status !== "cancelled" && (
                                   <Button
