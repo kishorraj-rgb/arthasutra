@@ -746,7 +746,7 @@ export default function InvoicesPage() {
               <span className="hidden sm:inline">{uploadingInvoice ? "Scanning..." : "Upload Invoice"}</span>
             </span>
           </label>
-          <Button onClick={openNewInvoice} className="bg-indigo-600 hover:bg-indigo-700">
+          <Button onClick={openNewInvoice} style={{ backgroundColor: "#4f46e5", color: "white" }}>
             <Plus className="h-4 w-4 mr-2" />
             New Invoice
           </Button>
@@ -981,7 +981,7 @@ export default function InvoicesPage() {
                   <Plus className="h-3.5 w-3.5 mr-1" />
                   Bank Account
                 </Button>
-                <Button size="sm" onClick={openNewSeller} className="bg-indigo-600 hover:bg-indigo-700">
+                <Button size="sm" onClick={openNewSeller} style={{ backgroundColor: "#4f46e5", color: "white" }}>
                   <Plus className="h-3.5 w-3.5 mr-1" />
                   Add Seller
                 </Button>
@@ -1069,7 +1069,7 @@ export default function InvoicesPage() {
           <Card>
             <CardHeader className="flex-row items-center justify-between">
               <CardTitle className="text-base">Customer Directory</CardTitle>
-              <Button size="sm" onClick={openNewBuyer} className="bg-indigo-600 hover:bg-indigo-700">
+              <Button size="sm" onClick={openNewBuyer} style={{ backgroundColor: "#4f46e5", color: "white" }}>
                 <Plus className="h-3.5 w-3.5 mr-1" />
                 Add Customer
               </Button>
@@ -1138,7 +1138,7 @@ export default function InvoicesPage() {
           <Card>
             <CardHeader className="flex-row items-center justify-between">
               <CardTitle className="text-base">Item Catalog</CardTitle>
-              <Button size="sm" onClick={openNewProduct} className="bg-indigo-600 hover:bg-indigo-700">
+              <Button size="sm" onClick={openNewProduct} style={{ backgroundColor: "#4f46e5", color: "white" }}>
                 <Plus className="h-3.5 w-3.5 mr-1" />
                 Add Item
               </Button>
@@ -1626,7 +1626,7 @@ export default function InvoicesPage() {
             <Button
               onClick={() => handleSaveInvoice("draft")}
               disabled={saving}
-              className="bg-indigo-600 hover:bg-indigo-700"
+              style={{ backgroundColor: "#4f46e5", color: "white" }}
             >
               {saving ? (
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -1794,7 +1794,7 @@ export default function InvoicesPage() {
             <Button
               onClick={handleAddPayment}
               disabled={saving || !paymentAmount}
-              className="bg-emerald-600 hover:bg-emerald-700"
+              style={{ backgroundColor: "#059669", color: "white" }}
             >
               {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
               Record Payment
@@ -1902,7 +1902,7 @@ export default function InvoicesPage() {
             <Button
               onClick={handleSaveSeller}
               disabled={saving || !sellerForm.name}
-              className="bg-indigo-600 hover:bg-indigo-700"
+              style={{ backgroundColor: "#4f46e5", color: "white" }}
             >
               {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
               {editingSellerId ? "Update" : "Add Seller"}
@@ -2006,7 +2006,7 @@ export default function InvoicesPage() {
             <Button
               onClick={handleSaveBuyer}
               disabled={saving || !buyerForm.name}
-              className="bg-indigo-600 hover:bg-indigo-700"
+              style={{ backgroundColor: "#4f46e5", color: "white" }}
             >
               {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
               {editingBuyerId ? "Update" : "Add Customer"}
@@ -2102,7 +2102,7 @@ export default function InvoicesPage() {
             <Button
               onClick={handleSaveProduct}
               disabled={saving || !productForm.name}
-              className="bg-indigo-600 hover:bg-indigo-700"
+              style={{ backgroundColor: "#4f46e5", color: "white" }}
             >
               {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
               {editingProductId ? "Update" : "Add Item"}
@@ -2213,7 +2213,7 @@ export default function InvoicesPage() {
                 !bankForm.ifscCode ||
                 !bankForm.bankName
               }
-              className="bg-indigo-600 hover:bg-indigo-700"
+              style={{ backgroundColor: "#4f46e5", color: "white" }}
             >
               {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
               Add Bank
