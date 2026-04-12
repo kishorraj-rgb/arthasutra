@@ -1523,10 +1523,23 @@ function GSTTracker({
   const importCashLedger = useMutation(api.gstLedger.importCashLedger);
   const clearCashLedger = useMutation(api.gstLedger.clearCashLedger);
 
+  // Purchase Bills / ITC
+  const purchaseBills = useQuery(api.purchaseBills.getPurchaseBills, { userId });
+  const itcSummary = useQuery(api.purchaseBills.getITCSummary, { userId, financialYear: fy });
+  const addPurchaseBill = useMutation(api.purchaseBills.addPurchaseBill);
+  const deletePurchaseBill = useMutation(api.purchaseBills.deletePurchaseBill);
+  const updatePurchaseBill = useMutation(api.purchaseBills.updatePurchaseBill);
+
   // Import dialog state
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [importPreview, setImportPreview] = useState<any>(null);
   const [importing, setImporting] = useState(false);
+
+  // Purchase bill upload state
+  const [showBillUpload, setShowBillUpload] = useState(false);
+  const [billParsing, setBillParsing] = useState(false);
+  const [billPreview, setBillPreview] = useState<any>(null);
+  const [billSaving, setBillSaving] = useState(false);
 
   const [startYearStr] = fy.split("-");
   const startYear = parseInt(startYearStr);
@@ -1648,8 +1661,10 @@ function GSTTracker({
   const totalCgst = gstData.reduce((s, d) => s + d.cgst, 0);
   const totalSgst = gstData.reduce((s, d) => s + d.sgst, 0);
   const totalOutput = gstData.reduce((s, d) => s + d.totalGst, 0);
-  const totalInput = gstData.reduce((s, d) => s + d.inputGST, 0);
-  const totalNet = gstData.reduce((s, d) => s + d.netLiability, 0);
+  const totalInputExpenses = gstData.reduce((s, d) => s + d.inputGST, 0);
+  const totalInputBills = itcSummary?.totalGst ?? 0;
+  const totalInput = totalInputExpenses + totalInputBills; // ITC from purchase bills + expenses
+  const totalNet = Math.max(0, totalOutput - totalInput);
   const totalInvoiceCount = gstData.reduce((s, d) => s + d.invoiceCount, 0);
 
   async function handleMarkFiled(row: (typeof gstData)[number]) {
@@ -1705,6 +1720,58 @@ function GSTTracker({
       console.error("Import failed:", err);
     } finally {
       setImporting(false);
+    }
+  }
+
+  // Handle purchase bill upload
+  async function handleBillUpload(file: File) {
+    setBillParsing(true);
+    setBillPreview(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const resp = await fetch("/api/parse-purchase-bill", { method: "POST", body: formData });
+      if (!resp.ok) throw new Error(await resp.text());
+      const data = await resp.json();
+      setBillPreview(data);
+    } catch (err) {
+      console.error("Failed to parse bill:", err);
+      setBillPreview({ error: String(err) });
+    } finally {
+      setBillParsing(false);
+    }
+  }
+
+  async function handleSaveBill() {
+    if (!billPreview || billPreview.error) return;
+    setBillSaving(true);
+    try {
+      const v = billPreview;
+      await addPurchaseBill({
+        userId,
+        vendorName: v.vendor?.name || "Unknown Vendor",
+        vendorGstin: v.vendor?.gstin || undefined,
+        billNumber: v.bill?.billNumber || "",
+        billDate: v.bill?.billDate || new Date().toISOString().split("T")[0],
+        description: v.items?.[0]?.description || "Purchase",
+        hsnSac: v.items?.[0]?.hsnSac || undefined,
+        subtotal: v.totals?.subtotal || 0,
+        igst: v.totals?.igst || 0,
+        cgst: v.totals?.cgst || 0,
+        sgst: v.totals?.sgst || 0,
+        cessAmount: v.totals?.cess || undefined,
+        totalGst: v.totals?.totalGst || 0,
+        totalAmount: v.totals?.totalAmount || 0,
+        category: v.category || "other",
+        itcClaimed: false,
+        itcPeriod: undefined,
+      });
+      setShowBillUpload(false);
+      setBillPreview(null);
+    } catch (err) {
+      console.error("Failed to save bill:", err);
+    } finally {
+      setBillSaving(false);
     }
   }
 
@@ -2058,6 +2125,264 @@ function GSTTracker({
           </div>
         </CardContent>
       </Card>
+
+      {/* ── Purchase Bills / Input Tax Credit ─────────────────────────── */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Receipt className="h-5 w-5 text-emerald-400" />
+              Purchase Bills (Input Tax Credit)
+            </CardTitle>
+            <Button size="sm" onClick={() => { setShowBillUpload(true); setBillPreview(null); }}>
+              <Upload className="h-3.5 w-3.5 mr-1.5" />
+              Upload Bill
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {/* ITC Summary */}
+          {itcSummary && itcSummary.billCount > 0 && (
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+              <div className="rounded-lg bg-surface-tertiary/50 p-3 border border-border-light">
+                <p className="text-[10px] text-text-tertiary uppercase">Total ITC</p>
+                <p className="font-mono font-bold text-emerald-500">{formatCurrency(itcSummary.totalGst)}</p>
+              </div>
+              <div className="rounded-lg bg-surface-tertiary/50 p-3 border border-border-light">
+                <p className="text-[10px] text-text-tertiary uppercase">IGST</p>
+                <p className="font-mono font-semibold text-blue-400">{formatCurrency(itcSummary.totalIgst)}</p>
+              </div>
+              <div className="rounded-lg bg-surface-tertiary/50 p-3 border border-border-light">
+                <p className="text-[10px] text-text-tertiary uppercase">CGST</p>
+                <p className="font-mono font-semibold text-indigo-400">{formatCurrency(itcSummary.totalCgst)}</p>
+              </div>
+              <div className="rounded-lg bg-surface-tertiary/50 p-3 border border-border-light">
+                <p className="text-[10px] text-text-tertiary uppercase">SGST</p>
+                <p className="font-mono font-semibold text-purple-400">{formatCurrency(itcSummary.totalSgst)}</p>
+              </div>
+              <div className="rounded-lg bg-surface-tertiary/50 p-3 border border-border-light">
+                <p className="text-[10px] text-text-tertiary uppercase">Bills</p>
+                <p className="font-mono font-semibold text-text-primary">{itcSummary.billCount}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Bills Table */}
+          {purchaseBills && purchaseBills.length > 0 ? (
+            <div className="rounded-lg border border-border overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-surface-tertiary">
+                    <th className="text-left p-3 text-text-secondary font-medium">Date</th>
+                    <th className="text-left p-3 text-text-secondary font-medium">Vendor</th>
+                    <th className="text-left p-3 text-text-secondary font-medium">Description</th>
+                    <th className="text-right p-3 text-text-secondary font-medium">Subtotal</th>
+                    <th className="text-right p-3 text-text-secondary font-medium">GST</th>
+                    <th className="text-right p-3 text-text-secondary font-medium">Total</th>
+                    <th className="text-center p-3 text-text-secondary font-medium">ITC</th>
+                    <th className="p-3 w-8"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {purchaseBills.map((bill) => (
+                    <tr key={bill._id} className="border-t border-border-light">
+                      <td className="p-3 text-text-primary whitespace-nowrap text-xs">{bill.billDate}</td>
+                      <td className="p-3">
+                        <p className="text-text-primary text-xs font-medium">{bill.vendorName}</p>
+                        {bill.vendorGstin && (
+                          <p className="text-[10px] text-text-tertiary font-mono">{bill.vendorGstin}</p>
+                        )}
+                      </td>
+                      <td className="p-3 text-text-secondary text-xs max-w-[200px] truncate">{bill.description}</td>
+                      <td className="p-3 text-right font-mono text-text-primary text-xs">{formatCurrency(bill.subtotal)}</td>
+                      <td className="p-3 text-right">
+                        <span className="font-mono text-emerald-400 text-xs font-semibold">{formatCurrency(bill.totalGst)}</span>
+                        <p className="text-[9px] text-text-tertiary">
+                          {bill.igst > 0 ? `IGST` : `C:${formatCurrency(bill.cgst)} S:${formatCurrency(bill.sgst)}`}
+                        </p>
+                      </td>
+                      <td className="p-3 text-right font-mono text-text-primary text-xs font-semibold">{formatCurrency(bill.totalAmount)}</td>
+                      <td className="p-3 text-center">
+                        <button
+                          onClick={async () => {
+                            await updatePurchaseBill({
+                              id: bill._id,
+                              itcClaimed: !bill.itcClaimed,
+                            });
+                          }}
+                          className={`text-xs px-2 py-0.5 rounded font-medium transition-colors ${
+                            bill.itcClaimed
+                              ? "bg-emerald-50 text-emerald-600"
+                              : "bg-gray-100 text-text-tertiary hover:bg-emerald-50 hover:text-emerald-600"
+                          }`}
+                        >
+                          {bill.itcClaimed ? "Claimed" : "Claim"}
+                        </button>
+                      </td>
+                      <td className="p-3">
+                        <button
+                          onClick={async () => {
+                            if (confirm("Delete this purchase bill?")) {
+                              await deletePurchaseBill({ id: bill._id });
+                            }
+                          }}
+                          className="text-text-tertiary hover:text-rose-400 transition-colors"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <Receipt className="h-8 w-8 text-text-tertiary mx-auto mb-2" />
+              <p className="text-text-secondary text-sm">No purchase bills uploaded</p>
+              <p className="text-text-tertiary text-xs mt-1">Upload vendor invoices to track Input Tax Credit (ITC)</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── Upload Purchase Bill Dialog ────────────────────────────────── */}
+      <Dialog open={showBillUpload} onOpenChange={setShowBillUpload}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Upload className="h-5 w-5 text-emerald-400" />
+              Upload Purchase Bill
+            </DialogTitle>
+          </DialogHeader>
+
+          {!billPreview && !billParsing ? (
+            <div className="py-6">
+              <div className="border-2 border-dashed border-border-light rounded-xl p-8 text-center">
+                <Receipt className="h-10 w-10 text-text-tertiary mx-auto mb-3" />
+                <p className="text-text-secondary text-sm mb-1">Upload a vendor invoice or purchase bill</p>
+                <p className="text-text-tertiary text-xs mb-4">PDF, JPG, or PNG — AI will extract GST details</p>
+                <label className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-accent text-white text-sm font-medium cursor-pointer hover:bg-accent/90 transition-colors">
+                  <Upload className="h-4 w-4" />
+                  Choose File
+                  <input
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) handleBillUpload(f);
+                    }}
+                  />
+                </label>
+              </div>
+            </div>
+          ) : billParsing ? (
+            <div className="py-12 text-center">
+              <Loader2 className="h-8 w-8 animate-spin text-accent-light mx-auto mb-3" />
+              <p className="text-text-secondary text-sm">Extracting GST details with AI...</p>
+            </div>
+          ) : billPreview?.error ? (
+            <div className="py-6 text-center">
+              <AlertTriangle className="h-8 w-8 text-rose-400 mx-auto mb-3" />
+              <p className="text-text-secondary text-sm">Failed to extract bill details</p>
+              <p className="text-text-tertiary text-xs mt-1">{String(billPreview.error)}</p>
+              <Button variant="outline" className="mt-4" onClick={() => setBillPreview(null)}>
+                Try Again
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Extracted Data Preview */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs text-text-tertiary mb-1">Vendor</p>
+                  <p className="text-sm font-medium text-text-primary">{billPreview.vendor?.name}</p>
+                  {billPreview.vendor?.gstin && (
+                    <p className="text-xs font-mono text-text-tertiary">{billPreview.vendor.gstin}</p>
+                  )}
+                </div>
+                <div>
+                  <p className="text-xs text-text-tertiary mb-1">Bill Details</p>
+                  <p className="text-sm text-text-primary">#{billPreview.bill?.billNumber}</p>
+                  <p className="text-xs text-text-tertiary">{billPreview.bill?.billDate}</p>
+                </div>
+              </div>
+
+              {/* Items */}
+              {billPreview.items && billPreview.items.length > 0 && (
+                <div className="rounded-lg border border-border-light overflow-hidden">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="bg-surface-tertiary">
+                        <th className="text-left p-2 text-text-secondary">Item</th>
+                        <th className="text-left p-2 text-text-secondary">HSN</th>
+                        <th className="text-right p-2 text-text-secondary">Rate</th>
+                        <th className="text-right p-2 text-text-secondary">GST%</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {billPreview.items.map((item: any, i: number) => (
+                        <tr key={i} className="border-t border-border-light">
+                          <td className="p-2 text-text-primary">{item.description}</td>
+                          <td className="p-2 text-text-tertiary font-mono">{item.hsnSac || "-"}</td>
+                          <td className="p-2 text-right font-mono">{formatCurrency(item.rate)}</td>
+                          <td className="p-2 text-right font-mono">{item.gstRate}%</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* GST Breakup */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="rounded-lg bg-surface-tertiary/50 p-3">
+                  <p className="text-[10px] text-text-tertiary">Subtotal</p>
+                  <p className="font-mono font-semibold text-text-primary">{formatCurrency(billPreview.totals?.subtotal || 0)}</p>
+                </div>
+                {(billPreview.totals?.cgst > 0 || billPreview.totals?.sgst > 0) && (
+                  <>
+                    <div className="rounded-lg bg-indigo-50 p-3">
+                      <p className="text-[10px] text-text-tertiary">CGST</p>
+                      <p className="font-mono font-semibold text-indigo-500">{formatCurrency(billPreview.totals?.cgst || 0)}</p>
+                    </div>
+                    <div className="rounded-lg bg-purple-50 p-3">
+                      <p className="text-[10px] text-text-tertiary">SGST</p>
+                      <p className="font-mono font-semibold text-purple-500">{formatCurrency(billPreview.totals?.sgst || 0)}</p>
+                    </div>
+                  </>
+                )}
+                {billPreview.totals?.igst > 0 && (
+                  <div className="rounded-lg bg-blue-50 p-3">
+                    <p className="text-[10px] text-text-tertiary">IGST</p>
+                    <p className="font-mono font-semibold text-blue-500">{formatCurrency(billPreview.totals?.igst || 0)}</p>
+                  </div>
+                )}
+                <div className="rounded-lg bg-emerald-50 p-3">
+                  <p className="text-[10px] text-text-tertiary">Total ITC</p>
+                  <p className="font-mono font-bold text-emerald-600">{formatCurrency(billPreview.totals?.totalGst || 0)}</p>
+                </div>
+              </div>
+
+              <div className="rounded-lg bg-surface-tertiary p-3 flex items-center justify-between">
+                <span className="text-sm font-semibold text-text-secondary">Grand Total</span>
+                <span className="font-mono font-bold text-lg text-text-primary">{formatCurrency(billPreview.totals?.totalAmount || 0)}</span>
+              </div>
+
+              <div className="flex justify-between pt-2">
+                <Button variant="ghost" onClick={() => setBillPreview(null)}>
+                  ← Upload Different File
+                </Button>
+                <Button onClick={handleSaveBill} disabled={billSaving}>
+                  {billSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  Save Purchase Bill
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* ── GST Portal Status (from Cash Ledger) ────────────────────── */}
       {cashLedgerSummary && (

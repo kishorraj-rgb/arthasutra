@@ -165,6 +165,26 @@ export default defineSchema({
     balanceTotal: v.number(),
   }).index("by_user", ["userId"]),
 
+  purchase_bills: defineTable({
+    userId: v.id("users"),
+    vendorName: v.string(),
+    vendorGstin: v.optional(v.string()),
+    billNumber: v.string(),
+    billDate: v.string(),
+    description: v.string(),
+    hsnSac: v.optional(v.string()),
+    subtotal: v.number(),
+    igst: v.number(),
+    cgst: v.number(),
+    sgst: v.number(),
+    cessAmount: v.optional(v.number()),
+    totalGst: v.number(),
+    totalAmount: v.number(),
+    category: v.optional(v.string()),
+    itcClaimed: v.boolean(),
+    itcPeriod: v.optional(v.string()),
+  }).index("by_user", ["userId"]),
+
   reminders: defineTable({
     userId: v.id("users"),
     type: v.union(
