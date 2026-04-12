@@ -759,7 +759,7 @@ export default function InvoicesPage() {
       )}
 
       {/* KPI Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
         <KpiCard
           title="Total Invoiced"
           value={formatCurrency(summary?.totalInvoiced ?? 0)}
@@ -787,6 +787,20 @@ export default function InvoicesPage() {
           subtitle={`${summary?.overdueCount ?? 0} overdue`}
           icon={<AlertTriangle className="h-5 w-5" />}
           color="rose"
+        />
+        <KpiCard
+          title="GST Collected"
+          value={formatCurrency(summary?.gstCollected ?? 0)}
+          subtitle={`${formatCurrency(summary?.gstPending ?? 0)} pending`}
+          icon={<FileText className="h-5 w-5" />}
+          color="purple"
+        />
+        <KpiCard
+          title="TDS Deducted"
+          value={formatCurrency(summary?.tdsDeducted ?? 0)}
+          subtitle={`${formatCurrency(summary?.tdsPending ?? 0)} pending`}
+          icon={<FileText className="h-5 w-5" />}
+          color="indigo"
         />
       </div>
 
@@ -2207,6 +2221,8 @@ const KPI_COLORS: Record<string, { bg: string; icon: string; text: string }> = {
   emerald: { bg: "bg-emerald-50", icon: "text-emerald-600", text: "text-emerald-700" },
   amber: { bg: "bg-amber-50", icon: "text-amber-600", text: "text-amber-700" },
   rose: { bg: "bg-rose-50", icon: "text-rose-600", text: "text-rose-700" },
+  purple: { bg: "bg-purple-50", icon: "text-purple-600", text: "text-purple-700" },
+  indigo: { bg: "bg-indigo-50", icon: "text-indigo-600", text: "text-indigo-700" },
 };
 
 function KpiCard({

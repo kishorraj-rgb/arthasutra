@@ -411,6 +411,17 @@ export const getInvoiceSummary = query({
       .reduce((s, i) => s + i.netTotal, 0);
     const totalOutstanding = totalInvoiced - totalPaid;
     const totalGst = activeInvoices.reduce((s, i) => s + i.gstTotal, 0);
+    const totalTds = activeInvoices.reduce((s, i) => s + (i.tdsAmount || 0), 0);
+    const totalSubtotal = activeInvoices.reduce((s, i) => s + i.subtotal, 0);
+
+    // GST on paid invoices (already collected — needs to be remitted)
+    const paidInvoices = activeInvoices.filter((i) => i.status === "paid");
+    const gstCollected = paidInvoices.reduce((s, i) => s + i.gstTotal, 0);
+    const tdsDeducted = paidInvoices.reduce((s, i) => s + (i.tdsAmount || 0), 0);
+
+    // GST on unpaid invoices (will be collected when paid)
+    const gstPending = totalGst - gstCollected;
+    const tdsPending = totalTds - tdsDeducted;
 
     return {
       totalInvoiced,
@@ -418,8 +429,14 @@ export const getInvoiceSummary = query({
       totalOutstanding,
       totalOverdue,
       totalGst,
+      totalTds,
+      totalSubtotal,
+      gstCollected,
+      gstPending,
+      tdsDeducted,
+      tdsPending,
       invoiceCount: activeInvoices.length,
-      paidCount: activeInvoices.filter((i) => i.status === "paid").length,
+      paidCount: paidInvoices.length,
       overdueCount: activeInvoices.filter((i) => i.status !== "paid" && i.dueDate && i.dueDate < new Date().toISOString().split("T")[0]).length,
     };
   },
