@@ -37,7 +37,9 @@ import {
   Package,
   Loader2,
   X,
+  Eye,
 } from "lucide-react";
+import { InvoiceViewDialog } from "@/components/invoice/InvoiceViewDialog";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -87,7 +89,6 @@ const GST_RATES = [
 const STATUS_FILTERS = [
   { value: "all", label: "All" },
   { value: "draft", label: "Draft" },
-  { value: "sent", label: "Sent" },
   { value: "paid", label: "Paid" },
   { value: "partially_paid", label: "Partial" },
   { value: "overdue", label: "Overdue" },
@@ -193,6 +194,7 @@ export default function InvoicesPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [showInvoiceDialog, setShowInvoiceDialog] = useState(false);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [viewingInvoice, setViewingInvoice] = useState<any>(null);
   const [showSellerDialog, setShowSellerDialog] = useState(false);
   const [showBuyerDialog, setShowBuyerDialog] = useState(false);
   const [showProductDialog, setShowProductDialog] = useState(false);
@@ -769,6 +771,15 @@ export default function InvoicesPage() {
                                     <CreditCard className="h-3.5 w-3.5" />
                                   </Button>
                                 )}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setViewingInvoice(inv)}
+                                  title="View Invoice"
+                                  className="text-indigo-500 hover:text-indigo-700"
+                                >
+                                  <Eye className="h-3.5 w-3.5" />
+                                </Button>
                                 <Button
                                   variant="ghost"
                                   size="sm"
@@ -1453,14 +1464,14 @@ export default function InvoicesPage() {
               Save as Draft
             </Button>
             <Button
-              onClick={() => handleSaveInvoice("sent")}
+              onClick={() => handleSaveInvoice("draft")}
               disabled={saving}
               className="bg-indigo-600 hover:bg-indigo-700"
             >
               {saving ? (
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
               ) : null}
-              Save &amp; Send
+              Save Invoice
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1949,6 +1960,18 @@ export default function InvoicesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Invoice View/Preview Dialog */}
+      {viewingInvoice && (
+        <InvoiceViewDialog
+          open={!!viewingInvoice}
+          onClose={() => setViewingInvoice(null)}
+          invoice={viewingInvoice}
+          seller={viewingInvoice.sellerData || sellers.find((s: any) => s._id === viewingInvoice.sellerId)}
+          buyer={viewingInvoice.buyerData || buyers.find((b: any) => b._id === viewingInvoice.buyerId)}
+          bank={viewingInvoice.bankData || banks.find((b: any) => b._id === viewingInvoice.bankId)}
+        />
+      )}
     </AppLayout>
   );
 }
