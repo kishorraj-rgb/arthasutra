@@ -761,50 +761,86 @@ export default function InvoicesPage() {
         </div>
       )}
 
-      {/* KPI Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
-        <KpiCard
-          title="Total Invoiced"
-          value={formatCurrency(summary?.totalInvoiced ?? 0)}
-          subtitle={`${summary?.invoiceCount ?? 0} invoices`}
-          icon={<FileText className="h-5 w-5" />}
-          color="blue"
-        />
-        <KpiCard
-          title="Paid"
-          value={formatCurrency(summary?.totalPaid ?? 0)}
-          subtitle={`${summary?.paidCount ?? 0} paid`}
-          icon={<IndianRupee className="h-5 w-5" />}
-          color="emerald"
-        />
-        <KpiCard
-          title="Outstanding"
-          value={formatCurrency(summary?.totalOutstanding ?? 0)}
-          subtitle="Awaiting payment"
-          icon={<Clock className="h-5 w-5" />}
-          color="amber"
-        />
-        <KpiCard
-          title="Overdue"
-          value={formatCurrency(summary?.totalOverdue ?? 0)}
-          subtitle={`${summary?.overdueCount ?? 0} overdue`}
-          icon={<AlertTriangle className="h-5 w-5" />}
-          color="rose"
-        />
-        <KpiCard
-          title="GST Collected"
-          value={formatCurrency(summary?.gstCollected ?? 0)}
-          subtitle={`${formatCurrency(summary?.gstPending ?? 0)} pending`}
-          icon={<FileText className="h-5 w-5" />}
-          color="purple"
-        />
-        <KpiCard
-          title="TDS Deducted"
-          value={formatCurrency(summary?.tdsDeducted ?? 0)}
-          subtitle={`${formatCurrency(summary?.tdsPending ?? 0)} pending`}
-          icon={<FileText className="h-5 w-5" />}
-          color="indigo"
-        />
+      {/* KPI Stats — Row 1: Invoice Summary */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+        <KpiCard title="Total Invoiced" value={formatCurrency(summary?.totalInvoiced ?? 0)} subtitle={`${summary?.invoiceCount ?? 0} invoices`} icon={<FileText className="h-5 w-5" />} color="blue" />
+        <KpiCard title="Paid" value={formatCurrency(summary?.totalPaid ?? 0)} subtitle={`${summary?.paidCount ?? 0} paid`} icon={<IndianRupee className="h-5 w-5" />} color="emerald" />
+        <KpiCard title="Outstanding" value={formatCurrency(summary?.totalOutstanding ?? 0)} subtitle="Awaiting payment" icon={<Clock className="h-5 w-5" />} color="amber" />
+        <KpiCard title="Overdue" value={formatCurrency(summary?.totalOverdue ?? 0)} subtitle={`${summary?.overdueCount ?? 0} overdue`} icon={<AlertTriangle className="h-5 w-5" />} color="rose" />
+      </div>
+
+      {/* KPI Stats — Row 2: GST & TDS Breakdown */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+        {/* GST Breakdown Card */}
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="p-1.5 rounded-lg bg-purple-50"><FileText className="h-4 w-4 text-purple-600" /></div>
+              <span className="text-xs font-semibold uppercase tracking-wider text-purple-600">GST Breakdown</span>
+            </div>
+            <div className="space-y-2">
+              {(summary?.totalIgst ?? 0) > 0 && (
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-text-secondary">IGST (Interstate)</span>
+                  <span className="text-sm font-semibold text-purple-700 stat-number">{formatCurrency(summary?.totalIgst ?? 0)}</span>
+                </div>
+              )}
+              {(summary?.totalCgst ?? 0) > 0 && (
+                <>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-text-secondary">CGST (Central)</span>
+                    <span className="text-sm font-semibold text-purple-600 stat-number">{formatCurrency(summary?.totalCgst ?? 0)}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-text-secondary">SGST (State)</span>
+                    <span className="text-sm font-semibold text-purple-600 stat-number">{formatCurrency(summary?.totalSgst ?? 0)}</span>
+                  </div>
+                </>
+              )}
+              <div className="border-t border-purple-100 pt-2 flex justify-between items-center">
+                <span className="text-xs font-semibold text-purple-700">Total GST Collected</span>
+                <span className="text-lg font-bold text-purple-700 stat-number">{formatCurrency(summary?.gstCollected ?? 0)}</span>
+              </div>
+              {(summary?.gstPending ?? 0) > 0 && (
+                <div className="flex justify-between items-center text-amber-600">
+                  <span className="text-[10px]">Pending (unpaid invoices)</span>
+                  <span className="text-xs stat-number">{formatCurrency(summary?.gstPending ?? 0)}</span>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* TDS Breakdown Card */}
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="p-1.5 rounded-lg bg-indigo-50"><FileText className="h-4 w-4 text-indigo-600" /></div>
+              <span className="text-xs font-semibold uppercase tracking-wider text-indigo-600">TDS Breakdown</span>
+            </div>
+            <div className="space-y-2">
+              {summary?.tdsBreakdown && Object.entries(summary.tdsBreakdown).map(([rate, amount]) => (
+                <div key={rate} className="flex justify-between items-center">
+                  <span className="text-xs text-text-secondary">TDS @ {rate}</span>
+                  <span className="text-sm font-semibold text-indigo-600 stat-number">{formatCurrency(amount as number)}</span>
+                </div>
+              ))}
+              <div className="border-t border-indigo-100 pt-2 flex justify-between items-center">
+                <span className="text-xs font-semibold text-indigo-700">Total TDS Deducted</span>
+                <span className="text-lg font-bold text-indigo-700 stat-number">{formatCurrency(summary?.tdsDeducted ?? 0)}</span>
+              </div>
+              {(summary?.tdsPending ?? 0) > 0 && (
+                <div className="flex justify-between items-center text-amber-600">
+                  <span className="text-[10px]">Pending (unpaid invoices)</span>
+                  <span className="text-xs stat-number">{formatCurrency(summary?.tdsPending ?? 0)}</span>
+                </div>
+              )}
+              {(summary?.totalTds ?? 0) === 0 && (
+                <p className="text-xs text-text-tertiary">No TDS deductions on invoices</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Tabs */}
@@ -877,6 +913,8 @@ export default function InvoicesPage() {
                         <th className="text-left py-3 px-3 text-gray-500 font-medium">Date</th>
                         <th className="text-left py-3 px-3 text-gray-500 font-medium">Customer</th>
                         <th className="text-right py-3 px-3 text-gray-500 font-medium">Amount</th>
+                        <th className="text-right py-3 px-3 text-gray-500 font-medium text-purple-500">GST</th>
+                        <th className="text-right py-3 px-3 text-gray-500 font-medium text-indigo-500">TDS</th>
                         <th className="text-center py-3 px-3 text-gray-500 font-medium">Status</th>
                         <th className="text-right py-3 px-3 text-gray-500 font-medium">Actions</th>
                       </tr>
@@ -905,6 +943,12 @@ export default function InvoicesPage() {
                             </td>
                             <td className="py-3 px-3 text-right font-mono font-medium text-gray-900">
                               {formatCurrency(inv.netTotal)}
+                            </td>
+                            <td className="py-3 px-3 text-right text-xs text-purple-600 stat-number">
+                              {inv.gstTotal > 0 ? formatCurrency(inv.gstTotal) : "-"}
+                            </td>
+                            <td className="py-3 px-3 text-right text-xs text-indigo-600 stat-number">
+                              {(inv.tdsAmount || 0) > 0 ? formatCurrency(inv.tdsAmount) : "-"}
                             </td>
                             <td className="py-3 px-3 text-center">
                               <span

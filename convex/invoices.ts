@@ -423,6 +423,44 @@ export const getInvoiceSummary = query({
     const gstPending = totalGst - gstCollected;
     const tdsPending = totalTds - tdsDeducted;
 
+    // IGST vs CGST+SGST breakdown
+    // Determine by comparing seller/buyer state codes from denormalized data
+    let totalIgst = 0, totalCgst = 0, totalSgst = 0;
+    for (const inv of activeInvoices) {
+      const sellerGstin = (inv.sellerData as Record<string, string>)?.gstin || "";
+      const buyerGstin = (inv.buyerData as Record<string, string>)?.gstin || "";
+      const buyerAddr = (inv.buyerData as Record<string, string>)?.address || "";
+      const sellerState = sellerGstin.substring(0, 2);
+      const buyerState = buyerGstin.substring(0, 2);
+
+      // Determine inter-state
+      let isInter = false;
+      if (inv.placeOfSupplyCode && sellerState) {
+        isInter = sellerState !== inv.placeOfSupplyCode;
+      } else if (sellerState && buyerState) {
+        isInter = sellerState !== buyerState;
+      } else if (!buyerGstin && buyerAddr) {
+        const addr = buyerAddr.toLowerCase();
+        isInter = ["dubai", "uae", "singapore", "usa", "uk", "london"].some((f) => addr.includes(f));
+      }
+
+      if (isInter) {
+        totalIgst += inv.gstTotal;
+      } else {
+        totalCgst += inv.gstTotal / 2;
+        totalSgst += inv.gstTotal / 2;
+      }
+    }
+
+    // TDS breakdown by rate
+    const tdsRateMap: Record<string, number> = {};
+    for (const inv of activeInvoices) {
+      if (inv.tdsAmount && inv.tdsAmount > 0) {
+        const rate = inv.tdsRate ? `${inv.tdsRate}%` : "Unknown";
+        tdsRateMap[rate] = (tdsRateMap[rate] || 0) + inv.tdsAmount;
+      }
+    }
+
     return {
       totalInvoiced,
       totalPaid,
@@ -435,6 +473,10 @@ export const getInvoiceSummary = query({
       gstPending,
       tdsDeducted,
       tdsPending,
+      totalIgst: Math.round(totalIgst),
+      totalCgst: Math.round(totalCgst),
+      totalSgst: Math.round(totalSgst),
+      tdsBreakdown: tdsRateMap,
       invoiceCount: activeInvoices.length,
       paidCount: paidInvoices.length,
       overdueCount: activeInvoices.filter((i) => i.status !== "paid" && i.dueDate && i.dueDate < new Date().toISOString().split("T")[0]).length,
