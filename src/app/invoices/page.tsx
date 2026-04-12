@@ -38,6 +38,7 @@ import {
   Loader2,
   X,
   Eye,
+  Upload,
 } from "lucide-react";
 import { InvoiceViewDialog } from "@/components/invoice/InvoiceViewDialog";
 
@@ -195,6 +196,8 @@ export default function InvoicesPage() {
   const [showInvoiceDialog, setShowInvoiceDialog] = useState(false);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [viewingInvoice, setViewingInvoice] = useState<any>(null);
+  const [uploadingInvoice, setUploadingInvoice] = useState(false);
+  const [uploadError, setUploadError] = useState("");
   const [showSellerDialog, setShowSellerDialog] = useState(false);
   const [showBuyerDialog, setShowBuyerDialog] = useState(false);
   const [showProductDialog, setShowProductDialog] = useState(false);
@@ -609,11 +612,109 @@ export default function InvoicesPage() {
             Create and manage GST-compliant invoices
           </p>
         </div>
-        <Button onClick={openNewInvoice} className="bg-indigo-600 hover:bg-indigo-700">
-          <Plus className="h-4 w-4 mr-2" />
-          New Invoice
-        </Button>
+        <div className="flex items-center gap-2">
+          <label className="cursor-pointer">
+            <input
+              type="file"
+              accept=".pdf,.jpg,.jpeg,.png"
+              multiple
+              className="hidden"
+              onChange={async (e) => {
+                const files = e.target.files;
+                if (!files || files.length === 0) return;
+                setUploadingInvoice(true);
+                setUploadError("");
+                try {
+                  for (let i = 0; i < files.length; i++) {
+                    const formData = new FormData();
+                    formData.append("file", files[i]);
+                    const resp = await fetch("/api/parse-invoice-doc", { method: "POST", body: formData });
+                    if (!resp.ok) {
+                      const err = await resp.json().catch(() => ({ error: "Parse failed" }));
+                      setUploadError((prev) => prev + `${files[i].name}: ${err.error}\n`);
+                      continue;
+                    }
+                    const data = await resp.json();
+                    // Auto-create/find seller
+                    let sellerId: string | undefined;
+                    if (data.seller?.name) {
+                      const existing = sellers.find((s: any) => s.name === data.seller.name || s.gstin === data.seller.gstin);
+                      if (existing) {
+                        sellerId = existing._id;
+                      } else {
+                        sellerId = await addSellerMut({ userId: userId!, name: data.seller.name, address: data.seller.address, gstin: data.seller.gstin, pan: data.seller.pan, email: data.seller.email, phone: data.seller.phone });
+                      }
+                    }
+                    // Auto-create/find buyer
+                    let buyerId: string | undefined;
+                    if (data.buyer?.name) {
+                      const existing = buyers.find((b: any) => b.name === data.buyer.name || b.gstin === data.buyer.gstin);
+                      if (existing) {
+                        buyerId = existing._id;
+                      } else {
+                        buyerId = await addBuyerMut({ userId: userId!, name: data.buyer.name, address: data.buyer.address, gstin: data.buyer.gstin, pan: data.buyer.pan, email: data.buyer.email, phone: data.buyer.phone });
+                      }
+                    }
+                    // Save invoice
+                    await saveInvoiceMut({
+                      userId: userId!,
+                      sellerId: sellerId as any,
+                      buyerId: buyerId as any,
+                      documentType: data.invoice?.documentType || "invoice",
+                      invoiceNumber: data.invoice?.invoiceNumber || `SCAN-${Date.now()}`,
+                      invoiceDate: data.invoice?.invoiceDate || new Date().toISOString().split("T")[0],
+                      dueDate: data.invoice?.dueDate || undefined,
+                      placeOfSupplyCode: data.invoice?.placeOfSupplyCode || undefined,
+                      items: (data.items || []).map((item: any) => ({
+                        description: item.description || "",
+                        hsnSac: item.hsnSac || undefined,
+                        qty: Number(item.qty) || 1,
+                        rate: Number(item.rate) || 0,
+                        gstRate: Number(item.gstRate) || 0,
+                      })),
+                      subtotal: Number(data.totals?.subtotal) || 0,
+                      gstTotal: Number(data.totals?.gstTotal) || 0,
+                      tdsAmount: Number(data.totals?.tdsAmount) || undefined,
+                      tdsEnabled: (data.totals?.tdsAmount || 0) > 0 || undefined,
+                      tdsRate: Number(data.totals?.tdsRate) || undefined,
+                      roundOff: Number(data.totals?.roundOff) || undefined,
+                      netTotal: Number(data.totals?.netTotal) || 0,
+                      status: "draft",
+                      notes: data.notes || undefined,
+                      sellerData: data.seller || undefined,
+                      buyerData: data.buyer || undefined,
+                      bankData: data.bank?.bankName ? data.bank : undefined,
+                    });
+                  }
+                } catch (err) {
+                  setUploadError(err instanceof Error ? err.message : "Upload failed");
+                } finally {
+                  setUploadingInvoice(false);
+                  e.target.value = "";
+                }
+              }}
+            />
+            <span className={`inline-flex items-center gap-2 h-10 px-5 rounded-lg border border-gray-200 text-sm font-medium transition-colors cursor-pointer ${
+              uploadingInvoice ? "opacity-50 cursor-wait" : "hover:bg-gray-50"
+            }`}>
+              {uploadingInvoice ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+              <span className="hidden sm:inline">{uploadingInvoice ? "Scanning..." : "Upload Invoice"}</span>
+            </span>
+          </label>
+          <Button onClick={openNewInvoice} className="bg-indigo-600 hover:bg-indigo-700">
+            <Plus className="h-4 w-4 mr-2" />
+            New Invoice
+          </Button>
+        </div>
       </div>
+
+      {/* Upload Error/Success */}
+      {uploadError && (
+        <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600 flex items-center justify-between">
+          <span className="whitespace-pre-line">{uploadError}</span>
+          <button onClick={() => setUploadError("")} className="p-1 hover:bg-rose-100 rounded"><X className="h-4 w-4" /></button>
+        </div>
+      )}
 
       {/* KPI Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
