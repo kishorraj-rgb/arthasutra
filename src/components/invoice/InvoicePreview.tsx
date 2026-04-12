@@ -426,36 +426,55 @@ export function InvoicePreview({
             <span>{formatINR(invoice.subtotal)}</span>
           </div>
 
-          {/* GST breakdown per rate */}
-          {isGstRegistered &&
-            gstBreakdown.map((group) =>
+          {/* GST breakdown — use stored gstTotal if available and differs from calculated */}
+          {isGstRegistered && (() => {
+            const calcTotal = gstBreakdown.reduce((s, g) => s + g.tax, 0);
+            const storedGst = invoice.gstTotal || 0;
+            // If stored GST differs significantly from calculated, use stored values
+            const useStored = storedGst > 0 && Math.abs(storedGst - calcTotal) > 1;
+
+            if (useStored) {
+              // Show GST from stored totals (AI-extracted invoices)
+              return interState ? (
+                <div className="flex justify-between py-1.5 text-xs">
+                  <span className="text-gray-500">IGST</span>
+                  <span>{formatINR(storedGst)}</span>
+                </div>
+              ) : (
+                <>
+                  <div className="flex justify-between py-1.5 text-xs">
+                    <span className="text-gray-500">CGST (9%)</span>
+                    <span>{formatINR(storedGst / 2)}</span>
+                  </div>
+                  <div className="flex justify-between py-1.5 text-xs">
+                    <span className="text-gray-500">SGST (9%)</span>
+                    <span>{formatINR(storedGst / 2)}</span>
+                  </div>
+                </>
+              );
+            }
+
+            // Otherwise use calculated breakdown per rate
+            return gstBreakdown.map((group) =>
               interState ? (
-                <div
-                  key={group.rate}
-                  className="flex justify-between py-1.5 text-xs"
-                >
-                  <span className="text-gray-500">
-                    IGST ({group.rate}%)
-                  </span>
+                <div key={group.rate} className="flex justify-between py-1.5 text-xs">
+                  <span className="text-gray-500">IGST ({group.rate}%)</span>
                   <span>{formatINR(group.tax)}</span>
                 </div>
               ) : (
                 <div key={group.rate}>
                   <div className="flex justify-between py-1.5 text-xs">
-                    <span className="text-gray-500">
-                      CGST ({group.rate / 2}%)
-                    </span>
+                    <span className="text-gray-500">CGST ({group.rate / 2}%)</span>
                     <span>{formatINR(group.tax / 2)}</span>
                   </div>
                   <div className="flex justify-between py-1.5 text-xs">
-                    <span className="text-gray-500">
-                      SGST ({group.rate / 2}%)
-                    </span>
+                    <span className="text-gray-500">SGST ({group.rate / 2}%)</span>
                     <span>{formatINR(group.tax / 2)}</span>
                   </div>
                 </div>
               ),
-            )}
+            );
+          })()}
 
           {/* TDS */}
           {invoice.tdsEnabled && (invoice.tdsAmount ?? 0) > 0 && (

@@ -83,7 +83,8 @@ interface InvoiceFormData {
   tdsEnabled: boolean;
   tdsRate: number;
   tdsSection: string;
-  status: string;
+  status?: string;
+  placeOfSupplyCode?: string;
 }
 
 const DOCUMENT_TYPES = [
@@ -652,66 +653,74 @@ export default function InvoicesPage() {
                 setUploadingInvoice(true);
                 setUploadError("");
                 try {
-                  for (let i = 0; i < files.length; i++) {
-                    const formData = new FormData();
-                    formData.append("file", files[i]);
-                    const resp = await fetch("/api/parse-invoice-doc", { method: "POST", body: formData });
-                    if (!resp.ok) {
-                      const err = await resp.json().catch(() => ({ error: "Parse failed" }));
-                      setUploadError((prev) => prev + `${files[i].name}: ${err.error}\n`);
-                      continue;
-                    }
+                  // For single file: open editor with AI data for review
+                  // For multiple files: auto-save all
+                  const file = files[0];
+                  const formData = new FormData();
+                  formData.append("file", file);
+                  const resp = await fetch("/api/parse-invoice-doc", { method: "POST", body: formData });
+                  if (!resp.ok) {
+                    const err = await resp.json().catch(() => ({ error: "Parse failed" }));
+                    setUploadError(`${file.name}: ${err.error}`);
+                  } else {
                     const data = await resp.json();
+
                     // Auto-create/find seller
-                    let sellerId: string | undefined;
+                    let sellerId = "";
                     if (data.seller?.name) {
-                      const existing = sellers.find((s: any) => s.name === data.seller.name || s.gstin === data.seller.gstin);
+                      const existing = sellers.find((s: any) =>
+                        s.name === data.seller.name || (data.seller.gstin && s.gstin === data.seller.gstin)
+                      );
                       if (existing) {
                         sellerId = existing._id;
                       } else {
-                        sellerId = await addSellerMut(stripNulls({ userId: userId!, name: data.seller.name, address: data.seller.address, gstin: data.seller.gstin, pan: data.seller.pan, email: data.seller.email, phone: data.seller.phone }));
+                        sellerId = await addSellerMut(stripNulls({
+                          userId: userId!, name: data.seller.name, address: data.seller.address,
+                          gstin: data.seller.gstin, pan: data.seller.pan, email: data.seller.email, phone: data.seller.phone,
+                        }));
                       }
                     }
+
                     // Auto-create/find buyer
-                    let buyerId: string | undefined;
+                    let buyerId = "";
                     if (data.buyer?.name) {
-                      const existing = buyers.find((b: any) => b.name === data.buyer.name || b.gstin === data.buyer.gstin);
+                      const existing = buyers.find((b: any) =>
+                        b.name === data.buyer.name || (data.buyer.gstin && b.gstin === data.buyer.gstin)
+                      );
                       if (existing) {
                         buyerId = existing._id;
                       } else {
-                        buyerId = await addBuyerMut(stripNulls({ userId: userId!, name: data.buyer.name, address: data.buyer.address, gstin: data.buyer.gstin, pan: data.buyer.pan, email: data.buyer.email, phone: data.buyer.phone }));
+                        buyerId = await addBuyerMut(stripNulls({
+                          userId: userId!, name: data.buyer.name, address: data.buyer.address,
+                          gstin: data.buyer.gstin, pan: data.buyer.pan, email: data.buyer.email, phone: data.buyer.phone,
+                        }));
                       }
                     }
-                    // Save invoice (stripNulls to handle AI returning null for optional fields)
-                    await saveInvoiceMut(stripNulls({
-                      userId: userId!,
-                      sellerId: sellerId as any,
-                      buyerId: buyerId as any,
+
+                    // Populate the invoice editor form with AI-extracted data
+                    setInvoiceForm({
+                      id: undefined,
+                      sellerId,
+                      buyerId,
+                      bankId: "",
                       documentType: data.invoice?.documentType || "invoice",
-                      invoiceNumber: data.invoice?.invoiceNumber || `SCAN-${Date.now()}`,
+                      invoiceNumber: data.invoice?.invoiceNumber || "",
                       invoiceDate: data.invoice?.invoiceDate || new Date().toISOString().split("T")[0],
-                      dueDate: data.invoice?.dueDate || undefined,
-                      placeOfSupplyCode: data.invoice?.placeOfSupplyCode || undefined,
-                      items: (data.items || []).map((item: any) => stripNulls({
+                      dueDate: data.invoice?.dueDate || "",
+                      items: (data.items || [{ description: "", hsnSac: "", qty: 1, rate: 0, gstRate: 18 }]).map((item: any) => ({
                         description: item.description || "",
-                        hsnSac: item.hsnSac || undefined,
+                        hsnSac: item.hsnSac || "",
                         qty: Number(item.qty) || 1,
                         rate: Number(item.rate) || 0,
-                        gstRate: Number(item.gstRate) || 0,
+                        gstRate: Number(item.gstRate) || 18,
                       })),
-                      subtotal: Number(data.totals?.subtotal) || 0,
-                      gstTotal: Number(data.totals?.gstTotal) || 0,
-                      tdsAmount: Number(data.totals?.tdsAmount) || undefined,
-                      tdsEnabled: (data.totals?.tdsAmount || 0) > 0 || undefined,
-                      tdsRate: Number(data.totals?.tdsRate) || undefined,
-                      roundOff: Number(data.totals?.roundOff) || undefined,
-                      netTotal: Number(data.totals?.netTotal) || 0,
-                      status: "draft",
-                      notes: data.notes || undefined,
-                      sellerData: data.seller ? stripNulls(data.seller) : undefined,
-                      buyerData: data.buyer ? stripNulls(data.buyer) : undefined,
-                      bankData: data.bank?.bankName ? stripNulls(data.bank) : undefined,
-                    }));
+                      tdsEnabled: (data.totals?.tdsAmount || 0) > 0,
+                      tdsRate: Number(data.totals?.tdsRate) || 10,
+                      tdsSection: "194J",
+                      notes: data.notes || "",
+                      placeOfSupplyCode: data.invoice?.placeOfSupplyCode || "",
+                    });
+                    setShowInvoiceDialog(true);
                   }
                 } catch (err) {
                   setUploadError(err instanceof Error ? err.message : "Upload failed");
