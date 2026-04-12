@@ -248,6 +248,9 @@ export default function InvoicesPage() {
   const [paymentCreateIncome, setPaymentCreateIncome] = useState(false);
   const [paymentSourceBank, setPaymentSourceBank] = useState("");
   const [paymentLinkIncomeId, setPaymentLinkIncomeId] = useState<string>("");
+  const [linkFilterBank, setLinkFilterBank] = useState("");
+  const [linkFilterMonth, setLinkFilterMonth] = useState("");
+  const [linkFilterMinAmt, setLinkFilterMinAmt] = useState("");
 
   // Bank accounts + income entries for linking
   const bankAccounts = useQuery(
@@ -1687,47 +1690,69 @@ export default function InvoicesPage() {
             <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-3 space-y-3">
               <p className="text-xs font-semibold text-emerald-700">Link to Income Tracker</p>
 
-              {/* Option 1: Link to existing income entry */}
-              {(() => {
-                // Find matching income entries by amount (±10%) and date range (±30 days)
-                const amt = parseFloat(paymentAmount) || 0;
-                const payDate = new Date(paymentDate);
-                const matchingIncome = (incomeEntries ?? [])
-                  .filter((e: any) => {
-                    const amtDiff = Math.abs(e.amount - amt);
-                    if (amt > 0 && amtDiff / amt > 0.1) return false; // Within 10%
-                    const entryDate = new Date(e.date);
-                    const daysDiff = Math.abs((entryDate.getTime() - payDate.getTime()) / (1000 * 60 * 60 * 24));
-                    if (daysDiff > 30) return false;
+              {/* Option 1: Link to existing income entry with filters */}
+              <div>
+                <Label className="text-xs text-emerald-600 mb-1.5 block">Link to Existing Income Entry</Label>
+                <div className="grid grid-cols-3 gap-2 mb-2">
+                  <select
+                    value={linkFilterBank}
+                    onChange={(e) => setLinkFilterBank(e.target.value)}
+                    className="text-[11px] rounded-lg border border-gray-200 px-2 py-1.5 bg-white focus:border-emerald-400 focus:outline-none cursor-pointer"
+                  >
+                    <option value="">All Banks</option>
+                    {(bankAccounts ?? []).filter((b: any) => b.is_active).map((bank: any) => (
+                      <option key={bank._id} value={bank.bank_name}>{bank.display_name || bank.bank_name}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={linkFilterMonth}
+                    onChange={(e) => setLinkFilterMonth(e.target.value)}
+                    className="text-[11px] rounded-lg border border-gray-200 px-2 py-1.5 bg-white focus:border-emerald-400 focus:outline-none cursor-pointer"
+                  >
+                    <option value="">All Months</option>
+                    {Array.from(new Set((incomeEntries ?? []).map((e: any) => e.date.substring(0, 7)))).sort().reverse().map((m) => (
+                      <option key={m} value={m}>{new Date(m + "-01").toLocaleDateString("en-IN", { month: "short", year: "numeric" })}</option>
+                    ))}
+                  </select>
+                  <Input
+                    type="number"
+                    placeholder="Min ₹"
+                    value={linkFilterMinAmt}
+                    onChange={(e) => setLinkFilterMinAmt(e.target.value)}
+                    className="text-[11px] h-auto py-1.5"
+                  />
+                </div>
+                {(() => {
+                  const filtered = (incomeEntries ?? []).filter((e: any) => {
+                    if (linkFilterBank && (e.source_bank || "") !== linkFilterBank) {
+                      // Also check description for bank name
+                      const desc = (e.description || "").toLowerCase();
+                      if (!desc.includes(linkFilterBank.toLowerCase())) return false;
+                    }
+                    if (linkFilterMonth && !e.date.startsWith(linkFilterMonth)) return false;
+                    if (linkFilterMinAmt && e.amount < Number(linkFilterMinAmt)) return false;
                     return true;
-                  })
-                  .sort((a: any, b: any) => Math.abs(a.amount - amt) - Math.abs(b.amount - amt))
-                  .slice(0, 10);
+                  }).sort((a: any, b: any) => b.date.localeCompare(a.date)).slice(0, 15);
 
-                return (
-                  <div>
-                    <Label className="text-xs text-emerald-600 mb-1 block">Link to Existing Income Entry</Label>
-                    {matchingIncome.length > 0 ? (
-                      <select
-                        value={paymentLinkIncomeId}
-                        onChange={(e) => { setPaymentLinkIncomeId(e.target.value); if (e.target.value) setPaymentCreateIncome(false); }}
-                        className="w-full text-xs rounded-lg border border-emerald-200 px-3 py-2 bg-white focus:border-emerald-400 focus:outline-none cursor-pointer"
-                      >
-                        <option value="">— Select matching income entry —</option>
-                        {matchingIncome.map((e: any) => (
-                          <option key={e._id} value={e._id}>
-                            {new Date(e.date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "2-digit" })} — {formatCurrency(e.amount)} — {e.description?.substring(0, 40)}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <p className="text-[10px] text-text-tertiary">
-                        {amt > 0 ? "No matching income entries found (±10% amount, ±30 days)" : "Enter amount to find matching entries"}
-                      </p>
-                    )}
-                  </div>
-                );
-              })()}
+                  return filtered.length > 0 ? (
+                    <select
+                      value={paymentLinkIncomeId}
+                      onChange={(e) => { setPaymentLinkIncomeId(e.target.value); if (e.target.value) setPaymentCreateIncome(false); }}
+                      className="w-full text-[11px] rounded-lg border border-emerald-200 px-3 py-2 bg-white focus:border-emerald-400 focus:outline-none cursor-pointer"
+                      size={Math.min(filtered.length + 1, 8)}
+                    >
+                      <option value="">— Select income entry ({filtered.length} shown) —</option>
+                      {filtered.map((e: any) => (
+                        <option key={e._id} value={e._id}>
+                          {new Date(e.date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "2-digit" })} — {formatCurrency(e.amount)} — {e.description?.substring(0, 45)}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <p className="text-[10px] text-text-tertiary">No entries match the filters. Try adjusting bank, month, or amount.</p>
+                  );
+                })()}
+              </div>
 
               {/* Option 2: Create new income entry */}
               {!paymentLinkIncomeId && (
