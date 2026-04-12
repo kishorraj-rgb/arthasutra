@@ -173,7 +173,9 @@ export const getSubscriptionSummary = query({
 export const detectSubscriptions = query({
   args: { userId: v.id("users") },
   handler: async (ctx, args) => {
-    // Gather transactions from BOTH expenses AND credit cards
+    // Simple approach: pick ALL transactions categorized as "subscription"
+    // from both Expenses AND Credit Cards. User has manually categorized these.
+
     const expenses = await ctx.db
       .query("expense_entries")
       .withIndex("by_user", (q) => q.eq("userId", args.userId))
@@ -184,88 +186,39 @@ export const detectSubscriptions = query({
       .withIndex("by_user", (q) => q.eq("userId", args.userId))
       .collect();
 
-    // Known subscription patterns for better naming
-    const KNOWN_SUBS: Array<{ pattern: RegExp; name: string }> = [
-      { pattern: /NETFLIX/i, name: "Netflix" },
-      { pattern: /SPOTIFY/i, name: "Spotify" },
-      { pattern: /AMAZON\s*PRIME/i, name: "Amazon Prime" },
-      { pattern: /HOTSTAR|DISNEY/i, name: "Hotstar/Disney+" },
-      { pattern: /YOUTUBE\s*(PREMIUM)?GOOGLE/i, name: "YouTube Premium" },
-      { pattern: /APPLE\s*(MUSIC|TV|ONE|ICLOUD)/i, name: "Apple" },
-      { pattern: /GOOGLE\s*(PLAY|ONE|CLOUD|WORKSPACE)/i, name: "Google" },
-      { pattern: /ADOBE/i, name: "Adobe" },
-      { pattern: /OPENAI|CHATGPT/i, name: "OpenAI/ChatGPT" },
-      { pattern: /CURSOR/i, name: "Cursor" },
-      { pattern: /GITHUB/i, name: "GitHub" },
-      { pattern: /LINKEDIN/i, name: "LinkedIn" },
-      { pattern: /ZOOM/i, name: "Zoom" },
-      { pattern: /NOTION/i, name: "Notion" },
-      { pattern: /FIGMA/i, name: "Figma" },
-      { pattern: /CANVA/i, name: "Canva" },
-      { pattern: /ZEE5/i, name: "Zee5" },
-      { pattern: /SONY\s*LIV/i, name: "SonyLIV" },
-      { pattern: /AIRTEL/i, name: "Airtel" },
-      { pattern: /JIO/i, name: "Jio" },
-      { pattern: /SETAPP|PADDLE/i, name: "Setapp/PaddleNet" },
-      { pattern: /VERCEL/i, name: "Vercel" },
-      { pattern: /HOSTINGER/i, name: "Hostinger" },
-      { pattern: /MICROSOFT/i, name: "Microsoft" },
-    ];
+    // Filter: only category === "subscription"
+    const subExpenses = expenses.filter((e) => e.category === "subscription");
+    const subCC = ccTransactions.filter((t) => t.type === "debit" && t.category === "subscription");
 
-    function getSubName(desc: string): string {
-      for (const s of KNOWN_SUBS) {
-        if (s.pattern.test(desc)) return s.name;
-      }
-      return desc.substring(0, 30).trim();
-    }
-
-    // Merge all transactions into one list — include category + subcategory
-    const allTxns: Array<{ amount: number; date: string; description: string; source: string; category: string; subcategory: string }> = [];
-
-    for (const e of expenses) {
-      allTxns.push({
-        amount: e.amount, date: e.date, description: e.description, source: "bank",
-        category: e.category || "other",
-        subcategory: (e as Record<string, unknown>).subcategory as string || "",
-      });
-    }
-    for (const cc of ccTransactions) {
-      if (cc.type === "debit") {
-        allTxns.push({
-          amount: cc.amount, date: cc.date, description: cc.merchant_name || cc.description, source: "cc",
-          category: cc.category || "other",
-          subcategory: (cc as Record<string, unknown>).subcategory as string || "",
-        });
-      }
-    }
-
-    // Group by normalized name + similar amount (±15%)
+    // Group by subcategory (user's manual name) — this is the subscription name
     const grouped: Record<string, {
       name: string; amounts: number[]; dates: string[]; source: string;
       category: string; subcategory: string;
     }> = {};
 
-    for (const tx of allTxns) {
-      const name = getSubName(tx.description);
+    for (const e of subExpenses) {
+      const sub = (e as Record<string, unknown>).subcategory as string || "";
+      const name = sub || e.description.substring(0, 30).trim();
       const key = name.toLowerCase();
       if (!grouped[key]) {
-        grouped[key] = {
-          name, amounts: [], dates: [], source: tx.source,
-          category: tx.category, subcategory: tx.subcategory,
-        };
+        grouped[key] = { name, amounts: [], dates: [], source: "bank", category: "subscription", subcategory: sub };
       }
-      grouped[key].amounts.push(tx.amount);
-      grouped[key].dates.push(tx.date);
-      // Use the most recently assigned category (user's manual categorization)
-      if (tx.category && tx.category !== "other") {
-        grouped[key].category = tx.category;
-      }
-      if (tx.subcategory) {
-        grouped[key].subcategory = tx.subcategory;
-      }
+      grouped[key].amounts.push(e.amount);
+      grouped[key].dates.push(e.date);
     }
 
-    // Find recurring patterns
+    for (const t of subCC) {
+      const sub = (t as Record<string, unknown>).subcategory as string || "";
+      const name = sub || t.merchant_name || t.description.substring(0, 30).trim();
+      const key = name.toLowerCase();
+      if (!grouped[key]) {
+        grouped[key] = { name, amounts: [], dates: [], source: "cc", category: "subscription", subcategory: sub };
+      }
+      grouped[key].amounts.push(t.amount);
+      grouped[key].dates.push(t.date);
+    }
+
+    // Build suggestions from grouped data
     const suggestions: Array<{
       name: string;
       amount: number;
@@ -278,27 +231,23 @@ export const detectSubscriptions = query({
     }> = [];
 
     for (const [, data] of Object.entries(grouped)) {
-      if (data.dates.length < 2) continue;
-
-      // Check amount consistency (±15%)
       const avgAmt = data.amounts.reduce((s, a) => s + a, 0) / data.amounts.length;
-      const consistent = data.amounts.every((a) => Math.abs(a - avgAmt) / Math.max(avgAmt, 1) < 0.15);
-      if (!consistent) continue;
-
-      // Estimate frequency from date gaps
       const sortedDates = data.dates.sort();
-      let totalGapDays = 0;
-      for (let i = 1; i < sortedDates.length; i++) {
-        const d1 = new Date(sortedDates[i - 1]);
-        const d2 = new Date(sortedDates[i]);
-        totalGapDays += (d2.getTime() - d1.getTime()) / (1000 * 60 * 60 * 24);
-      }
-      const avgGap = totalGapDays / (sortedDates.length - 1);
 
+      // Estimate frequency from date gaps (if 2+ entries)
       let frequency = "monthly";
-      if (avgGap > 300) frequency = "yearly";
-      else if (avgGap > 150) frequency = "half_yearly";
-      else if (avgGap > 75) frequency = "quarterly";
+      if (sortedDates.length >= 2) {
+        let totalGapDays = 0;
+        for (let i = 1; i < sortedDates.length; i++) {
+          const d1 = new Date(sortedDates[i - 1]);
+          const d2 = new Date(sortedDates[i]);
+          totalGapDays += (d2.getTime() - d1.getTime()) / (1000 * 60 * 60 * 24);
+        }
+        const avgGap = totalGapDays / (sortedDates.length - 1);
+        if (avgGap > 300) frequency = "yearly";
+        else if (avgGap > 150) frequency = "half_yearly";
+        else if (avgGap > 75) frequency = "quarterly";
+      }
 
       suggestions.push({
         name: data.name,
@@ -312,8 +261,6 @@ export const detectSubscriptions = query({
       });
     }
 
-    return suggestions
-      .sort((a, b) => b.occurrences - a.occurrences)
-      .slice(0, 50); // Top 50 suggestions
+    return suggestions.sort((a, b) => b.occurrences - a.occurrences);
   },
 });
