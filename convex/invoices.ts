@@ -330,6 +330,7 @@ export const addPayment = mutation({
     note: v.optional(v.string()),
     createIncomeEntry: v.optional(v.boolean()),
     sourceBank: v.optional(v.string()),
+    linkIncomeId: v.optional(v.id("income_entries")),
   },
   handler: async (ctx, args) => {
     const paymentId = await ctx.db.insert("invoice_payments", {
@@ -356,8 +357,13 @@ export const addPayment = mutation({
         await ctx.db.patch(args.invoiceId, { status: "partially_paid" });
       }
 
-      // Create linked income entry if requested
-      if (args.createIncomeEntry) {
+      // Link to existing income entry
+      if (args.linkIncomeId) {
+        await ctx.db.patch(args.invoiceId, { linkedIncomeId: args.linkIncomeId });
+      }
+
+      // Create NEW linked income entry if requested (and not linking existing)
+      if (args.createIncomeEntry && !args.linkIncomeId) {
         const sellerName = (invoice.sellerData as Record<string, string>)?.name || "Invoice";
         const buyerName = (invoice.buyerData as Record<string, string>)?.name || "";
         const gstPortion = invoice.netTotal > 0
