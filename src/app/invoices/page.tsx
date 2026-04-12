@@ -1781,7 +1781,18 @@ export default function InvoicesPage() {
                   return filtered.length > 0 ? (
                     <select
                       value={paymentLinkIncomeId}
-                      onChange={(e) => { setPaymentLinkIncomeId(e.target.value); if (e.target.value) setPaymentCreateIncome(false); }}
+                      onChange={(e) => {
+                        setPaymentLinkIncomeId(e.target.value);
+                        if (e.target.value) {
+                          setPaymentCreateIncome(false);
+                          // Auto-fill amount and date from selected income entry
+                          const entry = (incomeEntries ?? []).find((inc: any) => inc._id === e.target.value);
+                          if (entry) {
+                            setPaymentAmount(String((entry as any).amount));
+                            setPaymentDate((entry as any).date);
+                          }
+                        }
+                      }}
                       className="w-full text-[11px] rounded-lg border border-emerald-200 px-3 py-2 bg-white focus:border-emerald-400 focus:outline-none cursor-pointer"
                       size={Math.min(filtered.length + 1, 8)}
                     >
