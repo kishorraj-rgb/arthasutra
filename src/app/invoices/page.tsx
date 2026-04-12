@@ -42,6 +42,23 @@ import {
 } from "lucide-react";
 import { InvoiceViewDialog } from "@/components/invoice/InvoiceViewDialog";
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Recursively strip null values (Convex rejects null for optional fields) */
+function stripNulls(obj: any): any {
+  if (obj === null || obj === undefined) return undefined;
+  if (Array.isArray(obj)) return obj.map(stripNulls).filter((v: unknown) => v !== undefined);
+  if (typeof obj === "object") {
+    const result: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(obj)) {
+      const cleaned = stripNulls(v);
+      if (cleaned !== undefined) result[k] = cleaned;
+    }
+    return result;
+  }
+  return obj;
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface InvoiceItem {
@@ -642,7 +659,7 @@ export default function InvoicesPage() {
                       if (existing) {
                         sellerId = existing._id;
                       } else {
-                        sellerId = await addSellerMut({ userId: userId!, name: data.seller.name, address: data.seller.address, gstin: data.seller.gstin, pan: data.seller.pan, email: data.seller.email, phone: data.seller.phone });
+                        sellerId = await addSellerMut(stripNulls({ userId: userId!, name: data.seller.name, address: data.seller.address, gstin: data.seller.gstin, pan: data.seller.pan, email: data.seller.email, phone: data.seller.phone }));
                       }
                     }
                     // Auto-create/find buyer
@@ -652,11 +669,11 @@ export default function InvoicesPage() {
                       if (existing) {
                         buyerId = existing._id;
                       } else {
-                        buyerId = await addBuyerMut({ userId: userId!, name: data.buyer.name, address: data.buyer.address, gstin: data.buyer.gstin, pan: data.buyer.pan, email: data.buyer.email, phone: data.buyer.phone });
+                        buyerId = await addBuyerMut(stripNulls({ userId: userId!, name: data.buyer.name, address: data.buyer.address, gstin: data.buyer.gstin, pan: data.buyer.pan, email: data.buyer.email, phone: data.buyer.phone }));
                       }
                     }
-                    // Save invoice
-                    await saveInvoiceMut({
+                    // Save invoice (stripNulls to handle AI returning null for optional fields)
+                    await saveInvoiceMut(stripNulls({
                       userId: userId!,
                       sellerId: sellerId as any,
                       buyerId: buyerId as any,
@@ -665,7 +682,7 @@ export default function InvoicesPage() {
                       invoiceDate: data.invoice?.invoiceDate || new Date().toISOString().split("T")[0],
                       dueDate: data.invoice?.dueDate || undefined,
                       placeOfSupplyCode: data.invoice?.placeOfSupplyCode || undefined,
-                      items: (data.items || []).map((item: any) => ({
+                      items: (data.items || []).map((item: any) => stripNulls({
                         description: item.description || "",
                         hsnSac: item.hsnSac || undefined,
                         qty: Number(item.qty) || 1,
@@ -681,10 +698,10 @@ export default function InvoicesPage() {
                       netTotal: Number(data.totals?.netTotal) || 0,
                       status: "draft",
                       notes: data.notes || undefined,
-                      sellerData: data.seller || undefined,
-                      buyerData: data.buyer || undefined,
-                      bankData: data.bank?.bankName ? data.bank : undefined,
-                    });
+                      sellerData: data.seller ? stripNulls(data.seller) : undefined,
+                      buyerData: data.buyer ? stripNulls(data.buyer) : undefined,
+                      bankData: data.bank?.bankName ? stripNulls(data.bank) : undefined,
+                    }));
                   }
                 } catch (err) {
                   setUploadError(err instanceof Error ? err.message : "Upload failed");
