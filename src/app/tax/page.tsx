@@ -1708,28 +1708,17 @@ function GSTTracker({
     }
   }
 
-  if (allInvoices === undefined || expenseEntries === undefined) {
-    return (
-      <Card>
-        <CardContent className="p-12 text-center text-text-secondary">
-          Loading GST data...
-        </CardContent>
-      </Card>
-    );
-  }
-
   // Build reconciliation data if cash ledger is available
+  // (must be before any early returns — React hooks rule)
   const reconciliation = useMemo(() => {
-    if (!cashLedgerSummary?.periodBreakdown) return null;
+    if (!cashLedgerSummary?.periodBreakdown || gstData.length === 0) return null;
     const pb = cashLedgerSummary.periodBreakdown;
-    // Map FY_MONTHS to check: for each month, what did ArthaSutra compute vs what the portal debited
     return gstData
       .filter((m) => m.invoiceCount > 0 || Object.keys(pb).some((p) => {
         const iso = normalizeCashLedgerPeriod(p);
         return iso === m.monthStr;
       }))
       .map((m) => {
-        // Find matching cash ledger period
         const matchingPeriod = Object.entries(pb).find(([p]) => {
           return normalizeCashLedgerPeriod(p) === m.monthStr;
         });
@@ -1747,6 +1736,16 @@ function GSTTracker({
         };
       });
   }, [gstData, cashLedgerSummary]);
+
+  if (allInvoices === undefined || expenseEntries === undefined) {
+    return (
+      <Card>
+        <CardContent className="p-12 text-center text-text-secondary">
+          Loading GST data...
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-6">
