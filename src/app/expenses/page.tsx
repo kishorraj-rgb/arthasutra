@@ -215,7 +215,7 @@ export default function ExpensesPage() {
   const [categoryFilter, setCategoryFilter] = useState("");
   const [subcategoryFilter, setSubcategoryFilter] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedFY, setSelectedFY] = useState("");
+  const [selectedFYs, setSelectedFYs] = useState<string[]>([]);
   const [selectedMonth, setSelectedMonth] = useState("");
   const [bankFilter, setBankFilter] = useState("");
   const [sourceFilter, setSourceFilter] = useState("");
@@ -386,14 +386,12 @@ export default function ExpensesPage() {
     return sorted;
   }, [allExpenses]);
 
-  // Auto-select FY with most data on load, or re-select if current FY has no data
+  // Auto-select FY with most data on load
   useEffect(() => {
-    if (availableFYs.length > 0) {
-      if (!selectedFY || !availableFYs.includes(selectedFY)) {
-        setSelectedFY(availableFYs[0]);
-      }
+    if (availableFYs.length > 0 && selectedFYs.length === 0) {
+      setSelectedFYs([availableFYs[0]]);
     }
-  }, [availableFYs, selectedFY]);
+  }, [availableFYs, selectedFYs.length]);
 
   // Available banks from data with counts and preset IDs
   // Available subcategories from data (filtered by current category if selected)
@@ -444,12 +442,15 @@ export default function ExpensesPage() {
   }, [allExpenses]);
 
   const filtered = useMemo(() => {
-    const fyDates = selectedFY ? getFinancialYearDates(selectedFY) : null;
+    // Multi-FY: get date ranges for all selected FYs
+    const fyDateRanges = selectedFYs.length > 0
+      ? selectedFYs.map((fy) => getFinancialYearDates(fy))
+      : null;
     const query = searchQuery.toLowerCase().trim();
 
     return allExpenses.filter((e) => {
-      if (fyDates && (e.date < fyDates.start || e.date > fyDates.end)) return false;
-      if (selectedMonth && selectedFY) {
+      if (fyDateRanges && !fyDateRanges.some((r) => e.date >= r.start && e.date <= r.end)) return false;
+      if (selectedMonth && selectedFYs.length > 0) {
         const monthObj = FY_MONTHS.find((m) => m.label === selectedMonth);
         if (monthObj && new Date(e.date).getMonth() !== monthObj.month) return false;
       }
@@ -480,7 +481,7 @@ export default function ExpensesPage() {
       }
       return true;
     });
-  }, [allExpenses, showBusinessOnly, categoryFilter, subcategoryFilter, selectedFY, selectedMonth, searchQuery, bankFilter, sourceFilter, methodFilter]);
+  }, [allExpenses, showBusinessOnly, categoryFilter, subcategoryFilter, selectedFYs, selectedMonth, searchQuery, bankFilter, sourceFilter, methodFilter]);
 
   // Sorted entries
   const sorted = useMemo(() => {
@@ -504,7 +505,7 @@ export default function ExpensesPage() {
   }, [sorted, currentPage]);
 
   // Reset page when filters change
-  useEffect(() => { setCurrentPage(1); }, [categoryFilter, subcategoryFilter, searchQuery, selectedFY, selectedMonth, bankFilter, sourceFilter, methodFilter, showBusinessOnly]);
+  useEffect(() => { setCurrentPage(1); }, [categoryFilter, subcategoryFilter, searchQuery, selectedFYs, selectedMonth, bankFilter, sourceFilter, methodFilter, showBusinessOnly]);
 
   const totalExpenses = useMemo(
     () => allExpenses.reduce((s, e) => s + e.amount, 0),
@@ -667,15 +668,35 @@ export default function ExpensesPage() {
         </div>
       </div>
 
-      {/* FY selector */}
+      {/* FY selector — multi-select chips */}
       <div className="space-y-1.5">
         <label className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">Financial Year</label>
-        <Select
-          options={availableFYs.map((fy) => ({ value: fy, label: `FY ${fy}` }))}
-          value={selectedFY}
-          onChange={(e) => { setSelectedFY(e.target.value); setSelectedMonth(""); }}
-          className="w-full"
-        />
+        <div className="flex flex-wrap gap-1.5">
+          {availableFYs.map((fy) => {
+            const isSelected = selectedFYs.includes(fy);
+            return (
+              <button
+                key={fy}
+                onClick={() => {
+                  setSelectedFYs((prev) =>
+                    isSelected
+                      ? prev.filter((f) => f !== fy)
+                      : [...prev, fy]
+                  );
+                  setSelectedMonth("");
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  isSelected
+                    ? "text-white shadow-sm"
+                    : "border border-border-light bg-surface text-text-secondary hover:border-border"
+                }`}
+                style={isSelected ? { backgroundColor: "#4F46E5" } : undefined}
+              >
+                FY {fy}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Category filter */}
@@ -800,7 +821,7 @@ export default function ExpensesPage() {
       </div>
 
       {/* Month chips */}
-      {selectedFY && (
+      {selectedFYs.length > 0 && (
         <div className="space-y-1.5">
           <label className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">Month</label>
           <div className="grid grid-cols-3 gap-1.5">
@@ -901,7 +922,7 @@ export default function ExpensesPage() {
                   ? filtered.filter((e) => selectedIds.has(e._id))
                   : filtered;
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                await exportExpensesToExcel(entriesToExport as any, selectedFY || "2025-26");
+                await exportExpensesToExcel(entriesToExport as any, selectedFYs.join(", ") || "2025-26");
               }}
               variant="outline"
               className="gap-2"

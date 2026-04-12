@@ -1519,6 +1519,7 @@ function GSTTracker({
   const markFiled = useMutation(api.tax.markGSTFiled);
 
   // Cash Ledger from GST portal
+  const cashLedgerEntries = useQuery(api.gstLedger.getCashLedger, { userId });
   const cashLedgerSummary = useQuery(api.gstLedger.getCashLedgerSummary, { userId });
   const importCashLedger = useMutation(api.gstLedger.importCashLedger);
   const clearCashLedger = useMutation(api.gstLedger.clearCashLedger);
@@ -1723,6 +1724,102 @@ function GSTTracker({
     }
   }
 
+  // Export GST Report
+  async function handleExportGSTReport() {
+    const { exportGSTReport } = await import("@/lib/export-gst-report");
+    const userGstin = (document.querySelector("[data-gstin]") as HTMLElement)?.dataset.gstin || "29AYDPK2270R1ZU";
+
+    // Build invoice data with IGST/CGST/SGST split
+    const invoiceData = fyInvoices.map((inv) => {
+      const sellerGstin = (inv.sellerData as Record<string, string>)?.gstin || "";
+      const buyerGstin = (inv.buyerData as Record<string, string>)?.gstin || "";
+      const buyerAddr = (inv.buyerData as Record<string, string>)?.address || "";
+      const sellerState = sellerGstin.substring(0, 2);
+      const buyerState = buyerGstin.substring(0, 2);
+      const isForeign = ["dubai", "uae", "singapore", "usa", "uk", "london", "australia"].some(
+        (f) => buyerAddr.toLowerCase().includes(f)
+      );
+      const isInterState = isForeign || !buyerGstin || sellerState !== buyerState;
+      return {
+        invoiceNumber: inv.invoiceNumber,
+        invoiceDate: inv.invoiceDate,
+        buyerName: (inv.buyerData as Record<string, string>)?.name || "",
+        buyerGstin: buyerGstin,
+        subtotal: inv.subtotal,
+        igst: isInterState ? inv.gstTotal : 0,
+        cgst: isInterState ? 0 : Math.round(inv.gstTotal / 2),
+        sgst: isInterState ? 0 : Math.round(inv.gstTotal / 2),
+        gstTotal: inv.gstTotal,
+        tdsAmount: inv.tdsAmount ?? 0,
+        netTotal: inv.netTotal,
+      };
+    });
+
+    await exportGSTReport({
+      fy,
+      gstin: userGstin,
+      name: "Kishor Raj",
+      monthlyData: gstData.map((m) => ({
+        month: m.month,
+        invoiceCount: m.invoiceCount,
+        taxableAmount: m.taxableAmount,
+        igst: m.igst,
+        cgst: m.cgst,
+        sgst: m.sgst,
+        totalGst: m.totalGst,
+        inputGST: m.inputGST + ((itcSummary?.byMonth?.[m.monthStr]) ?? 0),
+        netLiability: m.netLiability,
+      })),
+      invoices: invoiceData,
+      purchaseBills: (purchaseBills ?? []).map((b) => ({
+        billDate: b.billDate,
+        vendorName: b.vendorName,
+        vendorGstin: b.vendorGstin || "",
+        billNumber: b.billNumber,
+        description: b.description,
+        hsnSac: b.hsnSac || "",
+        subtotal: b.subtotal,
+        igst: b.igst,
+        cgst: b.cgst,
+        sgst: b.sgst,
+        totalGst: b.totalGst,
+        totalAmount: b.totalAmount,
+        itcClaimed: b.itcClaimed,
+      })),
+      cashLedger: (cashLedgerEntries ?? []).map((e) => ({
+        srNo: e.srNo, date: e.date, referenceNo: e.referenceNo,
+        taxPeriod: e.taxPeriod, description: e.description, txnType: e.txnType,
+        igst: e.igst, cgst: e.cgst, sgst: e.sgst, total: e.total,
+        interestIgst: e.interestIgst, interestCgst: e.interestCgst,
+        interestSgst: e.interestSgst, balanceTotal: e.balanceTotal,
+      })),
+      reconciliation: (reconciliation ?? []).map((r) => ({
+        month: r.month,
+        gstLiability: r.gstLiability,
+        cashPaid: r.cashPaid,
+        interest: r.interest,
+        filedOnPortal: r.filedOnPortal,
+      })),
+      summary: {
+        totalRevenue,
+        totalTaxable,
+        totalOutputGst: totalOutput,
+        totalIgst,
+        totalCgst,
+        totalSgst,
+        totalInputItc: totalInput,
+        totalNetLiability: totalNet,
+        totalDeposited: cashLedgerSummary?.totalDeposited ?? 0,
+        totalDebited: cashLedgerSummary?.totalDebited ?? 0,
+        totalInterest: cashLedgerSummary?.totalInterest ?? 0,
+        cashBalance: cashLedgerSummary?.currentBalance.total ?? 0,
+        invoiceCount: totalInvoiceCount,
+        purchaseBillCount: purchaseBills?.length ?? 0,
+        filedPeriods: cashLedgerSummary?.filedPeriods.length ?? 0,
+      },
+    });
+  }
+
   // Handle purchase bill upload
   async function handleBillUpload(file: File) {
     setBillParsing(true);
@@ -1825,10 +1922,16 @@ function GSTTracker({
               )}
             </span>
           </div>
-          <Button variant="outline" size="sm" onClick={() => setShowImportDialog(true)}>
-            <Upload className="h-3.5 w-3.5 mr-1.5" />
-            Import Cash Ledger
-          </Button>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button variant="outline" size="sm" onClick={() => setShowImportDialog(true)}>
+              <Upload className="h-3.5 w-3.5 mr-1.5" />
+              Import Cash Ledger
+            </Button>
+            <Button size="sm" onClick={handleExportGSTReport}>
+              <Download className="h-3.5 w-3.5 mr-1.5" />
+              Export GST Report
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
