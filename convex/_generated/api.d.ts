@@ -19,6 +19,7 @@ import type * as importData from "../importData.js";
 import type * as income from "../income.js";
 import type * as insurance from "../insurance.js";
 import type * as investments from "../investments.js";
+import type * as invoices from "../invoices.js";
 import type * as loans from "../loans.js";
 import type * as reminders from "../reminders.js";
 import type * as reports from "../reports.js";
@@ -45,6 +46,7 @@ declare const fullApi: ApiFromModules<{
   income: typeof income;
   insurance: typeof insurance;
   investments: typeof investments;
+  invoices: typeof invoices;
   loans: typeof loans;
   reminders: typeof reminders;
   reports: typeof reports;
