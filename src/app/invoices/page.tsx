@@ -309,21 +309,47 @@ export default function InvoicesPage() {
     return gstCalc.subtotal + gstCalc.gstTotal - tdsAmount + roundOff;
   }, [gstCalc, tdsAmount, roundOff]);
 
+  const [sortField, setSortField] = useState<"date" | "amount" | "gst" | "tds" | "number" | "customer">("date");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const toggleSort = (field: typeof sortField) => {
+    if (sortField === field) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortField(field); setSortDir("desc"); }
+  };
+
   const filteredInvoices = useMemo(() => {
-    return invoices.filter((inv: any) => {
+    const filtered = invoices.filter((inv: any) => {
       if (statusFilter !== "all" && inv.status !== statusFilter) return false;
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
-        const buyerName =
-          buyers.find((b: any) => b._id === inv.buyerId)?.name || "";
+        const buyerName = (inv.buyerData as any)?.name || buyers.find((b: any) => b._id === inv.buyerId)?.name || "";
+        const buyerGstin = (inv.buyerData as any)?.gstin || "";
         return (
           inv.invoiceNumber.toLowerCase().includes(q) ||
-          buyerName.toLowerCase().includes(q)
+          buyerName.toLowerCase().includes(q) ||
+          buyerGstin.toLowerCase().includes(q)
         );
       }
       return true;
     });
-  }, [invoices, statusFilter, searchQuery, buyers]);
+
+    // Sort
+    filtered.sort((a: any, b: any) => {
+      let cmp = 0;
+      if (sortField === "date") cmp = a.invoiceDate.localeCompare(b.invoiceDate);
+      else if (sortField === "amount") cmp = a.netTotal - b.netTotal;
+      else if (sortField === "gst") cmp = a.gstTotal - b.gstTotal;
+      else if (sortField === "tds") cmp = (a.tdsAmount || 0) - (b.tdsAmount || 0);
+      else if (sortField === "number") cmp = a.invoiceNumber.localeCompare(b.invoiceNumber);
+      else if (sortField === "customer") {
+        const nameA = (a.buyerData as any)?.name || "";
+        const nameB = (b.buyerData as any)?.name || "";
+        cmp = nameA.localeCompare(nameB);
+      }
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+
+    return filtered;
+  }, [invoices, statusFilter, searchQuery, buyers, sortField, sortDir]);
 
   // ─── Handlers ─────────────────────────────────────────────────────────
 
@@ -909,14 +935,26 @@ export default function InvoicesPage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-gray-100">
-                        <th className="text-left py-3 px-3 text-gray-500 font-medium">Invoice #</th>
-                        <th className="text-left py-3 px-3 text-gray-500 font-medium">Date</th>
-                        <th className="text-left py-3 px-3 text-gray-500 font-medium">Customer</th>
-                        <th className="text-right py-3 px-3 text-gray-500 font-medium">Amount</th>
-                        <th className="text-right py-3 px-3 text-gray-500 font-medium text-purple-500">GST</th>
-                        <th className="text-right py-3 px-3 text-gray-500 font-medium text-indigo-500">TDS</th>
-                        <th className="text-center py-3 px-3 text-gray-500 font-medium">Status</th>
-                        <th className="text-right py-3 px-3 text-gray-500 font-medium">Actions</th>
+                        <th className="text-left py-3 px-2 text-gray-500 font-medium cursor-pointer hover:text-gray-800 select-none" onClick={() => toggleSort("number")}>
+                          Inv # {sortField === "number" && (sortDir === "asc" ? "↑" : "↓")}
+                        </th>
+                        <th className="text-left py-3 px-2 text-gray-500 font-medium cursor-pointer hover:text-gray-800 select-none" onClick={() => toggleSort("date")}>
+                          Date {sortField === "date" && (sortDir === "asc" ? "↑" : "↓")}
+                        </th>
+                        <th className="text-left py-3 px-2 text-gray-500 font-medium cursor-pointer hover:text-gray-800 select-none" onClick={() => toggleSort("customer")}>
+                          Customer {sortField === "customer" && (sortDir === "asc" ? "↑" : "↓")}
+                        </th>
+                        <th className="text-right py-3 px-2 text-gray-500 font-medium cursor-pointer hover:text-gray-800 select-none" onClick={() => toggleSort("amount")}>
+                          Amount {sortField === "amount" && (sortDir === "asc" ? "↑" : "↓")}
+                        </th>
+                        <th className="text-right py-3 px-2 text-purple-400 font-medium text-[10px]">IGST</th>
+                        <th className="text-right py-3 px-2 text-purple-400 font-medium text-[10px]">CGST</th>
+                        <th className="text-right py-3 px-2 text-purple-400 font-medium text-[10px]">SGST</th>
+                        <th className="text-right py-3 px-2 text-indigo-400 font-medium cursor-pointer hover:text-indigo-600 select-none" onClick={() => toggleSort("tds")}>
+                          TDS {sortField === "tds" && (sortDir === "asc" ? "↑" : "↓")}
+                        </th>
+                        <th className="text-center py-3 px-2 text-gray-500 font-medium">Status</th>
+                        <th className="text-right py-3 px-2 text-gray-500 font-medium">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -938,16 +976,48 @@ export default function InvoicesPage() {
                                 year: "numeric",
                               })}
                             </td>
-                            <td className="py-3 px-3 text-gray-800">
-                              {buyer?.name || inv.buyerData?.name || "—"}
+                            <td className="py-3 px-2 text-gray-800">
+                              <div>
+                                <span className="font-medium text-sm">{buyer?.name || inv.buyerData?.name || "—"}</span>
+                                {(buyer?.gstin || inv.buyerData?.gstin) && (
+                                  <p className="text-[10px] text-gray-400 font-mono mt-0.5">
+                                    {buyer?.gstin || inv.buyerData?.gstin}
+                                  </p>
+                                )}
+                              </div>
                             </td>
-                            <td className="py-3 px-3 text-right font-mono font-medium text-gray-900">
+                            <td className="py-3 px-2 text-right font-mono font-medium text-gray-900">
                               {formatCurrency(inv.netTotal)}
                             </td>
-                            <td className="py-3 px-3 text-right text-xs text-purple-600 stat-number">
-                              {inv.gstTotal > 0 ? formatCurrency(inv.gstTotal) : "-"}
-                            </td>
-                            <td className="py-3 px-3 text-right text-xs text-indigo-600 stat-number">
+                            {/* IGST / CGST / SGST per row */}
+                            {(() => {
+                              const sellerGstin = inv.sellerData?.gstin || "";
+                              const buyerGstin2 = inv.buyerData?.gstin || "";
+                              const buyerAddr = inv.buyerData?.address || "";
+                              const sellerState = sellerGstin.substring(0, 2);
+                              const buyerState2 = buyerGstin2.substring(0, 2);
+                              let isInter = false;
+                              if (inv.placeOfSupplyCode && sellerState) isInter = sellerState !== inv.placeOfSupplyCode;
+                              else if (sellerState && buyerState2) isInter = sellerState !== buyerState2;
+                              else if (!buyerGstin2 && buyerAddr) {
+                                isInter = ["dubai","uae","singapore","usa","uk"].some((f) => buyerAddr.toLowerCase().includes(f));
+                              }
+                              const gst = inv.gstTotal || 0;
+                              return (
+                                <>
+                                  <td className="py-3 px-2 text-right text-[11px] text-purple-600 stat-number">
+                                    {isInter && gst > 0 ? formatCurrency(gst) : "-"}
+                                  </td>
+                                  <td className="py-3 px-2 text-right text-[11px] text-purple-500 stat-number">
+                                    {!isInter && gst > 0 ? formatCurrency(Math.round(gst / 2)) : "-"}
+                                  </td>
+                                  <td className="py-3 px-2 text-right text-[11px] text-purple-500 stat-number">
+                                    {!isInter && gst > 0 ? formatCurrency(Math.round(gst / 2)) : "-"}
+                                  </td>
+                                </>
+                              );
+                            })()}
+                            <td className="py-3 px-2 text-right text-[11px] text-indigo-600 stat-number">
                               {(inv.tdsAmount || 0) > 0 ? formatCurrency(inv.tdsAmount) : "-"}
                             </td>
                             <td className="py-3 px-3 text-center">
