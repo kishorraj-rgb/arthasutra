@@ -1708,31 +1708,28 @@ function GSTTracker({
     }
   }
 
-  // Build reconciliation data if cash ledger is available
-  // (must be before any early returns — React hooks rule)
+  // Build reconciliation: which periods are filed (per cash ledger debits)
+  // NOTE: Cash Ledger only shows cash payments (fees, interest, small adjustments).
+  // Main GST tax is paid via ITC (Input Tax Credit) from Credit Ledger.
+  // So we reconcile filing status, not amounts.
   const reconciliation = useMemo(() => {
     if (!cashLedgerSummary?.periodBreakdown || gstData.length === 0) return null;
     const pb = cashLedgerSummary.periodBreakdown;
     return gstData
-      .filter((m) => m.invoiceCount > 0 || Object.keys(pb).some((p) => {
-        const iso = normalizeCashLedgerPeriod(p);
-        return iso === m.monthStr;
-      }))
+      .filter((m) => m.invoiceCount > 0)
       .map((m) => {
-        const matchingPeriod = Object.entries(pb).find(([p]) => {
-          return normalizeCashLedgerPeriod(p) === m.monthStr;
-        });
-        const portalData = matchingPeriod ? matchingPeriod[1] : null;
+        const matchingPeriod = Object.entries(pb).find(([p]) =>
+          normalizeCashLedgerPeriod(p) === m.monthStr
+        );
+        const portalData = matchingPeriod ? (matchingPeriod[1] as any) : null;
         return {
           month: m.month,
           monthStr: m.monthStr,
-          computed: m.totalGst,
-          portal: portalData ? (portalData as any).total : null,
-          interest: portalData ? (portalData as any).interest : 0,
-          filed: !!portalData,
-          match: portalData
-            ? Math.abs(m.totalGst - (portalData as any).total + ((portalData as any).interest || 0)) < 100
-            : false,
+          gstLiability: m.totalGst,
+          cashPaid: portalData ? portalData.total : 0,
+          interest: portalData ? portalData.interest : 0,
+          filedOnPortal: !!portalData,
+          filingDate: portalData?.date || "",
         };
       });
   }, [gstData, cashLedgerSummary]);
@@ -2062,95 +2059,98 @@ function GSTTracker({
         </CardContent>
       </Card>
 
-      {/* ── Cash Ledger Reconciliation ─────────────────────────────────── */}
-      {cashLedgerSummary && reconciliation && reconciliation.length > 0 && (
+      {/* ── GST Portal Status (from Cash Ledger) ────────────────────── */}
+      {cashLedgerSummary && (
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2">
                 <Download className="h-5 w-5 text-accent-light" />
-                GST Portal Reconciliation
+                GST Portal — Cash Ledger
               </CardTitle>
-              <div className="flex items-center gap-3 text-xs">
-                <span className="text-text-tertiary">
-                  Interest paid: <span className="font-mono font-semibold text-rose-400">{formatCurrency(cashLedgerSummary.totalInterest)}</span>
-                </span>
-                <span className="text-text-tertiary">
-                  Balance: <span className="font-mono font-semibold text-emerald-400">{formatCurrency(cashLedgerSummary.currentBalance.total)}</span>
-                </span>
-              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs text-rose-400"
+                onClick={async () => {
+                  if (confirm("Clear all imported cash ledger data?")) {
+                    await clearCashLedger({ userId });
+                  }
+                }}
+              >
+                Re-import
+              </Button>
             </div>
           </CardHeader>
           <CardContent>
-            {/* Summary row */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+            {/* Summary KPIs */}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
               <div className="rounded-lg bg-surface-tertiary/50 p-3 border border-border-light">
-                <p className="text-[10px] text-text-tertiary uppercase">Total Deposited</p>
+                <p className="text-[10px] text-text-tertiary uppercase">Deposited</p>
                 <p className="font-mono font-semibold text-text-primary">{formatCurrency(cashLedgerSummary.totalDeposited)}</p>
               </div>
               <div className="rounded-lg bg-surface-tertiary/50 p-3 border border-border-light">
-                <p className="text-[10px] text-text-tertiary uppercase">Total Debited</p>
+                <p className="text-[10px] text-text-tertiary uppercase">Utilized</p>
                 <p className="font-mono font-semibold text-rose-400">{formatCurrency(cashLedgerSummary.totalDebited)}</p>
               </div>
               <div className="rounded-lg bg-surface-tertiary/50 p-3 border border-border-light">
-                <p className="text-[10px] text-text-tertiary uppercase">Interest/Penalty</p>
+                <p className="text-[10px] text-text-tertiary uppercase">Interest Paid</p>
                 <p className="font-mono font-semibold text-amber-400">{formatCurrency(cashLedgerSummary.totalInterest)}</p>
               </div>
               <div className="rounded-lg bg-emerald-500/5 p-3 border border-emerald-500/20">
                 <p className="text-[10px] text-text-tertiary uppercase">Cash Balance</p>
                 <p className="font-mono font-bold text-emerald-500">{formatCurrency(cashLedgerSummary.currentBalance.total)}</p>
               </div>
+              <div className="rounded-lg bg-accent/5 p-3 border border-accent/20">
+                <p className="text-[10px] text-text-tertiary uppercase">Periods Filed</p>
+                <p className="font-mono font-bold text-accent-light">{cashLedgerSummary.filedPeriods.length}</p>
+                <p className="text-[9px] text-text-tertiary mt-0.5">{cashLedgerSummary.filedPeriods.join(", ")}</p>
+              </div>
             </div>
 
-            {/* Per-month reconciliation table */}
-            <div className="rounded-lg border border-border overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-surface-tertiary">
-                    <th className="text-left p-3 text-text-secondary font-medium">Month</th>
-                    <th className="text-right p-3 text-text-secondary font-medium">ArthaSutra GST</th>
-                    <th className="text-right p-3 text-text-secondary font-medium">Portal Debited</th>
-                    <th className="text-right p-3 text-text-secondary font-medium">Interest</th>
-                    <th className="text-center p-3 text-text-secondary font-medium">Filed</th>
-                    <th className="text-center p-3 text-text-secondary font-medium">Match</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {reconciliation.map((r, i) => (
-                    <tr key={i} className="border-t border-border-light">
-                      <td className="p-3 text-text-primary">{r.month}</td>
-                      <td className="p-3 text-right font-mono text-text-primary">
-                        {r.computed > 0 ? formatCurrency(r.computed) : "-"}
-                      </td>
-                      <td className="p-3 text-right font-mono text-rose-400">
-                        {r.portal !== null ? formatCurrency(r.portal) : "-"}
-                      </td>
-                      <td className="p-3 text-right font-mono text-amber-400">
-                        {r.interest > 0 ? formatCurrency(r.interest) : "-"}
-                      </td>
-                      <td className="p-3 text-center">
-                        {r.filed ? (
-                          <CheckCircle className="h-4 w-4 text-emerald-400 mx-auto" />
-                        ) : (
-                          <AlertTriangle className="h-4 w-4 text-amber-400 mx-auto" />
-                        )}
-                      </td>
-                      <td className="p-3 text-center">
-                        {r.portal === null ? (
-                          <span className="text-text-tertiary text-xs">-</span>
-                        ) : r.match ? (
-                          <CheckCircle className="h-4 w-4 text-emerald-400 mx-auto" />
-                        ) : (
-                          <span className="text-xs font-mono text-rose-400">
-                            {formatCurrency(Math.abs(r.computed - (r.portal - r.interest)))}
-                          </span>
-                        )}
-                      </td>
+            {/* Per-month filing status table */}
+            {reconciliation && reconciliation.length > 0 && (
+              <div className="rounded-lg border border-border overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-surface-tertiary">
+                      <th className="text-left p-3 text-text-secondary font-medium">Month</th>
+                      <th className="text-right p-3 text-text-secondary font-medium">GST Liability</th>
+                      <th className="text-right p-3 text-text-secondary font-medium">Cash Paid</th>
+                      <th className="text-right p-3 text-text-secondary font-medium">Interest</th>
+                      <th className="text-center p-3 text-text-secondary font-medium">Filed on Portal</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {reconciliation.map((r, i) => (
+                      <tr key={i} className="border-t border-border-light">
+                        <td className="p-3 text-text-primary">{r.month}</td>
+                        <td className="p-3 text-right font-mono text-text-primary">
+                          {formatCurrency(r.gstLiability)}
+                        </td>
+                        <td className="p-3 text-right font-mono text-text-secondary">
+                          {r.cashPaid > 0 ? formatCurrency(r.cashPaid) : "-"}
+                        </td>
+                        <td className="p-3 text-right font-mono text-amber-400">
+                          {r.interest > 0 ? formatCurrency(r.interest) : "-"}
+                        </td>
+                        <td className="p-3 text-center">
+                          {r.filedOnPortal ? (
+                            <CheckCircle className="h-4 w-4 text-emerald-400 mx-auto" />
+                          ) : (
+                            <span className="text-xs text-amber-400 font-medium">Not filed</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <p className="text-[10px] text-text-tertiary mt-3">
+              Note: Most GST tax is discharged via Input Tax Credit (ITC), not cash. Cash Ledger shows deposits, late fees, interest, and the remaining cash balance.
+            </p>
           </CardContent>
         </Card>
       )}
