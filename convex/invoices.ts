@@ -308,6 +308,33 @@ export const deleteInvoice = mutation({
   },
 });
 
+/**
+ * Fix all invoices where dueDate is missing or before invoiceDate.
+ * Sets dueDate = invoiceDate + 30 days for affected invoices.
+ */
+export const fixInvoiceDueDates = mutation({
+  args: { userId: v.id("users") },
+  handler: async (ctx, args) => {
+    const invoices = await ctx.db
+      .query("invoices")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
+
+    let fixed = 0;
+    for (const inv of invoices) {
+      const needsFix = !inv.dueDate || inv.dueDate < inv.invoiceDate;
+      if (needsFix) {
+        const d = new Date(inv.invoiceDate + "T00:00:00");
+        d.setDate(d.getDate() + 30);
+        const newDueDate = d.toISOString().split("T")[0];
+        await ctx.db.patch(inv._id, { dueDate: newDueDate });
+        fixed++;
+      }
+    }
+    return { total: invoices.length, fixed };
+  },
+});
+
 // ─── Payments ──────────────────────────────────────────────────────────
 
 export const getInvoicePayments = query({

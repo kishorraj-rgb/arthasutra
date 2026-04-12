@@ -465,7 +465,12 @@ export default function InvoicesPage() {
           documentType: invoiceForm.documentType,
           invoiceNumber: invNum || `INV-${Date.now()}`,
           invoiceDate: invoiceForm.invoiceDate,
-          dueDate: invoiceForm.dueDate || undefined,
+          dueDate: invoiceForm.dueDate || (() => {
+            // Auto-calculate: invoice date + 30 days
+            const d = new Date(invoiceForm.invoiceDate + "T00:00:00");
+            d.setDate(d.getDate() + 30);
+            return d.toISOString().split("T")[0];
+          })(),
           items: invoiceForm.items.filter((i) => i.description.trim()),
           subtotal: gstCalc.subtotal,
           gstTotal: gstCalc.gstTotal,
