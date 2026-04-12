@@ -28,6 +28,7 @@ import {
   AlertTriangle,
   IndianRupee,
   ArrowRight,
+  X,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -296,6 +297,8 @@ function IncomeTaxCalculator({
   userId: Id<"users">;
   fy: string;
 }) {
+  const { start: fyStart, end: fyEnd } = getFinancialYearDates(fy);
+
   // Fetch real data
   const incomeEntries = useQuery(api.income.getAnnualIncome, {
     userId,
@@ -357,6 +360,51 @@ function IncomeTaxCalculator({
     };
   }, [incomeEntries, investments, insurancePolicies, loans]);
 
+  // Income sources — selectable by type + subcategory
+  const [incomeSources, setIncomeSources] = useState<Array<{ type: string; subcat: string }>>([
+    { type: "salary", subcat: "" },
+    { type: "freelance", subcat: "" },
+  ]);
+
+  // Compute income breakdown by type
+  const incomeByType = useMemo(() => {
+    const map: Record<string, { total: number; count: number; subcats: Record<string, number> }> = {};
+    for (const e of (incomeEntries ?? [])) {
+      if (e.date < fyStart || e.date > fyEnd) continue;
+      const t = e.type || "other";
+      if (!map[t]) map[t] = { total: 0, count: 0, subcats: {} };
+      map[t].total += e.amount;
+      map[t].count++;
+      const sub = (e as Record<string, unknown>).subcategory as string || "";
+      if (sub) map[t].subcats[sub] = (map[t].subcats[sub] || 0) + e.amount;
+    }
+    return map;
+  }, [incomeEntries, fyStart, fyEnd]);
+
+  const INCOME_TYPE_OPTIONS = [
+    { value: "salary", label: "Salary" },
+    { value: "freelance", label: "Freelance/Consulting" },
+    { value: "rental", label: "Rental Income" },
+    { value: "interest", label: "Interest" },
+    { value: "dividend", label: "Dividend" },
+    { value: "other", label: "Other" },
+  ];
+
+  // Calculate gross income from selected sources
+  const selectedGrossIncome = useMemo(() => {
+    let total = 0;
+    for (const src of incomeSources) {
+      const typeData = incomeByType[src.type];
+      if (!typeData) continue;
+      if (src.subcat) {
+        total += typeData.subcats[src.subcat] || 0;
+      } else {
+        total += typeData.total;
+      }
+    }
+    return total;
+  }, [incomeSources, incomeByType]);
+
   // Editable state - seeded from autoValues
   const [grossIncome, setGrossIncome] = useState(0);
   const [hraClaimed, setHraClaimed] = useState(0);
@@ -371,7 +419,6 @@ function IncomeTaxCalculator({
   // Seed once when data arrives
   useEffect(() => {
     if (!seeded && incomeEntries !== undefined) {
-      setGrossIncome(autoValues.totalIncome);
       setSec80C(autoValues.sec80C);
       setSec80D_self(autoValues.sec80D_self);
       setSec80D_parents(autoValues.sec80D_parents);
@@ -380,6 +427,13 @@ function IncomeTaxCalculator({
       setSeeded(true);
     }
   }, [seeded, incomeEntries, autoValues]);
+
+  // Update grossIncome when income sources change
+  useEffect(() => {
+    if (selectedGrossIncome > 0) {
+      setGrossIncome(selectedGrossIncome);
+    }
+  }, [selectedGrossIncome]);
 
   const taxComparison = useMemo(() => {
     // --- New Regime ---
@@ -508,19 +562,87 @@ function IncomeTaxCalculator({
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Income Sources Selector */}
             <div className="space-y-2">
-              <Label>Gross Annual Income</Label>
+              <div className="flex items-center justify-between">
+                <Label>Income Sources</Label>
+                {incomeSources.length < 10 && (
+                  <button
+                    onClick={() => setIncomeSources([...incomeSources, { type: "other", subcat: "" }])}
+                    className="text-xs text-accent-light hover:underline"
+                  >
+                    + Add Source
+                  </button>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                {incomeSources.map((src, idx) => {
+                  const typeData = incomeByType[src.type];
+                  const subcats = typeData ? Object.keys(typeData.subcats) : [];
+                  return (
+                    <div key={idx} className="flex items-center gap-2">
+                      <span className="text-xs text-text-tertiary w-4">{idx + 1}.</span>
+                      <select
+                        value={src.type}
+                        onChange={(e) => {
+                          const updated = [...incomeSources];
+                          updated[idx] = { type: e.target.value, subcat: "" };
+                          setIncomeSources(updated);
+                        }}
+                        className="flex-1 text-xs rounded-lg border border-gray-200 px-2 py-1.5 bg-white focus:border-accent focus:outline-none cursor-pointer"
+                      >
+                        {INCOME_TYPE_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label} {incomeByType[opt.value] ? `(${formatCurrency(incomeByType[opt.value].total)})` : ""}
+                          </option>
+                        ))}
+                      </select>
+                      {subcats.length > 0 && (
+                        <select
+                          value={src.subcat}
+                          onChange={(e) => {
+                            const updated = [...incomeSources];
+                            updated[idx] = { ...updated[idx], subcat: e.target.value };
+                            setIncomeSources(updated);
+                          }}
+                          className="flex-1 text-xs rounded-lg border border-dashed border-gray-200 px-2 py-1.5 bg-gray-50 focus:border-accent focus:outline-none cursor-pointer"
+                        >
+                          <option value="">All subcategories</option>
+                          {subcats.map((sub) => (
+                            <option key={sub} value={sub}>
+                              {sub} ({formatCurrency(typeData!.subcats[sub])})
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                      <span className="text-xs text-text-tertiary stat-number w-20 text-right">
+                        {typeData ? formatCurrency(src.subcat ? (typeData.subcats[src.subcat] || 0) : typeData.total) : "₹0"}
+                      </span>
+                      {incomeSources.length > 1 && (
+                        <button
+                          onClick={() => setIncomeSources(incomeSources.filter((_, i) => i !== idx))}
+                          className="text-text-tertiary hover:text-rose-500 transition-colors"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                <span className="text-xs font-semibold text-text-primary">Gross Annual Income</span>
+                <span className="text-sm font-bold text-accent-light stat-number">{formatCurrency(grossIncome)}</span>
+              </div>
               <Input
                 type="number"
                 value={grossIncome}
                 onChange={(e) => setGrossIncome(Number(e.target.value) || 0)}
-                placeholder="e.g. 1500000"
+                className="text-xs"
+                placeholder="Override manually if needed"
               />
-              {autoValues.totalIncome > 0 && (
-                <p className="text-xs text-accent-light/70">
-                  Auto-filled from {(incomeEntries ?? []).length} income entries
-                </p>
-              )}
             </div>
 
             <div className="border-t border-border pt-4">
