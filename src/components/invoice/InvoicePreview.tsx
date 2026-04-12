@@ -105,16 +105,33 @@ function isInterState(
   sellerGstin?: string,
   buyerGstin?: string,
   placeOfSupplyCode?: string,
+  buyerAddress?: string,
 ): boolean {
   const sellerState = sellerGstin ? sellerGstin.substring(0, 2) : "";
-  if (!sellerState) return false; // can't determine without seller GSTIN
+  if (!sellerState) return false;
 
+  // If place of supply code is set, compare directly
   if (placeOfSupplyCode) {
     return sellerState !== placeOfSupplyCode;
   }
+
+  // If buyer has GSTIN, compare state codes
   const buyerState = buyerGstin ? buyerGstin.substring(0, 2) : "";
-  if (!buyerState) return false;
-  return sellerState !== buyerState;
+  if (buyerState) {
+    return sellerState !== buyerState;
+  }
+
+  // If buyer has no GSTIN — check if foreign (exports = IGST/zero-rated)
+  if (buyerAddress) {
+    const addr = buyerAddress.toLowerCase();
+    const foreignIndicators = ["dubai", "uae", "u.a.e", "singapore", "usa", "uk", "london",
+      "hong kong", "australia", "canada", "germany", "japan", "china", "qatar", "oman",
+      "bahrain", "kuwait", "saudi", "malaysia", "indonesia", "sri lanka"];
+    if (foreignIndicators.some((f) => addr.includes(f))) return true;
+  }
+
+  // No buyer GSTIN and no foreign address — assume intra-state (B2C domestic)
+  return false;
 }
 
 /**
@@ -164,6 +181,7 @@ export function InvoicePreview({
     seller?.gstin,
     buyer?.gstin,
     invoice.placeOfSupplyCode,
+    buyer?.address,
   );
   const gstBreakdown = getGstBreakdown(
     invoice.items,
