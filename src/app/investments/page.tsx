@@ -26,9 +26,6 @@ import {
   TrendingUp,
   PieChart as PieChartIcon,
   Target,
-  GraduationCap,
-  Home,
-  Briefcase,
   ArrowUpRight,
   ArrowDownRight,
   Trash2,
@@ -42,41 +39,6 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
-
-// --------------- Static Data (Goal-Based Planning - future feature) ---------------
-
-const goals = [
-  {
-    id: "1",
-    name: "Child Education",
-    icon: GraduationCap,
-    target: 5000000,
-    years: 15,
-    status: "On track",
-    statusColor: "text-emerald-400",
-    progress: 78,
-  },
-  {
-    id: "2",
-    name: "Retirement",
-    icon: Briefcase,
-    target: 50000000,
-    years: 25,
-    status: "Need to increase SIP by \u20B95,000",
-    statusColor: "text-amber-400",
-    progress: 42,
-  },
-  {
-    id: "3",
-    name: "Home Purchase",
-    icon: Home,
-    target: 10000000,
-    years: 5,
-    status: "65% achieved",
-    statusColor: "text-emerald-400",
-    progress: 65,
-  },
-];
 
 const TAX_SECTIONS = [
   { value: "none", label: "None" },
@@ -647,52 +609,18 @@ export default function InvestmentsPage() {
           </>
         )}
 
-        {/* ---- Goal-Based Planning (static/demo - future feature) ---- */}
-        <div>
-          <h2 className="font-display text-xl font-semibold text-text-primary mb-4">
-            Goal-Based Planning
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {goals.map((goal) => {
-              const GoalIcon = goal.icon;
-              return (
-                <Card key={goal.id}>
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent/10">
-                        <GoalIcon className="h-5 w-5 text-accent-light" />
-                      </div>
-                      <div>
-                        <CardTitle className="text-base">{goal.name}</CardTitle>
-                        <p className="text-xs text-text-tertiary mt-0.5">
-                          Target: {formatCurrency(goal.target)} in {goal.years}{" "}
-                          yrs
-                        </p>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <Progress
-                      value={goal.progress}
-                      indicatorClassName="bg-accent"
-                      className="h-2"
-                    />
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-mono text-text-secondary">
-                        {goal.progress}%
-                      </span>
-                      <span
-                        className={`text-xs font-medium ${goal.statusColor}`}
-                      >
-                        {goal.status}
-                      </span>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        </div>
+        {/* ---- Goal-Based Planning (coming soon) ---- */}
+        <Card>
+          <CardContent className="p-8 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-accent/10 mx-auto mb-3">
+              <Target className="h-6 w-6 text-accent-light" />
+            </div>
+            <h3 className="text-lg font-semibold text-text-primary">Goal-Based Planning</h3>
+            <p className="text-text-secondary text-sm mt-1 max-w-md mx-auto">
+              Set financial goals (retirement, education, home purchase) and track your progress. Coming soon.
+            </p>
+          </CardContent>
+        </Card>
 
         {/* ---- Add Investment Dialog ---- */}
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

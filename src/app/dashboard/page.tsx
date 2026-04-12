@@ -8,8 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { AnimatedNumber } from "@/components/ui/animated-number";
 import { StaggerContainer, StaggerItem } from "@/components/ui/stagger-container";
 import { SkeletonCard, Skeleton } from "@/components/ui/skeleton";
-import { playSuccess } from "@/lib/sounds";
-import { formatCurrency, amountInWords, CHART_COLORS, CATEGORY_COLORS } from "@/lib/utils";
+// sounds removed for cleaner UX
+import { formatCurrency, amountInWords, CHART_COLORS, CATEGORY_COLORS, getCurrentFinancialYear } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
@@ -37,27 +37,7 @@ import {
   Cell,
 } from "recharts";
 
-// ---------------------------------------------------------------------------
-// Static demo data for tax regime comparison (depends on tax calculator inputs)
-// ---------------------------------------------------------------------------
-
-const taxComparison = {
-  grossIncome: 3420000,
-  oldRegime: {
-    taxable: 2535000,
-    tax: 447720,
-    deductions: 885000,
-    cess: 17909,
-    total: 465629,
-  },
-  newRegime: {
-    taxable: 3345000,
-    tax: 495400,
-    deductions: 75000,
-    cess: 19816,
-    total: 515216,
-  },
-};
+// Tax comparison now fetched from real data (see advanceTax query in component)
 
 // ---------------------------------------------------------------------------
 // Shimmer skeleton loading component
@@ -282,19 +262,38 @@ export default function DashboardPage() {
     api.dashboard.getDashboardMetrics,
     user ? { userId: user.userId } : "skip"
   );
+  const currentFY = getCurrentFinancialYear();
+  const advanceTax = useQuery(
+    api.tax.calculateAdvanceTax,
+    user ? { userId: user.userId, financialYear: currentFY } : "skip"
+  );
   const hasSoundPlayed = useRef(false);
 
-  const savings = taxComparison.oldRegime.total - taxComparison.newRegime.total;
+  // Real tax comparison from backend
+  const taxComparison = advanceTax
+    ? {
+        grossIncome: advanceTax.totalIncome,
+        oldRegime: {
+          deductions: advanceTax.totalDeductions + 50000, // includes std deduction
+          taxable: Math.max(0, advanceTax.totalIncome - advanceTax.totalDeductions - 50000),
+          total: advanceTax.oldRegimeTax,
+        },
+        newRegime: {
+          deductions: 75000,
+          taxable: Math.max(0, advanceTax.totalIncome - 75000),
+          total: advanceTax.newRegimeTax,
+        },
+      }
+    : null;
+
+  const savings = taxComparison ? (taxComparison.oldRegime.total - taxComparison.newRegime.total) : 0;
   const betterRegime = savings < 0 ? "Old Regime" : "New Regime";
   const savingsAmount = Math.abs(savings);
 
-  // Play success sound when data first loads
+  // Track if data has loaded
   useEffect(() => {
-    if (metrics && metrics !== undefined && !hasSoundPlayed.current) {
-      if (!isEmptyMetrics(metrics)) {
-        playSuccess();
-        hasSoundPlayed.current = true;
-      }
+    if (metrics && !hasSoundPlayed.current) {
+      hasSoundPlayed.current = true;
     }
   }, [metrics]);
 
@@ -647,7 +646,7 @@ export default function DashboardPage() {
             </Card>
           </motion.div>
 
-          {/* Tax Regime Comparison (static demo) */}
+          {/* Tax Regime Comparison (real data) */}
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -661,7 +660,7 @@ export default function DashboardPage() {
                   Tax Regime Comparison
                 </CardTitle>
                 <p className="text-xs text-text-tertiary">
-                  Gross Income: {formatCurrency(taxComparison.grossIncome)}
+                  Gross Income: {formatCurrency(taxComparison?.grossIncome ?? 0)}
                 </p>
               </CardHeader>
               <CardContent>
@@ -686,25 +685,25 @@ export default function DashboardPage() {
                       <div className="flex justify-between text-xs">
                         <span className="text-text-tertiary">Deductions</span>
                         <span className="stat-number text-emerald-400">
-                          {formatCurrency(taxComparison.oldRegime.deductions)}
+                          {formatCurrency(taxComparison?.oldRegime.deductions ?? 0)}
                         </span>
                       </div>
                       <div className="flex justify-between text-xs">
                         <span className="text-text-tertiary">Taxable Income</span>
                         <span className="stat-number text-text-secondary">
-                          {formatCurrency(taxComparison.oldRegime.taxable)}
+                          {formatCurrency(taxComparison?.oldRegime.taxable ?? 0)}
                         </span>
                       </div>
                       <div className="flex justify-between text-xs">
                         <span className="text-text-tertiary">Tax + Cess</span>
                         <span className="stat-number text-rose-400">
-                          {formatCurrency(taxComparison.oldRegime.total)}
+                          {formatCurrency(taxComparison?.oldRegime.total ?? 0)}
                         </span>
                       </div>
                       <div className="border-t border-border pt-2 flex justify-between text-sm">
                         <span className="text-text-secondary font-medium">Total Tax</span>
                         <span className="stat-number font-bold text-text-primary">
-                          {formatCurrency(taxComparison.oldRegime.total)}
+                          {formatCurrency(taxComparison?.oldRegime.total ?? 0)}
                         </span>
                       </div>
                     </div>
@@ -730,25 +729,25 @@ export default function DashboardPage() {
                       <div className="flex justify-between text-xs">
                         <span className="text-text-tertiary">Deductions</span>
                         <span className="stat-number text-emerald-400">
-                          {formatCurrency(taxComparison.newRegime.deductions)}
+                          {formatCurrency(taxComparison?.newRegime.deductions ?? 0)}
                         </span>
                       </div>
                       <div className="flex justify-between text-xs">
                         <span className="text-text-tertiary">Taxable Income</span>
                         <span className="stat-number text-text-secondary">
-                          {formatCurrency(taxComparison.newRegime.taxable)}
+                          {formatCurrency(taxComparison?.newRegime.taxable ?? 0)}
                         </span>
                       </div>
                       <div className="flex justify-between text-xs">
                         <span className="text-text-tertiary">Tax + Cess</span>
                         <span className="stat-number text-rose-400">
-                          {formatCurrency(taxComparison.newRegime.total)}
+                          {formatCurrency(taxComparison?.newRegime.total ?? 0)}
                         </span>
                       </div>
                       <div className="border-t border-border pt-2 flex justify-between text-sm">
                         <span className="text-text-secondary font-medium">Total Tax</span>
                         <span className="stat-number font-bold text-text-primary">
-                          {formatCurrency(taxComparison.newRegime.total)}
+                          {formatCurrency(taxComparison?.newRegime.total ?? 0)}
                         </span>
                       </div>
                     </div>

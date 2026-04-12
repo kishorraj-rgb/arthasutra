@@ -8,13 +8,12 @@ const Card = React.forwardRef<HTMLDivElement, HTMLMotionProps<"div"> & { classNa
   ({ className, ...props }, ref) => (
     <motion.div
       ref={ref}
-      initial={{ opacity: 0, y: 12 }}
+      initial={{ opacity: 0, y: 8 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
-      transition={{ duration: 0.3 }}
-      whileHover={{ y: -2, transition: { type: "spring", stiffness: 300, damping: 20 } }}
+      transition={{ duration: 0.25 }}
       className={cn(
-        "rounded-xl border border-gray-200 bg-white shadow-sm transition-colors hover:border-gray-300",
+        "rounded-xl border border-border-light bg-surface shadow-sm transition-colors hover:border-border",
         className
       )}
       {...props}

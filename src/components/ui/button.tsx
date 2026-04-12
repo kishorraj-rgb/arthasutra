@@ -4,8 +4,6 @@ import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
-import { playClick } from "@/lib/sounds";
-
 const buttonVariants = cva(
   "relative overflow-hidden inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 disabled:pointer-events-none disabled:opacity-50",
   {
@@ -41,9 +39,6 @@ export interface ButtonProps
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant, size, asChild = false, onMouseDown, ...props }, ref) => {
     const handleMouseDown = (e: React.MouseEvent<HTMLButtonElement>) => {
-      // Play click sound
-      playClick();
-
       // Create ripple effect
       const button = e.currentTarget;
       const rect = button.getBoundingClientRect();
