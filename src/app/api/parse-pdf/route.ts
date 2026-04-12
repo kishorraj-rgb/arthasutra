@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { validateApiAuth, validateFileUpload } from "@/lib/api-auth";
 import { generateId } from "@/lib/bank-statement/parse-utils";
 import type { ParsedTransaction } from "@/lib/bank-statement/types";
 
@@ -167,6 +168,9 @@ async function callOpenAIWithText(
 
 export async function POST(req: NextRequest) {
   try {
+    const authError = validateApiAuth(req);
+    if (authError) return authError;
+
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
     const bankId = formData.get("bank") as string | null;
@@ -174,6 +178,9 @@ export async function POST(req: NextRequest) {
     if (!file) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
+
+    const fileError = validateFileUpload(file, { maxSizeMB: 50, allowedTypes: ["pdf", "xlsx", "xls", "csv", "jpg", "jpeg", "png"] });
+    if (fileError) return fileError;
 
     const apiKey = process.env.OPENAI_API_KEY;
 

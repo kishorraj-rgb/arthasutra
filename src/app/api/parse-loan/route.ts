@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { validateApiAuth, validateFileUpload } from "@/lib/api-auth";
 
 const LOAN_PROMPT = `You are a financial document parser specializing in Indian bank loan account statements.
 
@@ -52,6 +53,9 @@ IMPORTANT RULES:
 
 export async function POST(req: NextRequest) {
   try {
+    const authError = validateApiAuth(req);
+    if (authError) return authError;
+
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
     const password = formData.get("password") as string | null;
@@ -59,6 +63,9 @@ export async function POST(req: NextRequest) {
     if (!file) {
       return NextResponse.json({ error: "File is required" }, { status: 400 });
     }
+
+    const fileError = validateFileUpload(file, { maxSizeMB: 50, allowedTypes: ["pdf", "xlsx", "xls", "csv", "jpg", "jpeg", "png"] });
+    if (fileError) return fileError;
 
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {

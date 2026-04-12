@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { validateApiAuth, validateFileUpload } from "@/lib/api-auth";
 
 interface ExtractedData {
   pan_number?: string;
@@ -101,6 +102,9 @@ function parseByCategory(text: string, category: string): ExtractedData {
 
 export async function POST(req: NextRequest) {
   try {
+    const authError = validateApiAuth(req);
+    if (authError) return authError;
+
     const apiKey = process.env.GOOGLE_VISION_API_KEY;
     if (!apiKey) {
       return NextResponse.json(

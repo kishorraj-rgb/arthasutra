@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { validateApiAuth, validateFileUpload } from "@/lib/api-auth";
 
 const INVOICE_EXTRACT_PROMPT = `You are an expert at extracting structured data from Indian invoices, bills, and quotations.
 
@@ -70,12 +71,18 @@ IMPORTANT RULES:
 
 export async function POST(req: NextRequest) {
   try {
+    const authError = validateApiAuth(req);
+    if (authError) return authError;
+
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
 
     if (!file) {
       return NextResponse.json({ error: "File is required" }, { status: 400 });
     }
+
+    const fileError = validateFileUpload(file, { maxSizeMB: 50, allowedTypes: ["pdf", "xlsx", "xls", "csv", "jpg", "jpeg", "png"] });
+    if (fileError) return fileError;
 
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {

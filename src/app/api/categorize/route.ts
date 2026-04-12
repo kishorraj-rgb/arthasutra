@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { validateApiAuth, validateFileUpload } from "@/lib/api-auth";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -148,6 +149,9 @@ async function callGeminiModel(
 
 export async function POST(request: NextRequest) {
   try {
+    const authError = validateApiAuth(request);
+    if (authError) return authError;
+
     const body = await request.json();
     const {
       transactions,
