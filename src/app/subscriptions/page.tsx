@@ -191,20 +191,23 @@ export default function SubscriptionsPage() {
     }
   }
 
-  async function handleAddDetected(suggestion: { name: string; amount: number; frequency: string }) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async function handleAddDetected(suggestion: any) {
     if (!user) return;
     try {
+      // Use the subcategory as name if available (user's manual categorization is more accurate)
+      const displayName = suggestion.subcategory || suggestion.name;
       await addSubscription({
         userId: user.userId,
-        name: suggestion.name,
+        name: displayName,
         amount: suggestion.amount,
         frequency: suggestion.frequency as "monthly" | "quarterly" | "half_yearly" | "yearly",
-        category: "other",
-        next_renewal_date: new Date().toISOString().split("T")[0],
+        category: suggestion.category || "subscription",
+        next_renewal_date: suggestion.lastDate || new Date().toISOString().split("T")[0],
         auto_renew: true,
-        payment_method: "upi",
+        payment_method: suggestion.source === "cc" ? "credit_card" : "upi",
         status: "active",
-        detected_from: "expense_entries",
+        detected_from: suggestion.source === "cc" ? "cc_transactions" : "expense_entries",
       });
     } catch (error) {
       console.error("Failed to add detected subscription:", error);
@@ -521,17 +524,30 @@ export default function SubscriptionsPage() {
                   </p>
                 </div>
               ) : (
-                detected.map((suggestion, i) => (
+                detected.map((suggestion: any, i: number) => (
                   <div
                     key={i}
                     className="flex items-center justify-between rounded-lg border border-border-light p-4 hover:bg-surface-tertiary/50 transition-colors"
                   >
                     <div className="space-y-1">
-                      <p className="text-sm font-medium text-text-primary">{suggestion.name}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium text-text-primary">
+                          {suggestion.subcategory || suggestion.name}
+                        </p>
+                        {suggestion.source === "cc" && (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-rose-50 text-rose-500 font-medium">CC</span>
+                        )}
+                        {suggestion.source === "bank" && (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-500 font-medium">Bank</span>
+                        )}
+                      </div>
                       <div className="flex items-center gap-3 text-xs text-text-tertiary">
                         <span className="font-mono">{formatCurrency(suggestion.amount)}</span>
                         <span>{frequencyLabel(suggestion.frequency)}</span>
-                        <span>{suggestion.occurrences} occurrences</span>
+                        <span>{suggestion.occurrences}x</span>
+                        {suggestion.category && suggestion.category !== "other" && (
+                          <span className="text-accent">{suggestion.category}</span>
+                        )}
                       </div>
                     </div>
                     <Button

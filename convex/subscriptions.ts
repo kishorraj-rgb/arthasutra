@@ -219,29 +219,50 @@ export const detectSubscriptions = query({
       return desc.substring(0, 30).trim();
     }
 
-    // Merge all transactions into one list
-    const allTxns: Array<{ amount: number; date: string; description: string; source: string }> = [];
+    // Merge all transactions into one list — include category + subcategory
+    const allTxns: Array<{ amount: number; date: string; description: string; source: string; category: string; subcategory: string }> = [];
 
     for (const e of expenses) {
-      allTxns.push({ amount: e.amount, date: e.date, description: e.description, source: "bank" });
+      allTxns.push({
+        amount: e.amount, date: e.date, description: e.description, source: "bank",
+        category: e.category || "other",
+        subcategory: (e as Record<string, unknown>).subcategory as string || "",
+      });
     }
     for (const cc of ccTransactions) {
       if (cc.type === "debit") {
-        allTxns.push({ amount: cc.amount, date: cc.date, description: cc.merchant_name || cc.description, source: "cc" });
+        allTxns.push({
+          amount: cc.amount, date: cc.date, description: cc.merchant_name || cc.description, source: "cc",
+          category: cc.category || "other",
+          subcategory: (cc as Record<string, unknown>).subcategory as string || "",
+        });
       }
     }
 
     // Group by normalized name + similar amount (±15%)
-    const grouped: Record<string, { name: string; amounts: number[]; dates: string[]; source: string }> = {};
+    const grouped: Record<string, {
+      name: string; amounts: number[]; dates: string[]; source: string;
+      category: string; subcategory: string;
+    }> = {};
 
     for (const tx of allTxns) {
       const name = getSubName(tx.description);
       const key = name.toLowerCase();
       if (!grouped[key]) {
-        grouped[key] = { name, amounts: [], dates: [], source: tx.source };
+        grouped[key] = {
+          name, amounts: [], dates: [], source: tx.source,
+          category: tx.category, subcategory: tx.subcategory,
+        };
       }
       grouped[key].amounts.push(tx.amount);
       grouped[key].dates.push(tx.date);
+      // Use the most recently assigned category (user's manual categorization)
+      if (tx.category && tx.category !== "other") {
+        grouped[key].category = tx.category;
+      }
+      if (tx.subcategory) {
+        grouped[key].subcategory = tx.subcategory;
+      }
     }
 
     // Find recurring patterns
@@ -252,6 +273,8 @@ export const detectSubscriptions = query({
       occurrences: number;
       source: string;
       lastDate: string;
+      category: string;
+      subcategory: string;
     }> = [];
 
     for (const [, data] of Object.entries(grouped)) {
@@ -284,6 +307,8 @@ export const detectSubscriptions = query({
         occurrences: data.dates.length,
         source: data.source,
         lastDate: sortedDates[sortedDates.length - 1],
+        category: data.category,
+        subcategory: data.subcategory,
       });
     }
 
