@@ -191,3 +191,116 @@ export function categorizeTransaction(tx: ParsedTransaction): ParsedTransaction 
 export function categorizeAll(transactions: ParsedTransaction[]): ParsedTransaction[] {
   return transactions.map(categorizeTransaction);
 }
+
+// ─── Subscription Detection ──────────────────────────────────────────────
+
+const KNOWN_SUBSCRIPTIONS: { pattern: RegExp; name: string }[] = [
+  { pattern: /NETFLIX/i, name: "Netflix" },
+  { pattern: /SPOTIFY/i, name: "Spotify" },
+  { pattern: /AMAZON\s*PRIME/i, name: "Amazon Prime" },
+  { pattern: /HOTSTAR|DISNEY/i, name: "Hotstar/Disney+" },
+  { pattern: /YOUTUBE\s*(PREMIUM|GOOGLE)/i, name: "YouTube Premium" },
+  { pattern: /APPLE\s*(MUSIC|TV|ONE|ICLOUD)/i, name: "Apple" },
+  { pattern: /GOOGLE\s*(PLAY|ONE|CLOUD|WORKSPACE)/i, name: "Google" },
+  { pattern: /MICROSOFT|OFFICE\s*365/i, name: "Microsoft 365" },
+  { pattern: /ADOBE/i, name: "Adobe" },
+  { pattern: /OPENAI|CHATGPT/i, name: "OpenAI/ChatGPT" },
+  { pattern: /ANTHROPIC|CLAUDE/i, name: "Anthropic/Claude" },
+  { pattern: /CURSOR/i, name: "Cursor" },
+  { pattern: /GITHUB/i, name: "GitHub" },
+  { pattern: /LINKEDIN\s*PREMIUM/i, name: "LinkedIn Premium" },
+  { pattern: /ZOOM/i, name: "Zoom" },
+  { pattern: /SLACK/i, name: "Slack" },
+  { pattern: /NOTION/i, name: "Notion" },
+  { pattern: /FIGMA/i, name: "Figma" },
+  { pattern: /CANVA/i, name: "Canva" },
+  { pattern: /ZERODHA|KITE/i, name: "Zerodha" },
+  { pattern: /GROWW/i, name: "Groww" },
+  { pattern: /ZEE5/i, name: "Zee5" },
+  { pattern: /SONY\s*LIV/i, name: "SonyLIV" },
+  { pattern: /JIO\s*(PREPAID|FIBER|CINEMA)/i, name: "Jio" },
+  { pattern: /AIRTEL/i, name: "Airtel" },
+  { pattern: /VI\s*PREPAID|VODAFONE/i, name: "Vi/Vodafone" },
+  { pattern: /SETAPP|PADDLE/i, name: "Setapp" },
+  { pattern: /VERCEL/i, name: "Vercel" },
+  { pattern: /AWS|AMAZON\s*WEB/i, name: "AWS" },
+  { pattern: /HOSTINGER/i, name: "Hostinger" },
+  { pattern: /CLOUDFLARE/i, name: "Cloudflare" },
+];
+
+/**
+ * Detect if a transaction is a known subscription.
+ * Returns the subscription name if matched, null otherwise.
+ */
+export function detectSubscription(description: string): string | null {
+  for (const sub of KNOWN_SUBSCRIPTIONS) {
+    if (sub.pattern.test(description)) return sub.name;
+  }
+  return null;
+}
+
+/**
+ * Detect recurring transactions from a list of transactions.
+ * Groups by normalized merchant + amount and finds patterns.
+ */
+export function detectRecurringSubscriptions(
+  transactions: Array<{ date: string; amount: number; description: string; type?: string }>
+): Array<{
+  name: string;
+  amount: number;
+  frequency: "monthly" | "quarterly" | "half_yearly" | "yearly";
+  occurrences: number;
+  lastDate: string;
+  source: "known" | "detected";
+}> {
+  // Group by known subscription name or normalized description
+  const groups = new Map<string, Array<{ date: string; amount: number }>>();
+
+  for (const tx of transactions) {
+    if (tx.type === "credit") continue; // Skip credits
+    const knownName = detectSubscription(tx.description);
+    const key = knownName || tx.description.substring(0, 30).trim().toUpperCase();
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push({ date: tx.date, amount: tx.amount });
+  }
+
+  const results: ReturnType<typeof detectRecurringSubscriptions> = [];
+
+  for (const [name, entries] of Array.from(groups.entries())) {
+    if (entries.length < 2) continue;
+
+    // Check if amounts are consistent (±10%)
+    const amounts = entries.map((e) => e.amount);
+    const avgAmt = amounts.reduce((s, a) => s + a, 0) / amounts.length;
+    const consistent = amounts.every((a) => Math.abs(a - avgAmt) / avgAmt < 0.1);
+    if (!consistent) continue;
+
+    // Estimate frequency from date gaps
+    const dates = entries.map((e) => e.date).sort();
+    const gaps: number[] = [];
+    for (let i = 1; i < dates.length; i++) {
+      const diff = (new Date(dates[i]).getTime() - new Date(dates[i - 1]).getTime()) / (1000 * 60 * 60 * 24);
+      gaps.push(diff);
+    }
+    const avgGap = gaps.reduce((s, g) => s + g, 0) / gaps.length;
+
+    let frequency: "monthly" | "quarterly" | "half_yearly" | "yearly";
+    if (avgGap > 300) frequency = "yearly";
+    else if (avgGap > 150) frequency = "half_yearly";
+    else if (avgGap > 75) frequency = "quarterly";
+    else frequency = "monthly";
+
+    const isKnown = detectSubscription(name) !== null;
+
+    results.push({
+      name: isKnown ? detectSubscription(entries[0]?.date ? name : name)! || name : name,
+      amount: Math.round(avgAmt),
+      frequency,
+      occurrences: entries.length,
+      lastDate: dates[dates.length - 1],
+      source: isKnown ? "known" : "detected",
+    });
+  }
+
+  return results.sort((a, b) => b.occurrences - a.occurrences);
+}

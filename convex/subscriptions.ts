@@ -173,60 +173,122 @@ export const getSubscriptionSummary = query({
 export const detectSubscriptions = query({
   args: { userId: v.id("users") },
   handler: async (ctx, args) => {
+    // Gather transactions from BOTH expenses AND credit cards
     const expenses = await ctx.db
       .query("expense_entries")
       .withIndex("by_user", (q) => q.eq("userId", args.userId))
       .collect();
 
-    // Group by description (normalized)
-    const grouped: Record<string, { amount: number; dates: string[]; description: string }> = {};
+    const ccTransactions = await ctx.db
+      .query("cc_transactions")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
+
+    // Known subscription patterns for better naming
+    const KNOWN_SUBS: Array<{ pattern: RegExp; name: string }> = [
+      { pattern: /NETFLIX/i, name: "Netflix" },
+      { pattern: /SPOTIFY/i, name: "Spotify" },
+      { pattern: /AMAZON\s*PRIME/i, name: "Amazon Prime" },
+      { pattern: /HOTSTAR|DISNEY/i, name: "Hotstar/Disney+" },
+      { pattern: /YOUTUBE\s*(PREMIUM)?GOOGLE/i, name: "YouTube Premium" },
+      { pattern: /APPLE\s*(MUSIC|TV|ONE|ICLOUD)/i, name: "Apple" },
+      { pattern: /GOOGLE\s*(PLAY|ONE|CLOUD|WORKSPACE)/i, name: "Google" },
+      { pattern: /ADOBE/i, name: "Adobe" },
+      { pattern: /OPENAI|CHATGPT/i, name: "OpenAI/ChatGPT" },
+      { pattern: /CURSOR/i, name: "Cursor" },
+      { pattern: /GITHUB/i, name: "GitHub" },
+      { pattern: /LINKEDIN/i, name: "LinkedIn" },
+      { pattern: /ZOOM/i, name: "Zoom" },
+      { pattern: /NOTION/i, name: "Notion" },
+      { pattern: /FIGMA/i, name: "Figma" },
+      { pattern: /CANVA/i, name: "Canva" },
+      { pattern: /ZEE5/i, name: "Zee5" },
+      { pattern: /SONY\s*LIV/i, name: "SonyLIV" },
+      { pattern: /AIRTEL/i, name: "Airtel" },
+      { pattern: /JIO/i, name: "Jio" },
+      { pattern: /SETAPP|PADDLE/i, name: "Setapp/PaddleNet" },
+      { pattern: /VERCEL/i, name: "Vercel" },
+      { pattern: /HOSTINGER/i, name: "Hostinger" },
+      { pattern: /MICROSOFT/i, name: "Microsoft" },
+    ];
+
+    function getSubName(desc: string): string {
+      for (const s of KNOWN_SUBS) {
+        if (s.pattern.test(desc)) return s.name;
+      }
+      return desc.substring(0, 30).trim();
+    }
+
+    // Merge all transactions into one list
+    const allTxns: Array<{ amount: number; date: string; description: string; source: string }> = [];
 
     for (const e of expenses) {
-      const key = e.description.toLowerCase().trim();
-      if (!grouped[key]) {
-        grouped[key] = { amount: e.amount, dates: [], description: e.description };
-      }
-      grouped[key].dates.push(e.date);
-      // Use most recent amount
-      if (e.date > grouped[key].dates[0]) {
-        grouped[key].amount = e.amount;
+      allTxns.push({ amount: e.amount, date: e.date, description: e.description, source: "bank" });
+    }
+    for (const cc of ccTransactions) {
+      if (cc.type === "debit") {
+        allTxns.push({ amount: cc.amount, date: cc.date, description: cc.merchant_name || cc.description, source: "cc" });
       }
     }
 
-    // Find recurring patterns: 2+ entries at same amount to same payee
+    // Group by normalized name + similar amount (±15%)
+    const grouped: Record<string, { name: string; amounts: number[]; dates: string[]; source: string }> = {};
+
+    for (const tx of allTxns) {
+      const name = getSubName(tx.description);
+      const key = name.toLowerCase();
+      if (!grouped[key]) {
+        grouped[key] = { name, amounts: [], dates: [], source: tx.source };
+      }
+      grouped[key].amounts.push(tx.amount);
+      grouped[key].dates.push(tx.date);
+    }
+
+    // Find recurring patterns
     const suggestions: Array<{
       name: string;
       amount: number;
       frequency: string;
       occurrences: number;
+      source: string;
+      lastDate: string;
     }> = [];
 
     for (const [, data] of Object.entries(grouped)) {
-      if (data.dates.length >= 2) {
-        // Estimate frequency based on average gap between dates
-        const sortedDates = data.dates.sort();
-        let totalGapDays = 0;
-        for (let i = 1; i < sortedDates.length; i++) {
-          const d1 = new Date(sortedDates[i - 1]);
-          const d2 = new Date(sortedDates[i]);
-          totalGapDays += (d2.getTime() - d1.getTime()) / (1000 * 60 * 60 * 24);
-        }
-        const avgGap = totalGapDays / (sortedDates.length - 1);
+      if (data.dates.length < 2) continue;
 
-        let frequency = "monthly";
-        if (avgGap > 300) frequency = "yearly";
-        else if (avgGap > 150) frequency = "half_yearly";
-        else if (avgGap > 75) frequency = "quarterly";
+      // Check amount consistency (±15%)
+      const avgAmt = data.amounts.reduce((s, a) => s + a, 0) / data.amounts.length;
+      const consistent = data.amounts.every((a) => Math.abs(a - avgAmt) / Math.max(avgAmt, 1) < 0.15);
+      if (!consistent) continue;
 
-        suggestions.push({
-          name: data.description,
-          amount: data.amount,
-          frequency,
-          occurrences: data.dates.length,
-        });
+      // Estimate frequency from date gaps
+      const sortedDates = data.dates.sort();
+      let totalGapDays = 0;
+      for (let i = 1; i < sortedDates.length; i++) {
+        const d1 = new Date(sortedDates[i - 1]);
+        const d2 = new Date(sortedDates[i]);
+        totalGapDays += (d2.getTime() - d1.getTime()) / (1000 * 60 * 60 * 24);
       }
+      const avgGap = totalGapDays / (sortedDates.length - 1);
+
+      let frequency = "monthly";
+      if (avgGap > 300) frequency = "yearly";
+      else if (avgGap > 150) frequency = "half_yearly";
+      else if (avgGap > 75) frequency = "quarterly";
+
+      suggestions.push({
+        name: data.name,
+        amount: Math.round(avgAmt),
+        frequency,
+        occurrences: data.dates.length,
+        source: data.source,
+        lastDate: sortedDates[sortedDates.length - 1],
+      });
     }
 
-    return suggestions.sort((a, b) => b.occurrences - a.occurrences);
+    return suggestions
+      .sort((a, b) => b.occurrences - a.occurrences)
+      .slice(0, 50); // Top 50 suggestions
   },
 });
