@@ -328,9 +328,18 @@ export const addPayment = mutation({
     method: v.optional(v.string()),
     date: v.string(),
     note: v.optional(v.string()),
+    createIncomeEntry: v.optional(v.boolean()),
+    sourceBank: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const paymentId = await ctx.db.insert("invoice_payments", args);
+    const paymentId = await ctx.db.insert("invoice_payments", {
+      userId: args.userId,
+      invoiceId: args.invoiceId,
+      amount: args.amount,
+      method: args.method,
+      date: args.date,
+      note: args.note,
+    });
 
     // Update invoice status based on total payments
     const invoice = await ctx.db.get(args.invoiceId);
@@ -345,6 +354,32 @@ export const addPayment = mutation({
         await ctx.db.patch(args.invoiceId, { status: "paid" });
       } else if (totalPaid > 0) {
         await ctx.db.patch(args.invoiceId, { status: "partially_paid" });
+      }
+
+      // Create linked income entry if requested
+      if (args.createIncomeEntry) {
+        const sellerName = (invoice.sellerData as Record<string, string>)?.name || "Invoice";
+        const buyerName = (invoice.buyerData as Record<string, string>)?.name || "";
+        const gstPortion = invoice.netTotal > 0
+          ? Math.round((invoice.gstTotal / invoice.netTotal) * args.amount)
+          : 0;
+        const tdsPortion = invoice.tdsAmount && invoice.netTotal > 0
+          ? Math.round((invoice.tdsAmount / invoice.netTotal) * args.amount)
+          : 0;
+
+        const incomeId = await ctx.db.insert("income_entries", {
+          userId: args.userId,
+          date: args.date,
+          amount: args.amount,
+          type: "freelance" as const,
+          description: `Invoice ${invoice.invoiceNumber} — ${buyerName}`,
+          tds_deducted: tdsPortion,
+          gst_collected: gstPortion,
+          source_bank: args.sourceBank,
+        });
+
+        // Link income entry to invoice
+        await ctx.db.patch(args.invoiceId, { linkedIncomeId: incomeId });
       }
     }
 

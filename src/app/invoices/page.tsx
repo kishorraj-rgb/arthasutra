@@ -244,6 +244,14 @@ export default function InvoicesPage() {
   const [paymentMethod, setPaymentMethod] = useState("bank_transfer");
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split("T")[0]);
   const [paymentNote, setPaymentNote] = useState("");
+  const [paymentCreateIncome, setPaymentCreateIncome] = useState(true);
+  const [paymentSourceBank, setPaymentSourceBank] = useState("");
+
+  // Bank accounts for linking
+  const bankAccounts = useQuery(
+    api.bankAccounts.getBankAccounts,
+    userId ? { userId } : "skip"
+  );
 
   // Seller form
   const [sellerForm, setSellerForm] = useState<any>({ name: "" });
@@ -489,6 +497,8 @@ export default function InvoicesPage() {
         method: paymentMethod,
         date: paymentDate,
         note: paymentNote || undefined,
+        createIncomeEntry: paymentCreateIncome,
+        sourceBank: paymentSourceBank || undefined,
       });
       setShowPaymentDialog(false);
     } catch (e) {
@@ -1642,6 +1652,42 @@ export default function InvoicesPage() {
                 value={paymentNote}
                 onChange={(e) => setPaymentNote(e.target.value)}
               />
+            </div>
+
+            {/* Link to Income Tracker */}
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={paymentCreateIncome}
+                  onChange={(e) => setPaymentCreateIncome(e.target.checked)}
+                  className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-400/20"
+                  id="create-income"
+                />
+                <label htmlFor="create-income" className="text-sm font-medium text-emerald-700 cursor-pointer">
+                  Create Income Entry in ArthaSutra
+                </label>
+              </div>
+              {paymentCreateIncome && (
+                <div>
+                  <Label className="text-xs text-emerald-600">Received in Bank Account</Label>
+                  <select
+                    value={paymentSourceBank}
+                    onChange={(e) => setPaymentSourceBank(e.target.value)}
+                    className="w-full text-xs rounded-lg border border-emerald-200 px-3 py-2 bg-white focus:border-emerald-400 focus:outline-none cursor-pointer mt-1"
+                  >
+                    <option value="">Select bank account...</option>
+                    {(bankAccounts ?? []).filter((b: any) => b.is_active).map((bank: any) => (
+                      <option key={bank._id} value={bank.bank_name}>
+                        {bank.display_name || bank.bank_name}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[10px] text-emerald-500 mt-1">
+                    This will auto-create an Income entry with GST collected & TDS deducted from the invoice
+                  </p>
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter className="mt-4">
