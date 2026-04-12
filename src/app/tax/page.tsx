@@ -1746,11 +1746,11 @@ function GSTTracker({
         </Card>
       </div>
 
-      {/* Invoice Revenue Card */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Revenue + Next Filing Due */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardContent className="p-6">
-            <p className="text-sm text-text-secondary">FY Invoice Revenue (incl. GST)</p>
+            <p className="text-sm text-text-secondary">FY Revenue (incl. GST)</p>
             <p className="text-2xl font-bold font-mono text-text-primary mt-1">
               {formatCurrency(totalRevenue)}
             </p>
@@ -1770,48 +1770,81 @@ function GSTTracker({
             </p>
           </CardContent>
         </Card>
-      </div>
 
-      {/* Filing Calendar */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Receipt className="h-5 w-5 text-accent-light" />
-            Filing Calendar
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-            <div className="rounded-lg bg-surface-tertiary p-4 border border-border-light flex items-center gap-3">
-              <div className="h-10 w-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
-                <FileText className="h-5 w-5 text-blue-400" />
-              </div>
-              <div>
-                <p className="text-text-primary font-semibold text-sm">GSTR-1</p>
-                <p className="text-text-tertiary text-xs">
-                  Outward supplies &mdash; Due by 11th of next month
-                </p>
-              </div>
-            </div>
-            <div className="rounded-lg bg-surface-tertiary p-4 border border-border-light flex items-center gap-3">
-              <div className="h-10 w-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
-                <FileText className="h-5 w-5 text-purple-400" />
-              </div>
-              <div>
-                <p className="text-text-primary font-semibold text-sm">GSTR-3B</p>
-                <p className="text-text-tertiary text-xs">
-                  Summary return &mdash; Due by 20th of next month
-                </p>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+        {/* Next Filing Due */}
+        {(() => {
+          // Find the latest month with invoices that hasn't been filed
+          const today = new Date().toISOString().slice(0, 10);
+          const unfiledMonth = gstData.find(
+            (m) => m.invoiceCount > 0 && !m.gstr1Filed
+          );
+          if (!unfiledMonth) return (
+            <Card className="border-emerald-500/20 bg-emerald-500/5">
+              <CardContent className="p-6 flex items-center gap-3">
+                <CheckCircle className="h-8 w-8 text-emerald-400 shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold text-emerald-500">All Filed</p>
+                  <p className="text-xs text-text-tertiary">No pending GST returns</p>
+                </div>
+              </CardContent>
+            </Card>
+          );
+
+          // GSTR-1 due 11th of next month, GSTR-3B due 20th
+          const [year, month] = unfiledMonth.monthStr.split("-").map(Number);
+          const nextMonth = month === 12 ? 1 : month + 1;
+          const nextYear = month === 12 ? year + 1 : year;
+          const gstr1Due = `${nextYear}-${String(nextMonth).padStart(2, "0")}-11`;
+          const gstr3bDue = `${nextYear}-${String(nextMonth).padStart(2, "0")}-20`;
+          const isOverdue = today > gstr1Due;
+          const daysLeft = Math.ceil((new Date(gstr1Due).getTime() - Date.now()) / (86400000));
+
+          return (
+            <Card className={isOverdue ? "border-rose-500/20 bg-rose-500/5" : "border-amber-500/20 bg-amber-500/5"}>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-semibold text-text-primary">Next Filing Due</p>
+                  {isOverdue ? (
+                    <Badge variant="destructive" className="text-[10px]">Overdue</Badge>
+                  ) : (
+                    <Badge variant="warning" className="text-[10px]">{daysLeft}d left</Badge>
+                  )}
+                </div>
+                <p className="text-xs text-text-secondary">{unfiledMonth.month}</p>
+                <div className="mt-3 space-y-1.5">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-text-tertiary">GSTR-1 due</span>
+                    <span className={`font-mono font-medium ${isOverdue ? "text-rose-400" : "text-text-primary"}`}>
+                      {new Date(gstr1Due + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-text-tertiary">GSTR-3B due</span>
+                    <span className="font-mono font-medium text-text-primary">
+                      {new Date(gstr3bDue + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                    </span>
+                  </div>
+                  <div className="border-t border-border-light pt-1.5 flex justify-between text-xs">
+                    <span className="text-text-secondary font-medium">GST Liability</span>
+                    <span className="font-mono font-bold text-amber-500">{formatCurrency(unfiledMonth.netLiability)}</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })()}
+      </div>
 
       {/* Monthly Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Monthly GST Summary</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>Monthly GST Summary</CardTitle>
+            <div className="flex items-center gap-4 text-[10px] text-text-tertiary">
+              <span><strong>GSTR-1</strong> — Outward supplies, due 11th of next month</span>
+              <span><strong>3B</strong> — Summary return, due 20th of next month</span>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="rounded-lg border border-border overflow-x-auto">
