@@ -135,7 +135,14 @@ export const getSubscriptionSummary = query({
     const pausedSubs = subs.filter((s) => s.status === "paused");
     const cancelledSubs = subs.filter((s) => s.status === "cancelled");
 
-    // Calculate monthly cost (normalize all frequencies to monthly)
+    const today = new Date().toISOString().split("T")[0];
+
+    // Only count active subs with future renewal dates (truly upcoming costs)
+    const upcomingActiveSubs = activeSubs.filter(
+      (s) => s.next_renewal_date >= today
+    );
+
+    // Calculate monthly cost only from upcoming active subscriptions
     const frequencyMultiplier: Record<string, number> = {
       monthly: 1,
       quarterly: 1 / 3,
@@ -143,20 +150,43 @@ export const getSubscriptionSummary = query({
       yearly: 1 / 12,
     };
 
-    const monthlyCost = activeSubs.reduce((sum, s) => {
+    const monthlyCost = upcomingActiveSubs.reduce((sum, s) => {
       return sum + s.amount * (frequencyMultiplier[s.frequency] ?? 1);
     }, 0);
 
-    const annualCost = monthlyCost * 12;
+    const annualCost = upcomingActiveSubs.reduce((sum, s) => {
+      const yearMultiplier: Record<string, number> = {
+        monthly: 12,
+        quarterly: 4,
+        half_yearly: 2,
+        yearly: 1,
+      };
+      return sum + s.amount * (yearMultiplier[s.frequency] ?? 12);
+    }, 0);
 
     // Upcoming renewals (next 30 days)
-    const today = new Date().toISOString().split("T")[0];
     const thirtyDays = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
       .toISOString()
       .split("T")[0];
     const upcomingRenewals = activeSubs.filter(
       (s) => s.next_renewal_date >= today && s.next_renewal_date <= thirtyDays
     ).length;
+
+    // Next upcoming renewal amount
+    const nextRenewal = activeSubs
+      .filter((s) => s.next_renewal_date >= today)
+      .sort((a, b) => a.next_renewal_date.localeCompare(b.next_renewal_date))[0];
+
+    // Cost by category
+    const categoryBreakdown: Record<string, { count: number; total: number }> = {};
+    for (const s of activeSubs) {
+      if (!categoryBreakdown[s.category]) categoryBreakdown[s.category] = { count: 0, total: 0 };
+      categoryBreakdown[s.category].count++;
+      categoryBreakdown[s.category].total += s.amount * (frequencyMultiplier[s.frequency] ?? 1);
+    }
+
+    // Expired active subs (renewal date passed — likely one-time or expired)
+    const expiredActive = activeSubs.filter((s) => s.next_renewal_date < today).length;
 
     return {
       monthlyCost: Math.round(monthlyCost),
@@ -166,6 +196,11 @@ export const getSubscriptionSummary = query({
       cancelledCount: cancelledSubs.length,
       upcomingRenewals,
       totalCount: subs.length,
+      expiredActive,
+      categoryBreakdown,
+      nextRenewal: nextRenewal
+        ? { name: nextRenewal.name, date: nextRenewal.next_renewal_date, amount: nextRenewal.amount }
+        : null,
     };
   },
 });

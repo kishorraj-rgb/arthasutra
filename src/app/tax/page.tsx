@@ -191,6 +191,9 @@ export default function TaxPage() {
   const startYear = parseInt(startYearStr);
   const ayYear = `${startYear + 1}-${String(startYear + 2).slice(-2)}`;
 
+  // Regime choice shared across tabs
+  const [selectedRegime, setSelectedRegime] = useState<"new" | "old">("new");
+
   return (
     <AppLayout>
       <div className="space-y-6">
@@ -250,14 +253,14 @@ export default function TaxPage() {
               TAB 1 - Income Tax Calculator
           ================================================================ */}
           <TabsContent value="calculator">
-            {user ? <IncomeTaxCalculator userId={user.userId} fy={fy} /> : null}
+            {user ? <IncomeTaxCalculator userId={user.userId} fy={fy} onRegimeChange={setSelectedRegime} /> : null}
           </TabsContent>
 
           {/* ================================================================
               TAB 2 - Advance Tax Planner
           ================================================================ */}
           <TabsContent value="advance">
-            {user ? <AdvanceTaxPlanner userId={user.userId} fy={fy} /> : null}
+            {user ? <AdvanceTaxPlanner userId={user.userId} fy={fy} selectedRegime={selectedRegime} onRegimeChange={setSelectedRegime} /> : null}
           </TabsContent>
 
           {/* ================================================================
@@ -293,9 +296,11 @@ export default function TaxPage() {
 function IncomeTaxCalculator({
   userId,
   fy,
+  onRegimeChange,
 }: {
   userId: Id<"users">;
   fy: string;
+  onRegimeChange?: (regime: "old" | "new") => void;
 }) {
   const { start: fyStart, end: fyEnd } = getFinancialYearDates(fy);
 
@@ -369,7 +374,7 @@ function IncomeTaxCalculator({
   // Fetch invoices for GST cross-reference
   const allInvoices = useQuery(api.invoices.getInvoices, { userId });
 
-  // Compute income breakdown by type — including GST tracking
+  // Compute income breakdown by type — GST comes ONLY from invoices
   const incomeByType = useMemo(() => {
     const map: Record<string, {
       total: number; gstCollected: number; netOfGst: number;
@@ -377,37 +382,45 @@ function IncomeTaxCalculator({
       subcatGst: Record<string, number>;
     }> = {};
 
+    // Build a lookup: incomeEntryId → invoice GST amount
+    const incomeToInvoiceGst: Record<string, number> = {};
+    if (allInvoices) {
+      for (const inv of allInvoices) {
+        if (inv.status === "cancelled" || !inv.linkedIncomeId) continue;
+        if (inv.gstTotal > 0) {
+          // Sum in case multiple invoices link to same income entry
+          incomeToInvoiceGst[inv.linkedIncomeId] =
+            (incomeToInvoiceGst[inv.linkedIncomeId] || 0) + inv.gstTotal;
+        }
+      }
+    }
+
     for (const e of (incomeEntries ?? [])) {
       if (e.date < fyStart || e.date > fyEnd) continue;
       const t = e.type || "other";
       if (!map[t]) map[t] = { total: 0, gstCollected: 0, netOfGst: 0, count: 0, subcats: {}, subcatGst: {} };
       map[t].total += e.amount;
-      map[t].gstCollected += e.gst_collected || 0;
+      // GST only from linked invoices, NOT from income entry's gst_collected
+      const invoiceGst = incomeToInvoiceGst[(e as any)._id] || 0;
+      map[t].gstCollected += invoiceGst;
       map[t].count++;
       const sub = (e as Record<string, unknown>).subcategory as string || "";
       if (sub) {
         map[t].subcats[sub] = (map[t].subcats[sub] || 0) + e.amount;
-        map[t].subcatGst[sub] = (map[t].subcatGst[sub] || 0) + (e.gst_collected || 0);
+        map[t].subcatGst[sub] = (map[t].subcatGst[sub] || 0) + invoiceGst;
       }
     }
 
-    // Cross-reference with invoices: for freelance/consulting income entries
-    // that are linked to invoices, use the invoice's GST amount
+    // Also account for invoices in the FY that are NOT linked to any income entry
+    // (e.g. unpaid invoices with GST — still count for GST exclusion)
     if (allInvoices) {
       for (const inv of allInvoices) {
-        if (inv.status === "cancelled" || !inv.linkedIncomeId) continue;
-        if (inv.gstTotal > 0) {
-          // Find the income entry this invoice is linked to
-          const linkedEntry = (incomeEntries ?? []).find((e: any) => e._id === inv.linkedIncomeId);
-          if (linkedEntry && linkedEntry.date >= fyStart && linkedEntry.date <= fyEnd) {
-            const t = linkedEntry.type || "other";
-            if (map[t]) {
-              // If gst_collected wasn't set on the income entry, use invoice GST
-              if (!linkedEntry.gst_collected || linkedEntry.gst_collected === 0) {
-                map[t].gstCollected += inv.gstTotal;
-              }
-            }
-          }
+        if (inv.status === "cancelled" || inv.linkedIncomeId) continue; // skip linked ones (already counted)
+        if (inv.gstTotal > 0 && inv.invoiceDate >= fyStart && inv.invoiceDate <= fyEnd) {
+          // These are unlinked invoices — attribute GST to "freelance" by default
+          const t = "freelance";
+          if (!map[t]) map[t] = { total: 0, gstCollected: 0, netOfGst: 0, count: 0, subcats: {}, subcatGst: {} };
+          map[t].gstCollected += inv.gstTotal;
         }
       }
     }
@@ -539,6 +552,12 @@ function IncomeTaxCalculator({
     oldResult,
     savings,
   } = taxComparison;
+
+  // Sync recommended regime to parent
+  useEffect(() => {
+    if (!onRegimeChange) return;
+    onRegimeChange(savings > 0 ? "old" : "new");
+  }, [onRegimeChange, savings]);
 
   const newEffective =
     grossIncome > 0 ? ((newResult.totalTax / grossIncome) * 100).toFixed(2) : "0.00";
@@ -1059,135 +1078,179 @@ function IncomeTaxCalculator({
 }
 
 // ===========================================================================
-// TAB 2 : Advance Tax Planner
+// TAB 2 : Advance Tax Planner (self-contained — computes from real data)
 // ===========================================================================
 
 function AdvanceTaxPlanner({
   userId,
   fy,
+  selectedRegime,
+  onRegimeChange,
 }: {
   userId: Id<"users">;
   fy: string;
+  selectedRegime: "old" | "new";
+  onRegimeChange: (r: "old" | "new") => void;
 }) {
-  // Derive annual tax from income data
+  const { start: fyStart, end: fyEnd } = getFinancialYearDates(fy);
+
+  // Fetch all data this tab needs
   const incomeEntries = useQuery(api.income.getAnnualIncome, {
     userId,
     financialYear: fy,
   });
+  const allInvoices = useQuery(api.invoices.getInvoices, { userId });
   const advanceTaxPayments = useQuery(api.tax.getAdvanceTaxPayments, {
     userId,
     financial_year: fy,
   });
+  const investments = useQuery(api.investments.getInvestments, { userId });
+  const insurancePolicies = useQuery(api.insurance.getInsurancePolicies, { userId });
+  const loans = useQuery(api.loans.getLoans, { userId });
+
   const markPaid = useMutation(api.tax.markAdvanceTaxPaid);
   const addPayment = useMutation(api.tax.addAdvanceTaxPayment);
 
   const [startYearStr] = fy.split("-");
   const startYear = parseInt(startYearStr);
 
-  // Calculate annual tax liability from income (new regime as default estimate)
-  const annualTaxLiability = useMemo(() => {
-    if (!incomeEntries) return 0;
-    const grossIncome = incomeEntries.reduce((sum, e) => sum + e.amount, 0);
-    const newStdDeduction = 75000;
-    const newTaxableIncome = Math.max(grossIncome - newStdDeduction, 0);
-    const result = calculateNewRegimeTax(newTaxableIncome);
+  // ── Compute income from TWO sources: ─────────────────────────────────
+  // 1. Salary — from Income Tracker (category = salary)
+  // 2. Freelance/Consulting — from INVOICES (paid ones), NOT income tracker
+  //    Invoices have proper GST breakdown + TDS breakdown
+  const taxComputation = useMemo(() => {
+    if (!incomeEntries || !allInvoices) return null;
 
-    // Subtract TDS already deducted
-    const totalTDS = incomeEntries.reduce(
-      (sum, e) => sum + (e.tds_deducted ?? 0),
-      0
+    // ─── Source 1: Salary from Income Tracker ───
+    const fyIncome = incomeEntries.filter(
+      (e) => e.date >= fyStart && e.date <= fyEnd
     );
-    return Math.max(result.totalTax - totalTDS, 0);
-  }, [incomeEntries]);
+    const salaryIncome = fyIncome
+      .filter((e) => e.type === "salary")
+      .reduce((s, e) => s + e.amount, 0);
+    const salaryTDS = fyIncome
+      .filter((e) => e.type === "salary")
+      .reduce((s, e) => s + (e.tds_deducted ?? 0), 0);
 
-  // Build quarter data from real payments or compute defaults
-  const quarterDefs = useMemo(() => {
-    const defs = [
-      {
-        quarter: "Q1" as const,
-        dueDate: `15 June ${startYear}`,
-        cumulativePercent: 15,
-        percentThisQ: 0.15,
-      },
-      {
-        quarter: "Q2" as const,
-        dueDate: `15 September ${startYear}`,
-        cumulativePercent: 45,
-        percentThisQ: 0.30,
-      },
-      {
-        quarter: "Q3" as const,
-        dueDate: `15 December ${startYear}`,
-        cumulativePercent: 75,
-        percentThisQ: 0.30,
-      },
-      {
-        quarter: "Q4" as const,
-        dueDate: `15 March ${startYear + 1}`,
-        cumulativePercent: 100,
-        percentThisQ: 0.25,
-      },
-    ];
-    return defs;
-  }, [startYear]);
+    // ─── Source 2: Freelance/Consulting from Invoices (paid) ───
+    const fyPaidInvoices = allInvoices.filter(
+      (inv) =>
+        inv.status === "paid" &&
+        inv.invoiceDate >= fyStart &&
+        inv.invoiceDate <= fyEnd
+    );
 
+    const invoiceSubtotal = fyPaidInvoices.reduce((s, inv) => s + inv.subtotal, 0); // taxable value
+    const invoiceGstTotal = fyPaidInvoices.reduce((s, inv) => s + inv.gstTotal, 0);
+    const invoiceTdsTotal = fyPaidInvoices.reduce((s, inv) => s + (inv.tdsAmount ?? 0), 0);
+    const invoiceNetTotal = fyPaidInvoices.reduce((s, inv) => s + inv.netTotal, 0);
+
+    // ─── Combined ───
+    // Gross taxable = salary + invoice subtotal (excluding GST)
+    // GST is pass-through, NOT income. Invoice subtotal already excludes GST.
+    const grossTaxableIncome = salaryIncome + invoiceSubtotal;
+    const totalGst = invoiceGstTotal;
+    const totalTDS = salaryTDS + invoiceTdsTotal;
+
+    // Deductions for old regime
+    const sec80C = Math.min(
+      150000,
+      (investments ?? [])
+        .filter((i) => i.section === "80C")
+        .reduce((s, i) => s + i.invested_amount, 0)
+    );
+    const sec80CCD = Math.min(
+      50000,
+      (investments ?? [])
+        .filter((i) => i.section === "80CCD")
+        .reduce((s, i) => s + i.invested_amount, 0)
+    );
+    const sec80D = Math.min(
+      50000,
+      (insurancePolicies ?? [])
+        .filter((p) => p.type === "health")
+        .reduce((s, p) => s + p.annual_premium, 0)
+    );
+    const homeLoanInterest = Math.min(
+      200000,
+      (loans ?? [])
+        .filter((l) => l.type === "home")
+        .reduce((s, l) => s + Math.round((l.outstanding * l.interest_rate) / 100), 0)
+    );
+    const totalOldDeductions = 50000 + sec80C + sec80CCD + sec80D + homeLoanInterest;
+
+    // New regime: standard deduction 75k, no other deductions
+    const newTaxableIncome = Math.max(0, grossTaxableIncome - 75000);
+    const newResult = calculateNewRegimeTax(newTaxableIncome);
+
+    // Old regime: with deductions
+    const oldTaxableIncome = Math.max(0, grossTaxableIncome - totalOldDeductions);
+    const oldResult = calculateOldRegimeTax(oldTaxableIncome);
+
+    return {
+      salaryIncome,
+      salaryTDS,
+      invoiceSubtotal,
+      invoiceGstTotal,
+      invoiceTdsTotal,
+      invoiceNetTotal,
+      invoiceCount: fyPaidInvoices.length,
+      grossTaxableIncome,
+      totalGst,
+      totalTDS,
+      newTaxableIncome,
+      newTax: newResult.totalTax,
+      oldTaxableIncome,
+      oldTax: oldResult.totalTax,
+      totalOldDeductions,
+      deductions: { sec80C, sec80CCD, sec80D, homeLoanInterest },
+    };
+  }, [incomeEntries, allInvoices, investments, insurancePolicies, loans, fyStart, fyEnd]);
+
+  // Selected regime determines the numbers
+  const chosenTax = taxComputation
+    ? selectedRegime === "new" ? taxComputation.newTax : taxComputation.oldTax
+    : 0;
+  const chosenTaxableIncome = taxComputation
+    ? selectedRegime === "new" ? taxComputation.newTaxableIncome : taxComputation.oldTaxableIncome
+    : 0;
+  const tdsDeducted = taxComputation?.totalTDS ?? 0;
+  const annualTaxLiability = Math.max(0, chosenTax - tdsDeducted);
+
+  // Build quarter data
   const quarters = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10);
-
-    return quarterDefs.map((qd) => {
-      const payment = (advanceTaxPayments ?? []).find(
-        (p) => p.quarter === qd.quarter
-      );
+    const defs = [
+      { quarter: "Q1" as const, dueDate: `15 June ${startYear}`, cumulativePercent: 15, percentThisQ: 0.15 },
+      { quarter: "Q2" as const, dueDate: `15 September ${startYear}`, cumulativePercent: 45, percentThisQ: 0.30 },
+      { quarter: "Q3" as const, dueDate: `15 December ${startYear}`, cumulativePercent: 75, percentThisQ: 0.30 },
+      { quarter: "Q4" as const, dueDate: `15 March ${startYear + 1}`, cumulativePercent: 100, percentThisQ: 0.25 },
+    ];
+    const dueDateMap: Record<string, string> = {
+      Q1: `${startYear}-06-15`, Q2: `${startYear}-09-15`,
+      Q3: `${startYear}-12-15`, Q4: `${startYear + 1}-03-15`,
+    };
+    return defs.map((qd) => {
+      const payment = (advanceTaxPayments ?? []).find((p) => p.quarter === qd.quarter);
       const amountDue = Math.round(annualTaxLiability * qd.percentThisQ);
       const amountPaid = payment?.amount_paid ?? 0;
-
-      // Derive due date as ISO for comparison
-      const dueDateMap: Record<string, string> = {
-        Q1: `${startYear}-06-15`,
-        Q2: `${startYear}-09-15`,
-        Q3: `${startYear}-12-15`,
-        Q4: `${startYear + 1}-03-15`,
-      };
       const dueDateISO = dueDateMap[qd.quarter];
-
       const status: "paid" | "pending" | "overdue" =
-        payment?.status === "paid"
-          ? "paid"
-          : today > dueDateISO
-          ? "overdue"
-          : "pending";
-
-      return {
-        ...qd,
-        amountDue,
-        amountPaid,
-        status,
-        paymentId: payment?._id,
-      };
+        payment?.status === "paid" ? "paid" : today > dueDateISO ? "overdue" : "pending";
+      return { ...qd, amountDue, amountPaid, status, paymentId: payment?._id };
     });
-  }, [quarterDefs, advanceTaxPayments, annualTaxLiability, startYear]);
+  }, [advanceTaxPayments, annualTaxLiability, startYear]);
 
   const totalPaid = quarters.reduce((s, q) => s + q.amountPaid, 0);
-  const totalDue = quarters.reduce((s, q) => s + q.amountDue, 0);
 
   async function handleMarkPaid(q: (typeof quarters)[number]) {
     const today = new Date().toISOString().slice(0, 10);
     if (q.paymentId) {
-      await markPaid({
-        id: q.paymentId,
-        amount_paid: q.amountDue,
-        paid_date: today,
-      });
+      await markPaid({ id: q.paymentId, amount_paid: q.amountDue, paid_date: today });
     } else {
       await addPayment({
-        userId,
-        financial_year: fy,
-        quarter: q.quarter,
-        due_date: q.dueDate,
-        amount_due: q.amountDue,
-        amount_paid: q.amountDue,
-        paid_date: today,
-        status: "paid",
+        userId, financial_year: fy, quarter: q.quarter, due_date: q.dueDate,
+        amount_due: q.amountDue, amount_paid: q.amountDue, paid_date: today, status: "paid",
       });
     }
   }
@@ -1202,8 +1265,109 @@ function AdvanceTaxPlanner({
     );
   }
 
+  const tc = taxComputation;
+
   return (
     <div className="space-y-6">
+      {/* Regime Selector + Tax Breakdown */}
+      <Card>
+        <CardContent className="p-6">
+          <div className="flex flex-col lg:flex-row lg:items-start gap-6">
+            {/* Regime Toggle */}
+            <div className="space-y-3 lg:min-w-[220px]">
+              <p className="text-sm font-semibold text-text-secondary uppercase tracking-wide">Tax Regime</p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => onRegimeChange("new")}
+                  className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all border ${
+                    selectedRegime === "new"
+                      ? "text-white border-transparent shadow-sm"
+                      : "border-gray-200 bg-white text-text-secondary hover:border-gray-300"
+                  }`}
+                  style={selectedRegime === "new" ? { backgroundColor: "#6366f1" } : undefined}
+                >
+                  New Regime
+                </button>
+                <button
+                  onClick={() => onRegimeChange("old")}
+                  className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all border ${
+                    selectedRegime === "old"
+                      ? "text-white border-transparent shadow-sm"
+                      : "border-gray-200 bg-white text-text-secondary hover:border-gray-300"
+                  }`}
+                  style={selectedRegime === "old" ? { backgroundColor: "#6366f1" } : undefined}
+                >
+                  Old Regime
+                </button>
+              </div>
+              {tc && tc.newTax !== tc.oldTax && (
+                <p className="text-xs text-text-tertiary">
+                  {tc.newTax < tc.oldTax
+                    ? `New regime saves ${formatCurrency(tc.oldTax - tc.newTax)}`
+                    : `Old regime saves ${formatCurrency(tc.newTax - tc.oldTax)}`}
+                </p>
+              )}
+            </div>
+
+            {/* Income Breakdown */}
+            {tc && (
+              <div className="flex-1 space-y-4">
+                {/* Income Sources */}
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                  <div className="rounded-lg bg-surface-tertiary/50 p-3 border border-border-light">
+                    <p className="text-text-tertiary text-xs">Salary Income</p>
+                    <p className="font-mono font-semibold text-text-primary">{formatCurrency(tc.salaryIncome)}</p>
+                    <p className="text-[10px] text-text-tertiary">From Income Tracker</p>
+                  </div>
+                  <div className="rounded-lg bg-surface-tertiary/50 p-3 border border-border-light">
+                    <p className="text-text-tertiary text-xs">Invoice Revenue</p>
+                    <p className="font-mono font-semibold text-text-primary">{formatCurrency(tc.invoiceSubtotal)}</p>
+                    <p className="text-[10px] text-text-tertiary">{tc.invoiceCount} paid invoices (excl. GST)</p>
+                  </div>
+                  <div className="rounded-lg bg-accent/5 p-3 border border-accent/20">
+                    <p className="text-text-tertiary text-xs">Gross Taxable Income</p>
+                    <p className="font-mono font-bold text-accent-light">{formatCurrency(tc.grossTaxableIncome)}</p>
+                  </div>
+                </div>
+                {/* Tax Computation */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                  <div>
+                    <p className="text-text-tertiary text-xs">GST (pass-through)</p>
+                    <p className="font-mono text-text-tertiary">{formatCurrency(tc.totalGst)}</p>
+                    <p className="text-[10px] text-text-tertiary">Excluded from income</p>
+                  </div>
+                  <div>
+                    <p className="text-text-tertiary text-xs">Taxable Income</p>
+                    <p className="font-mono font-semibold text-text-primary">{formatCurrency(chosenTaxableIncome)}</p>
+                    <p className="text-[10px] text-text-tertiary">
+                      {selectedRegime === "new" ? "After ₹75K std deduction" : `After ₹${Math.round(tc.totalOldDeductions / 1000)}K deductions`}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-text-tertiary text-xs">Tax ({selectedRegime === "new" ? "New" : "Old"})</p>
+                    <p className="font-mono font-semibold text-rose-400">{formatCurrency(chosenTax)}</p>
+                  </div>
+                  <div>
+                    <p className="text-text-tertiary text-xs">TDS Deducted</p>
+                    <p className="font-mono font-semibold text-emerald-400">-{formatCurrency(tdsDeducted)}</p>
+                    <p className="text-[10px] text-text-tertiary">
+                      Salary: {formatCurrency(tc.salaryTDS)} + Invoice: {formatCurrency(tc.invoiceTdsTotal)}
+                    </p>
+                  </div>
+                </div>
+                {/* Net Result */}
+                <div className="rounded-lg bg-surface-tertiary p-3 border border-border">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold text-text-secondary">Net Advance Tax Payable</p>
+                    <p className="font-mono font-bold text-xl text-text-primary">{formatCurrency(annualTaxLiability)}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
@@ -1213,7 +1377,7 @@ function AdvanceTaxPlanner({
               {formatCurrency(annualTaxLiability)}
             </p>
             <p className="text-xs text-text-tertiary mt-1">
-              After TDS (new regime estimate)
+              After TDS &amp; GST exclusion ({selectedRegime === "old" ? "Old" : "New"} Regime)
             </p>
           </CardContent>
         </Card>
@@ -1234,7 +1398,7 @@ function AdvanceTaxPlanner({
           <CardContent className="p-6">
             <p className="text-sm text-text-secondary">Balance Due</p>
             <p className="text-2xl font-bold font-mono text-amber-400 mt-1">
-              {formatCurrency(Math.max(totalDue - totalPaid, 0))}
+              {formatCurrency(Math.max(annualTaxLiability - totalPaid, 0))}
             </p>
           </CardContent>
         </Card>
@@ -1265,12 +1429,8 @@ function AdvanceTaxPlanner({
                       : "warning"
                   }
                 >
-                  {q.status === "paid" && (
-                    <CheckCircle className="h-3 w-3 mr-1" />
-                  )}
-                  {q.status === "overdue" && (
-                    <AlertTriangle className="h-3 w-3 mr-1" />
-                  )}
+                  {q.status === "paid" && <CheckCircle className="h-3 w-3 mr-1" />}
+                  {q.status === "overdue" && <AlertTriangle className="h-3 w-3 mr-1" />}
                   {q.status.charAt(0).toUpperCase() + q.status.slice(1)}
                 </Badge>
               </div>
@@ -1283,28 +1443,17 @@ function AdvanceTaxPlanner({
               <div className="space-y-1">
                 <div className="flex justify-between text-sm">
                   <span className="text-text-secondary">Amount Due</span>
-                  <span className="text-text-primary font-mono">
-                    {formatCurrency(q.amountDue)}
-                  </span>
+                  <span className="text-text-primary font-mono">{formatCurrency(q.amountDue)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-text-secondary">Amount Paid</span>
-                  <span
-                    className={`font-mono ${
-                      q.amountPaid >= q.amountDue ? "text-emerald-400" : "text-amber-400"
-                    }`}
-                  >
+                  <span className={`font-mono ${q.amountPaid >= q.amountDue ? "text-emerald-400" : "text-amber-400"}`}>
                     {formatCurrency(q.amountPaid)}
                   </span>
                 </div>
               </div>
-
               {q.status !== "paid" && (
-                <Button
-                  size="sm"
-                  className="w-full mt-2"
-                  onClick={() => handleMarkPaid(q)}
-                >
+                <Button size="sm" className="w-full mt-2" onClick={() => handleMarkPaid(q)}>
                   <CheckCircle className="h-4 w-4 mr-1" />
                   Mark as Paid
                 </Button>
@@ -1315,25 +1464,20 @@ function AdvanceTaxPlanner({
       </div>
 
       {/* Interest Warning */}
-      <Card className="border-accent/100/20 bg-accent/100/5">
+      <Card className="border-amber-500/20 bg-amber-500/5">
         <CardContent className="p-6">
           <div className="flex items-start gap-3">
             <AlertTriangle className="h-5 w-5 text-amber-400 shrink-0 mt-0.5" />
             <div>
-              <h4 className="font-semibold text-amber-400">
-                Interest on Late Payment
-              </h4>
+              <h4 className="font-semibold text-amber-400">Interest on Late Payment</h4>
               <p className="text-text-secondary text-sm mt-1">
-                <strong>Sec 234B:</strong> Interest at 1% per month on shortfall
-                if advance tax paid is less than 90% of assessed tax.
+                <strong>Sec 234B:</strong> Interest at 1% per month on shortfall if advance tax paid is less than 90% of assessed tax.
               </p>
               <p className="text-text-secondary text-sm mt-1">
-                <strong>Sec 234C:</strong> Interest at 1% per month on deferment
-                of individual quarterly installments.
+                <strong>Sec 234C:</strong> Interest at 1% per month on deferment of individual quarterly installments.
               </p>
               <p className="text-text-tertiary text-xs mt-2">
-                Interest is calculated on simple interest basis from due date to
-                date of payment.
+                Interest is calculated on simple interest basis from due date to date of payment.
               </p>
             </div>
           </div>
@@ -1354,10 +1498,8 @@ function GSTTracker({
   userId: Id<"users">;
   fy: string;
 }) {
-  const incomeEntries = useQuery(api.income.getAnnualIncome, {
-    userId,
-    financialYear: fy,
-  });
+  // Primary source: Invoices (for Output GST + Revenue)
+  const allInvoices = useQuery(api.invoices.getInvoices, { userId });
   const expenseEntries = useQuery(api.expenses.getExpenseEntries, { userId });
   const gstFilings = useQuery(api.tax.getGSTFilings, { userId });
   const markFiled = useMutation(api.tax.markGSTFiled);
@@ -1366,22 +1508,37 @@ function GSTTracker({
   const startYear = parseInt(startYearStr);
   const { start: fyStart, end: fyEnd } = getFinancialYearDates(fy);
 
-  // Filter expenses to FY
+  // Filter expenses to FY for Input GST (ITC)
   const fyExpenses = useMemo(() => {
     if (!expenseEntries) return [];
     return expenseEntries.filter((e) => e.date >= fyStart && e.date <= fyEnd);
   }, [expenseEntries, fyStart, fyEnd]);
 
-  // Build monthly GST data from real entries
-  const gstData = useMemo(() => {
-    if (!incomeEntries) return [];
+  // Filter invoices to FY (non-cancelled, non-draft)
+  const fyInvoices = useMemo(() => {
+    if (!allInvoices) return [];
+    return allInvoices.filter(
+      (inv) =>
+        inv.invoiceDate >= fyStart &&
+        inv.invoiceDate <= fyEnd &&
+        inv.status !== "cancelled"
+    );
+  }, [allInvoices, fyStart, fyEnd]);
 
+  // Build monthly GST data from invoices
+  const gstData = useMemo(() => {
     const months: {
       month: string;
+      monthStr: string;
       revenue: number;
-      outputGST: number;
+      taxableAmount: number;
+      igst: number;
+      cgst: number;
+      sgst: number;
+      totalGst: number;
       inputGST: number;
       netLiability: number;
+      invoiceCount: number;
       gstr1Filed: boolean;
       gstr3bFiled: boolean;
       filingId?: Id<"gst_filings">;
@@ -1392,17 +1549,41 @@ function GSTTracker({
       const monthStr = `${calYear}-${String(fm.calMonth + 1).padStart(2, "0")}`;
       const label = `${fm.label} ${calYear}`;
 
-      // Income entries for this month
-      const monthIncome = incomeEntries.filter((e) =>
-        e.date.startsWith(monthStr)
+      // Invoices for this month
+      const monthInvoices = fyInvoices.filter((inv) =>
+        inv.invoiceDate.startsWith(monthStr)
       );
-      const revenue = monthIncome.reduce((sum, e) => sum + e.amount, 0);
-      const outputGST = monthIncome.reduce(
-        (sum, e) => sum + (e.gst_collected ?? 0),
-        0
-      );
+      const revenue = monthInvoices.reduce((sum, inv) => sum + inv.netTotal, 0);
+      const taxableAmount = monthInvoices.reduce((sum, inv) => sum + inv.subtotal, 0);
 
-      // Expense entries for this month
+      // GST breakdown from invoices: determine IGST vs CGST+SGST
+      let igst = 0;
+      let cgst = 0;
+      let sgst = 0;
+      for (const inv of monthInvoices) {
+        const sellerGstin = (inv.sellerData as Record<string, string>)?.gstin || "";
+        const buyerGstin = (inv.buyerData as Record<string, string>)?.gstin || "";
+        const buyerAddr = (inv.buyerData as Record<string, string>)?.address || "";
+
+        // Inter-state if: different state codes, or foreign buyer, or no buyer GSTIN
+        const sellerState = sellerGstin.substring(0, 2);
+        const buyerState = buyerGstin.substring(0, 2);
+        const isForeign = ["dubai", "uae", "singapore", "usa", "uk", "london", "australia"].some(
+          (f) => buyerAddr.toLowerCase().includes(f)
+        );
+        const isInterState = isForeign || !buyerGstin || sellerState !== buyerState;
+
+        if (isInterState) {
+          igst += inv.gstTotal;
+        } else {
+          cgst += Math.round(inv.gstTotal / 2);
+          sgst += Math.round(inv.gstTotal / 2);
+        }
+      }
+
+      const totalGst = igst + cgst + sgst;
+
+      // Input GST from expenses
       const monthExpenses = fyExpenses.filter((e) =>
         e.date.startsWith(monthStr)
       );
@@ -1411,17 +1592,23 @@ function GSTTracker({
         0
       );
 
-      const netLiability = Math.max(outputGST - inputGST, 0);
+      const netLiability = Math.max(totalGst - inputGST, 0);
 
-      // Filing status from GST filings
+      // Filing status
       const filing = (gstFilings ?? []).find((f) => f.period === label);
 
       months.push({
         month: label,
+        monthStr,
         revenue,
-        outputGST,
+        taxableAmount,
+        igst,
+        cgst,
+        sgst,
+        totalGst,
         inputGST,
         netLiability,
+        invoiceCount: monthInvoices.length,
         gstr1Filed: filing?.status === "filed",
         gstr3bFiled: filing?.status === "filed",
         filingId: filing?._id,
@@ -1429,12 +1616,17 @@ function GSTTracker({
     }
 
     return months;
-  }, [incomeEntries, fyExpenses, gstFilings, startYear]);
+  }, [fyInvoices, fyExpenses, gstFilings, startYear]);
 
   const totalRevenue = gstData.reduce((s, d) => s + d.revenue, 0);
-  const totalOutput = gstData.reduce((s, d) => s + d.outputGST, 0);
+  const totalTaxable = gstData.reduce((s, d) => s + d.taxableAmount, 0);
+  const totalIgst = gstData.reduce((s, d) => s + d.igst, 0);
+  const totalCgst = gstData.reduce((s, d) => s + d.cgst, 0);
+  const totalSgst = gstData.reduce((s, d) => s + d.sgst, 0);
+  const totalOutput = gstData.reduce((s, d) => s + d.totalGst, 0);
   const totalInput = gstData.reduce((s, d) => s + d.inputGST, 0);
   const totalNet = gstData.reduce((s, d) => s + d.netLiability, 0);
+  const totalInvoiceCount = gstData.reduce((s, d) => s + d.invoiceCount, 0);
 
   async function handleMarkFiled(row: (typeof gstData)[number]) {
     const today = new Date().toISOString().slice(0, 10);
@@ -1446,7 +1638,7 @@ function GSTTracker({
     }
   }
 
-  if (incomeEntries === undefined || expenseEntries === undefined) {
+  if (allInvoices === undefined || expenseEntries === undefined) {
     return (
       <Card>
         <CardContent className="p-12 text-center text-text-secondary">
@@ -1458,6 +1650,18 @@ function GSTTracker({
 
   return (
     <div className="space-y-6">
+      {/* Source Info */}
+      <Card className="border-accent/20 bg-accent/5">
+        <CardContent className="p-4 flex items-center gap-3">
+          <ArrowRight className="h-4 w-4 text-accent-light shrink-0" />
+          <span className="text-text-secondary text-sm">
+            GST data sourced from <span className="font-semibold text-accent-light">{totalInvoiceCount} invoices</span> raised in FY {fy}.
+            Revenue &amp; Output GST come from your Invoice section.
+            {totalInput > 0 && <> Input GST (ITC) from expense entries with GST paid.</>}
+          </span>
+        </CardContent>
+      </Card>
+
       {/* Threshold Warning */}
       {totalRevenue > 2000000 && (
         <Card className="border-accent/100/20 bg-accent/100/5">
@@ -1478,36 +1682,86 @@ function GSTTracker({
       )}
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
         <Card>
-          <CardContent className="p-6">
-            <p className="text-sm text-text-secondary">Total Output GST</p>
-            <p className="text-2xl font-bold font-mono text-rose-400 mt-1">
+          <CardContent className="p-4">
+            <p className="text-xs text-text-tertiary uppercase">Taxable Value</p>
+            <p className="text-lg font-bold font-mono text-text-primary mt-1">
+              {formatCurrency(totalTaxable)}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs text-text-tertiary uppercase">IGST</p>
+            <p className="text-lg font-bold font-mono text-blue-400 mt-1">
+              {formatCurrency(totalIgst)}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs text-text-tertiary uppercase">CGST</p>
+            <p className="text-lg font-bold font-mono text-indigo-400 mt-1">
+              {formatCurrency(totalCgst)}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs text-text-tertiary uppercase">SGST</p>
+            <p className="text-lg font-bold font-mono text-purple-400 mt-1">
+              {formatCurrency(totalSgst)}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs text-text-tertiary uppercase">Total GST</p>
+            <p className="text-lg font-bold font-mono text-rose-400 mt-1">
               {formatCurrency(totalOutput)}
             </p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-6">
-            <p className="text-sm text-text-secondary">Total Input GST (ITC)</p>
-            <p className="text-2xl font-bold font-mono text-emerald-400 mt-1">
+          <CardContent className="p-4">
+            <p className="text-xs text-text-tertiary uppercase">Input ITC</p>
+            <p className="text-lg font-bold font-mono text-emerald-400 mt-1">
               {formatCurrency(totalInput)}
             </p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-6">
-            <p className="text-sm text-text-secondary">Net GST Liability</p>
-            <p className="text-2xl font-bold font-mono text-accent-light mt-1">
+          <CardContent className="p-4">
+            <p className="text-xs text-text-tertiary uppercase">Net Liability</p>
+            <p className="text-lg font-bold font-mono text-amber-400 mt-1">
               {formatCurrency(totalNet)}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Invoice Revenue Card */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card>
+          <CardContent className="p-6">
+            <p className="text-sm text-text-secondary">FY Invoice Revenue (incl. GST)</p>
+            <p className="text-2xl font-bold font-mono text-text-primary mt-1">
+              {formatCurrency(totalRevenue)}
+            </p>
+            <p className="text-xs text-text-tertiary mt-1">
+              From {totalInvoiceCount} invoices
             </p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-6">
-            <p className="text-sm text-text-secondary">FY Revenue</p>
-            <p className="text-2xl font-bold font-mono text-text-primary mt-1">
-              {formatCurrency(totalRevenue)}
+            <p className="text-sm text-text-secondary">FY Revenue (excl. GST)</p>
+            <p className="text-2xl font-bold font-mono text-accent-light mt-1">
+              {formatCurrency(totalTaxable)}
+            </p>
+            <p className="text-xs text-text-tertiary mt-1">
+              Taxable turnover for IT purposes
             </p>
           </CardContent>
         </Card>
@@ -1555,44 +1809,69 @@ function GSTTracker({
           <CardTitle>Monthly GST Summary</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="rounded-lg border border-border overflow-hidden">
+          <div className="rounded-lg border border-border overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-surface-tertiary">
                   <th className="text-left p-3 text-text-secondary font-medium">Month</th>
-                  <th className="text-right p-3 text-text-secondary font-medium">Revenue</th>
-                  <th className="text-right p-3 text-text-secondary font-medium">Output GST</th>
-                  <th className="text-right p-3 text-text-secondary font-medium">Input GST</th>
-                  <th className="text-right p-3 text-text-secondary font-medium">Net Liability</th>
+                  <th className="text-right p-3 text-text-secondary font-medium">Invoices</th>
+                  <th className="text-right p-3 text-text-secondary font-medium">Taxable</th>
+                  <th className="text-right p-3 text-text-secondary font-medium">IGST</th>
+                  <th className="text-right p-3 text-text-secondary font-medium">CGST</th>
+                  <th className="text-right p-3 text-text-secondary font-medium">SGST</th>
+                  <th className="text-right p-3 text-text-secondary font-medium">Total GST</th>
+                  <th className="text-right p-3 text-text-secondary font-medium">ITC</th>
+                  <th className="text-right p-3 text-text-secondary font-medium">Net</th>
                   <th className="text-center p-3 text-text-secondary font-medium">GSTR-1</th>
-                  <th className="text-center p-3 text-text-secondary font-medium">GSTR-3B</th>
+                  <th className="text-center p-3 text-text-secondary font-medium">3B</th>
                 </tr>
               </thead>
               <tbody>
                 {gstData.map((row, i) => (
-                  <tr key={i} className="border-t border-border-light">
-                    <td className="p-3 text-text-primary">{row.month}</td>
+                  <tr
+                    key={i}
+                    className={`border-t border-border-light ${
+                      row.invoiceCount === 0 ? "opacity-40" : ""
+                    }`}
+                  >
+                    <td className="p-3 text-text-primary whitespace-nowrap">{row.month}</td>
+                    <td className="p-3 text-right text-text-tertiary font-mono">
+                      {row.invoiceCount || "-"}
+                    </td>
                     <td className="p-3 text-right text-text-primary font-mono">
-                      {formatCurrency(row.revenue)}
+                      {row.taxableAmount > 0 ? formatCurrency(row.taxableAmount) : "-"}
+                    </td>
+                    <td className="p-3 text-right text-blue-400 font-mono">
+                      {row.igst > 0 ? formatCurrency(row.igst) : "-"}
+                    </td>
+                    <td className="p-3 text-right text-indigo-400 font-mono">
+                      {row.cgst > 0 ? formatCurrency(row.cgst) : "-"}
+                    </td>
+                    <td className="p-3 text-right text-purple-400 font-mono">
+                      {row.sgst > 0 ? formatCurrency(row.sgst) : "-"}
                     </td>
                     <td className="p-3 text-right text-rose-400 font-mono">
-                      {formatCurrency(row.outputGST)}
+                      {row.totalGst > 0 ? formatCurrency(row.totalGst) : "-"}
                     </td>
                     <td className="p-3 text-right text-emerald-400 font-mono">
-                      {formatCurrency(row.inputGST)}
+                      {row.inputGST > 0 ? formatCurrency(row.inputGST) : "-"}
                     </td>
-                    <td className="p-3 text-right text-accent-light font-mono">
-                      {formatCurrency(row.netLiability)}
+                    <td className="p-3 text-right text-amber-400 font-mono font-semibold">
+                      {row.netLiability > 0 ? formatCurrency(row.netLiability) : "-"}
                     </td>
                     <td className="p-3 text-center">
-                      {row.gstr1Filed ? (
+                      {row.invoiceCount === 0 ? (
+                        <span className="text-text-tertiary text-xs">-</span>
+                      ) : row.gstr1Filed ? (
                         <CheckCircle className="h-4 w-4 text-emerald-400 mx-auto" />
                       ) : (
                         <AlertTriangle className="h-4 w-4 text-amber-400 mx-auto" />
                       )}
                     </td>
                     <td className="p-3 text-center">
-                      {row.gstr3bFiled ? (
+                      {row.invoiceCount === 0 ? (
+                        <span className="text-text-tertiary text-xs">-</span>
+                      ) : row.gstr3bFiled ? (
                         <CheckCircle className="h-4 w-4 text-emerald-400 mx-auto" />
                       ) : row.filingId ? (
                         <Button
@@ -1601,7 +1880,7 @@ function GSTTracker({
                           className="h-6 px-2 text-xs"
                           onClick={() => handleMarkFiled(row)}
                         >
-                          Mark Filed
+                          Filed
                         </Button>
                       ) : (
                         <AlertTriangle className="h-4 w-4 text-amber-400 mx-auto" />
@@ -1611,10 +1890,20 @@ function GSTTracker({
                 ))}
               </tbody>
               <tfoot>
-                <tr className="border-t border-border bg-surface-tertiary font-semibold">
+                <tr className="border-t-2 border-border bg-surface-tertiary font-semibold">
                   <td className="p-3 text-text-primary">Total</td>
+                  <td className="p-3 text-right text-text-primary font-mono">{totalInvoiceCount}</td>
                   <td className="p-3 text-right text-text-primary font-mono">
-                    {formatCurrency(totalRevenue)}
+                    {formatCurrency(totalTaxable)}
+                  </td>
+                  <td className="p-3 text-right text-blue-400 font-mono">
+                    {formatCurrency(totalIgst)}
+                  </td>
+                  <td className="p-3 text-right text-indigo-400 font-mono">
+                    {formatCurrency(totalCgst)}
+                  </td>
+                  <td className="p-3 text-right text-purple-400 font-mono">
+                    {formatCurrency(totalSgst)}
                   </td>
                   <td className="p-3 text-right text-rose-400 font-mono">
                     {formatCurrency(totalOutput)}
@@ -1622,7 +1911,7 @@ function GSTTracker({
                   <td className="p-3 text-right text-emerald-400 font-mono">
                     {formatCurrency(totalInput)}
                   </td>
-                  <td className="p-3 text-right text-accent-light font-mono">
+                  <td className="p-3 text-right text-amber-400 font-mono">
                     {formatCurrency(totalNet)}
                   </td>
                   <td className="p-3" />
