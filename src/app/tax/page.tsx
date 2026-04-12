@@ -198,30 +198,35 @@ export default function TaxPage() {
     <AppLayout>
       <div className="space-y-6">
         {/* Page Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-display font-bold text-text-primary">
-              Tax Planning & Compliance
-            </h1>
-            <p className="text-text-secondary mt-1">
-              FY {fy} (AY {ayYear}) &mdash; Comprehensive tax management
-            </p>
-          </div>
-          <div className="flex gap-2">
-            {availableFYs.map((f) => (
-              <button
-                key={f}
-                onClick={() => setSelectedFY(f)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                  selectedFY === f
-                    ? "text-white shadow-sm"
-                    : "border border-gray-200 bg-white text-text-secondary hover:border-gray-300"
-                }`}
-                style={selectedFY === f ? { backgroundColor: "#6366f1" } : undefined}
-              >
-                FY {f}
-              </button>
-            ))}
+        <div>
+          <h1 className="text-3xl font-display font-bold text-text-primary">
+            Tax Planning & Compliance
+          </h1>
+          <p className="text-text-secondary mt-1">
+            FY {fy} (AY {ayYear}) &mdash; Comprehensive tax management
+          </p>
+        </div>
+
+        {/* Sticky tab bar with FY selector */}
+        <div className="sticky top-0 z-20 -mx-4 sm:-mx-6 px-4 sm:px-6 py-3 bg-[#F5F6FA]/95 backdrop-blur-sm border-b border-border-light">
+          <div className="flex items-center justify-between gap-4 max-w-7xl">
+            {/* FY Selector */}
+            <div className="flex gap-1.5 shrink-0">
+              {availableFYs.map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setSelectedFY(f)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    selectedFY === f
+                      ? "text-white shadow-sm"
+                      : "border border-border-light bg-surface text-text-secondary hover:border-border"
+                  }`}
+                  style={selectedFY === f ? { backgroundColor: "#6366f1" } : undefined}
+                >
+                  FY {f}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
