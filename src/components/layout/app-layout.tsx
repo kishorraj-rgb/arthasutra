@@ -4,7 +4,7 @@ import { createContext, useContext, useState, useCallback } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { Sidebar } from "./sidebar";
 import { PageTransition } from "@/components/ui/page-transition";
-import { Menu } from "lucide-react";
+import { Menu, RefreshCw } from "lucide-react";
 
 // Sidebar context so sidebar + main content share collapse state
 interface SidebarContextType {
@@ -24,7 +24,7 @@ const SidebarContext = createContext<SidebarContextType>({
 export const useSidebar = () => useContext(SidebarContext);
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
+  const { user, authError, retryLogin } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -33,11 +33,24 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   if (!user) {
     return (
       <div className="flex h-screen items-center justify-center bg-[#F5F6FA]">
-        <div className="flex flex-col items-center gap-4 animate-pulse">
-          <div className="h-12 w-12 rounded-lg bg-accent flex items-center justify-center text-white font-bold">
+        <div className="flex flex-col items-center gap-4">
+          <div className={`h-12 w-12 rounded-lg bg-accent flex items-center justify-center text-white font-bold ${!authError ? "animate-pulse" : ""}`}>
             AS
           </div>
-          <p className="text-text-tertiary text-sm">Loading ArthaSutra...</p>
+          {authError ? (
+            <>
+              <p className="text-red-500 text-sm">{authError}</p>
+              <button
+                onClick={retryLogin}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-accent rounded-lg hover:bg-accent/90 transition-colors"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Retry
+              </button>
+            </>
+          ) : (
+            <p className="text-text-tertiary text-sm">Loading ArthaSutra...</p>
+          )}
         </div>
       </div>
     );

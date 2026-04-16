@@ -20,6 +20,8 @@ interface AuthContextType {
   user: User | null;
   token: string | null;
   isLoading: boolean;
+  authError: string | null;
+  retryLogin: () => void;
   logout: () => Promise<void>;
 }
 
@@ -29,7 +31,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { data: googleSession, status: googleStatus } = useSession();
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [autoLoginAttempted, setAutoLoginAttempted] = useState(false);
+  const [loginInProgress, setLoginInProgress] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   const autoLogin = useMutation(api.auth.autoLogin);
   const logoutMutation = useMutation(api.auth.logout);
@@ -44,9 +47,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(false);
   }, []);
 
+  const performAutoLogin = useCallback(() => {
+    if (loginInProgress) return;
+    setLoginInProgress(true);
+    setAuthError(null);
+    autoLogin({}).then((result) => {
+      localStorage.setItem("arthasutra_token", result.token);
+      setToken(result.token);
+      setLoginInProgress(false);
+    }).catch((err) => {
+      console.error("Convex auto-login failed:", err);
+      setAuthError("Login failed. Please try again.");
+      setLoginInProgress(false);
+    });
+  }, [autoLogin, loginInProgress]);
+
+  const retryLogin = useCallback(() => {
+    localStorage.removeItem("arthasutra_token");
+    setToken(null);
+    setAuthError(null);
+    performAutoLogin();
+  }, [performAutoLogin]);
+
   // When Google session is available and we don't have a Convex session, auto-login to Convex
   useEffect(() => {
-    if (isLoading || autoLoginAttempted || googleStatus === "loading") return;
+    if (isLoading || loginInProgress || googleStatus === "loading") return;
 
     // If Google is not authenticated, don't try Convex auto-login
     if (googleStatus !== "authenticated" || !googleSession?.user) return;
@@ -62,15 +87,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Auto-login to Convex (creates user if needed)
     if (!token || session === null) {
-      setAutoLoginAttempted(true);
-      autoLogin({}).then((result) => {
-        localStorage.setItem("arthasutra_token", result.token);
-        setToken(result.token);
-      }).catch((err) => {
-        console.error("Convex auto-login failed:", err);
-      });
+      performAutoLogin();
     }
-  }, [isLoading, token, session, autoLoginAttempted, autoLogin, googleSession, googleStatus]);
+  }, [isLoading, token, session, loginInProgress, performAutoLogin, googleSession, googleStatus]);
 
   const logout = useCallback(async () => {
     if (token) {
@@ -78,7 +97,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     localStorage.removeItem("arthasutra_token");
     setToken(null);
-    setAutoLoginAttempted(false);
+    setLoginInProgress(false);
+    setAuthError(null);
     await signOut({ callbackUrl: "/auth" });
   }, [token, logoutMutation]);
 
@@ -95,7 +115,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     : null;
 
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, logout }}>
+    <AuthContext.Provider value={{ user, token, isLoading, authError, retryLogin, logout }}>
       {children}
     </AuthContext.Provider>
   );
